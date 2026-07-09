@@ -1,10 +1,10 @@
-# ADR-DRAFT: Agent-Native Tool Surface
+# Spec: Agent-Native Tool Surface
 
 Date: 2026-07-09
 
 ## Status
 
-Proposed
+Planning note
 
 ## Context
 

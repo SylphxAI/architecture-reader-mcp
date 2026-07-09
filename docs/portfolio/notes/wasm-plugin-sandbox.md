@@ -1,6 +1,6 @@
-# ADR Draft: WASM As Plugin Sandbox, Not Default Server Runtime
+# Portfolio Note: WASM As Plugin Sandbox, Not Default Server Runtime
 
-Status: proposed  
+Status: planning note
 Date: 2026-07-09  
 Decision owner: SylphxAI
 
