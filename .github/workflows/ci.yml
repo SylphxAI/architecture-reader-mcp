@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate:
-    name: validate scaffold
+    name: validate release gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,7 +35,7 @@ jobs:
         run: bun install
 
       - name: Build Rust engine
-        run: cargo build --release
+        run: bun run build:rust
 
       - name: Run Rust tests
         run: cargo test
