@@ -98,6 +98,7 @@ mod tests {
 
     #[test]
     fn indexes_fixture_with_synth_extractor_when_probe_is_available() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
         let graph = scanner::scan_repository(
             &root,
@@ -158,7 +159,11 @@ mod tests {
     fn trace_finds_symbol_call_path_in_fixture() {
         let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
-        let index_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
+        let index_input = serde_json::json!({
+            "root": root.to_string_lossy(),
+            "mode": "full",
+            "useSynth": false
+        });
         let _ = engine::handle_tool("architecture_index", index_input);
         let trace_input = serde_json::json!({
             "root": root.to_string_lossy(),

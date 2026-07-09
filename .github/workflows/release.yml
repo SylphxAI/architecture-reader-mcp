@@ -37,7 +37,7 @@ jobs:
         run: bun run build:rust
 
       - name: Run tests
-        run: bun run test
+        run: cargo test -p architecture-reader-core -- --test-threads=1 && bun test
 
       - name: Release gate
         run: bun run benchmark:release-gate
