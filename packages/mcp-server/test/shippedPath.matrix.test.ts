@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
-import { execSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
@@ -18,11 +17,9 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
     fixtureRoot = mkdtempSync(join(os.tmpdir(), 'architecture-reader-matrix-fixture-'));
     cpSync(fixtureTemplate, fixtureRoot, { recursive: true });
 
-    execSync('cargo build --release -p architecture-reader-cli', {
-      cwd: repoRoot,
-      stdio: 'pipe',
-      timeout: 300_000,
-    });
+    const releaseCli = join(repoRoot, 'target/release/architecture-reader-cli');
+    const debugCli = join(repoRoot, 'target/debug/architecture-reader-cli');
+    expect(existsSync(releaseCli) || existsSync(debugCli)).toBe(true);
 
     const probeDir = mkdtempSync(join(os.tmpdir(), 'architecture-reader-matrix-probe-'));
     nodeInvokeLog = join(probeDir, 'node-invoke.log');
@@ -45,7 +42,7 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
       fakeNodeEnv
     );
     expect(index.status).toBe('ok');
-  });
+  }, { timeout: 300_000 });
 
   const invoke = (tool: string, input: Record<string, unknown>) =>
     invokeEngine(tool, input, fakeNodeEnv);
