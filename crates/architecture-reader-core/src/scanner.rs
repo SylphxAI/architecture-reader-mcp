@@ -24,6 +24,7 @@ pub struct ScanOptions {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
     pub max_file_bytes: u64,
+    pub use_synth: bool,
 }
 
 impl Default for ScanOptions {
@@ -32,21 +33,26 @@ impl Default for ScanOptions {
             include: vec![],
             exclude: DEFAULT_EXCLUDES.iter().map(|s| (*s).to_string()).collect(),
             max_file_bytes: 1_048_576,
+            use_synth: crate::synth_probe::probe_enabled_from_env(),
         }
     }
 }
 
 #[derive(Debug, Default)]
-struct GraphBuilder {
-    nodes: Vec<GraphNode>,
-    edges: Vec<GraphEdge>,
+pub(crate) struct GraphBuilder {
+    pub(crate) nodes: Vec<GraphNode>,
+    pub(crate) edges: Vec<GraphEdge>,
     claims: Vec<GraphClaim>,
-    evidence: Vec<EvidenceRef>,
+    pub(crate) evidence: Vec<EvidenceRef>,
     evidence_seq: u32,
 }
 
 impl GraphBuilder {
-    fn push_evidence(&mut self, kind: &str, path: &str, extractor: &str, start: Option<u32>, end: Option<u32>) -> String {
+    pub(crate) fn has_node(&self, id: &str) -> bool {
+        self.nodes.iter().any(|node| node.id == id)
+    }
+
+    pub(crate) fn push_evidence(&mut self, kind: &str, path: &str, extractor: &str, start: Option<u32>, end: Option<u32>) -> String {
         self.evidence_seq += 1;
         let id = format!("ev_{:02}", self.evidence_seq);
         self.evidence.push(EvidenceRef {
@@ -61,7 +67,7 @@ impl GraphBuilder {
         id
     }
 
-    fn push_node(&mut self, id: &str, kind: &str, label: &str, path: Option<&str>, evidence_id: &str) {
+    pub(crate) fn push_node(&mut self, id: &str, kind: &str, label: &str, path: Option<&str>, evidence_id: &str) {
         self.nodes.push(GraphNode {
             id: id.into(),
             kind: kind.into(),
@@ -71,7 +77,7 @@ impl GraphBuilder {
         });
     }
 
-    fn push_edge(&mut self, kind: &str, from: &str, to: &str, evidence_id: &str) {
+    pub(crate) fn push_edge(&mut self, kind: &str, from: &str, to: &str, evidence_id: &str) {
         let id = format!("edge:{kind}:{from}->{to}");
         self.edges.push(GraphEdge {
             id,
@@ -133,7 +139,10 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
             || rel_str.ends_with(".js")
             || rel_str.ends_with(".mjs")
         {
-            index_ts_imports(&mut builder, &rel_str, path);
+            let used_synth = index_ts_with_optional_synth(&mut builder, &rel_str, path, options.use_synth);
+            if !used_synth {
+                index_ts_imports(&mut builder, &rel_str, path);
+            }
             index_ts_routes(&mut builder, &rel_str, path);
             index_ts_schemas(&mut builder, &rel_str, path);
             files_indexed += 1;
@@ -166,6 +175,17 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
 
     let _ = (files_scanned, files_indexed);
 
+    let mut extractors = vec![
+        "manifest@0.1.0".into(),
+        "import-graph@0.1.0".into(),
+        "docs@0.1.0".into(),
+        "routes@0.1.0".into(),
+        "schema@0.1.0".into(),
+    ];
+    if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
+        extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
+    }
+
     ArchitectureGraph {
         schema_version: GRAPH_SCHEMA_VERSION.into(),
         repository: RepositorySnapshot {
@@ -173,13 +193,7 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
             git_commit,
             worktree_dirty: dirty,
         },
-        extractors: vec![
-            "manifest@0.1.0".into(),
-            "import-graph@0.1.0".into(),
-            "docs@0.1.0".into(),
-            "routes@0.1.0".into(),
-            "schema@0.1.0".into(),
-        ],
+        extractors,
         nodes: builder.nodes,
         edges: builder.edges,
         claims: builder.claims,
@@ -219,6 +233,26 @@ fn index_document(builder: &mut GraphBuilder, rel: &str, kind: &str) {
     let node_id = format!("node:{kind}:{}", rel.replace('/', ":"));
     builder.push_node(&node_id, kind, &label, Some(rel), &ev);
     builder.push_edge("documents", "node:repository:root", &node_id, &ev);
+}
+
+fn index_ts_with_optional_synth(
+    builder: &mut GraphBuilder,
+    rel: &str,
+    path: &Path,
+    use_synth: bool,
+) -> bool {
+    if !use_synth {
+        return false;
+    }
+
+    let script = crate::synth_probe::default_probe_script();
+    match crate::synth_probe::probe_synth_tree(path, &script) {
+        Ok(tree) => {
+            crate::synth::apply_to_builder(builder, rel, &tree);
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 fn index_ts_imports(builder: &mut GraphBuilder, rel: &str, path: &Path) {

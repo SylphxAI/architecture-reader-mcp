@@ -4,6 +4,8 @@ pub mod engine;
 pub mod git;
 pub mod scanner;
 pub mod store;
+pub mod synth;
+pub mod synth_probe;
 pub mod types;
 
 pub use engine::handle_tool;
@@ -84,6 +86,37 @@ mod tests {
         let gaps = envelope.gaps;
         assert!(!gaps.iter().any(|g| g.contains("Route extraction")));
         assert!(!gaps.iter().any(|g| g.contains("Schema extraction")));
+    }
+
+    #[test]
+    fn indexes_fixture_with_synth_extractor_when_probe_is_available() {
+        if std::env::var("ARCHITECTURE_READER_USE_SYNTH")
+            .map(|value| value == "1")
+            .unwrap_or(false)
+        {
+            // Respect explicit opt-out in nested test runs.
+        }
+        std::env::set_var("ARCHITECTURE_READER_USE_SYNTH", "1");
+        let root = fixture_root();
+        let graph = scanner::scan_repository(
+            &root,
+            &scanner::ScanOptions {
+                use_synth: true,
+                ..scanner::ScanOptions::default()
+            },
+            None,
+            false,
+        );
+        std::env::remove_var("ARCHITECTURE_READER_USE_SYNTH");
+
+        if graph
+            .extractors
+            .iter()
+            .any(|extractor| extractor.starts_with("synth-"))
+        {
+            assert!(graph.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")));
+            assert!(graph.nodes.iter().any(|node| node.kind == "symbol"));
+        }
     }
 
     #[test]

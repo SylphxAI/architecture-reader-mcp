@@ -100,6 +100,11 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     if let Some(max) = input.get("maxFileBytes").and_then(|v| v.as_u64()) {
         options.max_file_bytes = max;
     }
+    if let Some(use_synth) = input.get("useSynth").and_then(|v| v.as_bool()) {
+        options.use_synth = use_synth;
+    } else if crate::synth_probe::probe_enabled_from_env() {
+        options.use_synth = true;
+    }
 
     if mode == "status_only" {
         let graph = load_graph(&root);
@@ -458,6 +463,9 @@ fn coverage_gaps(graph: &ArchitectureGraph) -> Vec<String> {
     }
     if graph.repository.worktree_dirty {
         gaps.push("Working tree has uncommitted changes.".into());
+    }
+    if !graph.extractors.iter().any(|extractor| extractor.starts_with("synth-")) {
+        gaps.push("Synth AST substrate not active; import graph uses regex fallback.".into());
     }
     gaps
 }

@@ -21,5 +21,8 @@
     "type": "git",
     "url": "https://github.com/SylphxAI/architecture-reader-mcp.git"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@sylphx/synth-js": "^0.2.0"
+  }
 }
