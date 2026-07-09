@@ -1,0 +1,4 @@
+{
+  "root": "/absolute/path/to/repo",
+  "mode": "auto"
+}

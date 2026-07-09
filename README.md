@@ -8,6 +8,7 @@ Agent-native MCP server for **repository architecture evidence graphs** — boun
 dependencies, routes, schemas, and impact radius with file-level provenance, not
 dashboard screenshots or keyword grep.
 
+[![npm version](https://img.shields.io/npm/v/@sylphx/architecture-reader-mcp?style=flat-square)](https://www.npmjs.com/package/@sylphx/architecture-reader-mcp)
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/SylphxAI/architecture-reader-mcp/ci.yml?style=flat-square&label=CI/CD)](https://github.com/SylphxAI/architecture-reader-mcp/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
@@ -47,7 +48,7 @@ repo is shaped, what depends on what, and which files back each claim.**
 **Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
 adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
 Python indexing, and incremental refresh are implemented with release-gate proof.
-npm publish and MCP Registry listing remain open — see
+First npm publish is workflow-owned via Changesets on `main` — see
 [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
 ## Why not grep or a dashboard?
@@ -151,12 +152,34 @@ source, freshness, confidence, and known gaps.
 
 ## Quick start
 
+### Claude Code
+
+```bash
+claude mcp add architecture-reader -- npx @sylphx/architecture-reader-mcp
+```
+
+### Claude Desktop / any MCP host
+
+```json
+{
+  "mcpServers": {
+    "architecture-reader": {
+      "command": "npx",
+      "args": ["-y", "@sylphx/architecture-reader-mcp"]
+    }
+  }
+}
+```
+
+Set the host working directory to the repository you want indexed.
+
 ### Clone and validate locally
 
 ```bash
 git clone https://github.com/SylphxAI/architecture-reader-mcp.git
 cd architecture-reader-mcp
 bun install
+bun run build:rust
 bun run validate
 cargo test
 bun test test/readmeDiscovery.test.ts
@@ -215,15 +238,24 @@ bun test
 bun run benchmark:public-proof
 ```
 
+## Security model
+
+- **Repository scope** — all tools operate relative to the configured project root; absolute paths are rejected.
+- **Evidence envelope** — every answer includes path, line range, extractor route, freshness, and explicit coverage gaps.
+- **Deterministic first** — regex and manifest extractors are labeled; Synth AST is opt-in via `ARCHITECTURE_READER_USE_SYNTH=1`.
+- **Local-first** — indexing and queries run on your machine; no document upload to Sylphx cloud by default.
+
 ## Benchmark proof
 
 Reproduce locally:
 
 ```bash
+bun run build:rust
 bun run benchmark:public-proof
+bun run benchmark:release-gate
 ```
 
-Fixture: `fixtures/sample-repo` (auth middleware + ADR + package manifest).
+Fixture: `fixtures/sample-repo` (auth middleware + ADR + package manifest). Example requests: [`examples/`](examples/).
 
 ## Help this reach more builders
 
@@ -246,4 +278,4 @@ Know another MCP directory? [Open an issue](https://github.com/SylphxAI/architec
 
 ## License
 
-UNLICENSED — private SylphxAI repository until an explicit OSS license is adopted.
+MIT — see [LICENSE](LICENSE).

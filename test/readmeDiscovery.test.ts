@@ -22,6 +22,10 @@ describe('README discovery surfaces', () => {
     expect(readme).toContain('architecture_search');
     expect(readme).toContain('architecture_trace');
     expect(readme).toContain('architecture_impact');
+    expect(readme).toContain('## Security model');
+    expect(readme).toContain('claude mcp add architecture-reader');
+    expect(readme).toContain('examples/');
+    expect(readme).toContain('MIT');
     expect(readme).not.toContain('pdf-reader-mcp');
     expect(readme).not.toContain('ADR-0002');
   });
