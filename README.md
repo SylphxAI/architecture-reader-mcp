@@ -98,6 +98,7 @@ architecture-reader-mcp/
 - [Indexing Pipeline Spec](./docs/specs/2026-07-09-indexing-pipeline.md)
 - [Category And Internal Research](./docs/research/2026-07-09-category-and-internal-analysis.md)
 - [MCP Portfolio Plan](./docs/portfolio/README.md)
+- [SOTA Family Roadmap](./docs/roadmap/sota-family-roadmap.md)
 
 ## Development
 
