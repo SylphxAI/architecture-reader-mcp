@@ -98,13 +98,6 @@ mod tests {
 
     #[test]
     fn indexes_fixture_with_synth_extractor_when_probe_is_available() {
-        if std::env::var("ARCHITECTURE_READER_USE_SYNTH")
-            .map(|value| value == "1")
-            .unwrap_or(false)
-        {
-            // Respect explicit opt-out in nested test runs.
-        }
-        std::env::set_var("ARCHITECTURE_READER_USE_SYNTH", "1");
         let root = fixture_root();
         let graph = scanner::scan_repository(
             &root,
@@ -115,7 +108,6 @@ mod tests {
             None,
             false,
         );
-        std::env::remove_var("ARCHITECTURE_READER_USE_SYNTH");
 
         if graph
             .extractors

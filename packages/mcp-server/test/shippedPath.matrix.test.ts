@@ -45,7 +45,7 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
       fakeNodeEnv
     );
     expect(index.status).toBe('ok');
-  }, 300_000);
+  });
 
   const invoke = (tool: string, input: Record<string, unknown>) =>
     invokeEngine(tool, input, fakeNodeEnv);

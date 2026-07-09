@@ -10,7 +10,8 @@ use crate::scanner::{
 };
 use crate::store::{load_file_hashes, load_graph, save_file_hashes, save_graph, FileHashManifest};
 use crate::types::{
-    ArchitectureGraph, EvidenceRef, Metrics, RepositoryState, ToolEnvelope, GRAPH_SCHEMA_VERSION,
+    ArchitectureGraph, EvidenceRef, GraphNode, Metrics, RepositoryState, ToolEnvelope,
+    GRAPH_SCHEMA_VERSION,
 };
 
 pub fn handle_tool(tool: &str, input: serde_json::Value) -> ToolEnvelope {
@@ -580,12 +581,23 @@ fn coverage_gaps(graph: &ArchitectureGraph, synth_active: bool) -> Vec<String> {
 }
 
 fn resolve_node_id(graph: &ArchitectureGraph, needle: &str) -> Option<String> {
-    if let Some(node) = graph
-        .nodes
-        .iter()
-        .find(|n| n.id == needle || n.path.as_deref() == Some(needle) || n.label == needle)
-    {
+    if let Some(node) = graph.nodes.iter().find(|n| n.id == needle) {
         return Some(node.id.clone());
+    }
+
+    if let Some(node) = graph.nodes.iter().find(|n| n.path.as_deref() == Some(needle)) {
+        return Some(node.id.clone());
+    }
+
+    if let Some((path, symbol)) = needle.split_once("::") {
+        let qualified_matches: Vec<_> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.kind == "symbol" && n.label == symbol && n.path.as_deref() == Some(path))
+            .collect();
+        if !qualified_matches.is_empty() {
+            return Some(prefer_symbol_node_id(&qualified_matches));
+        }
     }
 
     let symbol_matches: Vec<_> = graph
@@ -593,19 +605,20 @@ fn resolve_node_id(graph: &ArchitectureGraph, needle: &str) -> Option<String> {
         .iter()
         .filter(|n| n.kind == "symbol" && n.label == needle)
         .collect();
-    if symbol_matches.len() == 1 {
-        return Some(symbol_matches[0].id.clone());
+    if symbol_matches.is_empty() {
+        return None;
     }
 
-    if let Some((path, symbol)) = needle.split_once("::") {
-        return graph
-            .nodes
-            .iter()
-            .find(|n| n.kind == "symbol" && n.label == symbol && n.path.as_deref() == Some(path))
-            .map(|n| n.id.clone());
-    }
+    Some(prefer_symbol_node_id(&symbol_matches))
+}
 
-    None
+fn prefer_symbol_node_id(nodes: &[&GraphNode]) -> String {
+    nodes
+        .iter()
+        .find(|node| node.id.contains(":export:"))
+        .or_else(|| nodes.iter().find(|node| node.id.contains(":function:")))
+        .map(|node| node.id.clone())
+        .unwrap_or_else(|| nodes[0].id.clone())
 }
 
 fn bfs_path(
