@@ -20,7 +20,7 @@ vision-provider observations with explicit confidence and route.
 
 - Rust core for image decode, metadata parsing, hashing, crop extraction,
   resizing, color/profile inspection, and batch operations.
-- Thin MCP adapter during early releases.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp`.
 - Optional OCR and vision providers behind explicit provider contracts.
 - Shared evidence envelope for source hash, pixel region, OCR box, metadata
   route, and redaction policy.
@@ -67,7 +67,7 @@ vision-provider observations with explicit confidence and route.
 
 - Publish speed and accuracy fixtures.
 - Add demo gallery with expected JSON.
-- Add direct Rust MCP server evaluation.
+- Ship the Rust MCP server as the canonical runtime.
 
 ## Validation Gates
 
@@ -80,6 +80,7 @@ vision-provider observations with explicit confidence and route.
 ## ADRs To Land In Image Reader
 
 - Rust image core boundary.
+- Rust MCP server boundary.
 - OCR provider contract.
 - Region and crop evidence schema.
 - Privacy redaction policy.

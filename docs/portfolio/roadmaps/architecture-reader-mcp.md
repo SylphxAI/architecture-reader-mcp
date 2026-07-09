@@ -18,8 +18,8 @@ needs high-confidence structural context before editing, reviewing, or planning.
 
 - Rust core for scanning, parsing, graph construction, search, and impact
   analysis.
-- Thin MCP adapter during early releases.
-- Rust-native MCP server once transport, schema, and package gates are met.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp` from the first
+  implementation slice.
 - Shared evidence envelope across every tool.
 - Incremental index keyed by git commit, file hash, language, parser version,
   and extractor version.
@@ -82,7 +82,7 @@ needs high-confidence structural context before editing, reviewing, or planning.
 
 ### Phase 4: Rust-Native Server And Release Scale
 
-- Replace or bypass the TypeScript adapter when Rust MCP parity is proven.
+- Ship the Rust MCP server as the canonical runtime.
 - Ship optional binary npm packages and standalone binaries.
 - Add public benchmark suite and release scorecard.
 
@@ -99,5 +99,5 @@ needs high-confidence structural context before editing, reviewing, or planning.
 - Rust graph storage format.
 - Language adapter contract.
 - Incremental index invalidation.
-- Direct Rust MCP server cutover.
+- Rust MCP server tool contract.
 - Cross-project integration with code retrieval.

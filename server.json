@@ -16,5 +16,5 @@
     "architecture_impact",
     "architecture_evidence"
   ],
-  "entrypoint": "packages/mcp-server/src/index.ts"
+  "entrypoint": "cargo run -p architecture-reader-mcp --"
 }

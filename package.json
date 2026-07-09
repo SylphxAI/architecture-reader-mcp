@@ -2,12 +2,8 @@
   "name": "architecture-reader-mcp-workspace",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
-  "description": "Workspace for Architecture Reader MCP.",
+  "description": "Project metadata and validation scripts for Architecture Reader MCP.",
   "packageManager": "bun@1.3.1",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "validate:json": "python3 -m json.tool .doctrine/project.json >/dev/null && python3 -m json.tool project.manifest.json >/dev/null",
     "validate": "bun run validate:json"

@@ -23,10 +23,11 @@ evidence, assumptions, disagreements, and recommendations.
 
 ## Target Architecture
 
-- TypeScript can remain practical for provider integration and MCP schema
-  velocity.
-- Rust is appropriate for deterministic policy, redaction, request hashing,
-  cache keys, ledger storage, and replay tooling once the protocol stabilizes.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp` for tool
+  schemas, request validation, and serving.
+- Rust deterministic core for policy, redaction, request hashing, cache keys,
+  ledger storage, and replay tooling. Provider clients remain replaceable
+  integration modules behind the Rust policy boundary.
 - Shared evidence envelope for consultation id, request hash, model route,
   policy decisions, cited sources, evidence gaps, and judge confidence.
 
@@ -56,8 +57,7 @@ evidence, assumptions, disagreements, and recommendations.
 - Add deterministic request hashing, redaction trace, and consultation ledger.
 - Add cache and replay semantics.
 - Add provider failure taxonomy.
-- Consider Rust for policy and ledger primitives if benchmarks or safety justify
-  it.
+- Implement Rust policy, ledger, and replay primitives.
 
 ### Phase 2: Evaluation Harness
 
@@ -93,4 +93,4 @@ evidence, assumptions, disagreements, and recommendations.
 - Redaction and privacy boundary.
 - Consultation ledger format.
 - Judge synthesis rubric.
-- Rust deterministic policy-core decision.
+- Rust MCP server and deterministic policy-core decision.

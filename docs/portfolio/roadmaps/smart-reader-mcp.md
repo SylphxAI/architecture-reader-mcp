@@ -21,7 +21,8 @@ delegate with traceability, normalize outputs, and explain the chosen route.
 
 - Rust core for MIME sniffing, path normalization, archive handling, hash
   calculation, and policy enforcement.
-- Thin adapter for MCP and sibling invocation.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp` for routing and
+  sibling invocation.
 - Shared evidence envelope for source hash, detected format, declared format,
   delegation route, warnings, and child tool evidence.
 
@@ -66,7 +67,7 @@ delegate with traceability, normalize outputs, and explain the chosen route.
 
 - Ship as the recommended first install for agents that need media reading.
 - Add suite-level demos and benchmark scorecard.
-- Evaluate direct Rust MCP server after sibling contracts stabilize.
+- Ship the Rust MCP server as the canonical suite entrypoint.
 
 ## Validation Gates
 
@@ -79,6 +80,7 @@ delegate with traceability, normalize outputs, and explain the chosen route.
 ## ADRs To Land In Smart Reader
 
 - Rust sniffing and path policy boundary.
+- Rust MCP server boundary.
 - Delegated reader contract.
 - Archive and recursion policy.
 - Unified evidence normalization.

@@ -41,14 +41,17 @@ The final form is a Rust-first local graph engine with:
 - impact analysis for changed files and symbols;
 - compact agent context packs;
 - native binary distribution through npm optional packages;
-- a direct Rust MCP server when protocol and packaging gates are mature.
+- a direct Rust MCP server using the official `modelcontextprotocol/rust-sdk`
+  `rmcp` crate.
 
 ## Runtime Direction
 
-Rust owns graph construction, storage, traversal, ranking, and incremental
-indexing. The TypeScript/Bun adapter stays thin while it is the fastest route to
-stable MCP protocol integration. WASM is reserved for sandboxed extractors and
-portable plugins, not the default local server runtime.
+Rust owns graph construction, storage, traversal, ranking, incremental indexing,
+and MCP serving. The MCP runtime target is the official
+`modelcontextprotocol/rust-sdk` `rmcp` crate. TypeScript can generate clients,
+fixtures, or npm wrapper metadata, but it is not the MCP adapter runtime. WASM is
+reserved for sandboxed extractors and portable plugins, not the default local
+server runtime.
 
 ## Roadmap
 
@@ -59,7 +62,7 @@ portable plugins, not the default local server runtime.
   `architecture_impact`, and `architecture_evidence`.
 - Add a small polyglot repository fixture with expected graph facts.
 - Define the shared evidence envelope fields used by graph responses.
-- Add install diagnostics to the MCP adapter.
+- Add install diagnostics to the Rust MCP server and npm wrapper.
 
 ### Phase 1: Rust Graph Core
 
@@ -83,12 +86,12 @@ portable plugins, not the default local server runtime.
 - Produce compact context packs for edit planning, review, incident, and
   migration workflows.
 
-### Phase 4: Native Distribution
+### Phase 4: Native Rust MCP Distribution
 
 - Ship platform-specific npm optional binary packages.
 - Add standalone release binaries and a `doctor` command.
-- Cut over to direct Rust MCP serving when schema generation, stdio behavior,
-  logging, and release gates match the adapter.
+- Gate stdio behavior, generated schemas, logging, and release evidence directly
+  against the Rust MCP server.
 
 ## Star And Adoption Strategy
 
@@ -106,4 +109,4 @@ experience.
 - Trace and impact outputs expose evidence and uncertainty.
 - Install succeeds on supported platforms without network postinstall binary
   downloads.
-- The MCP adapter and Rust core produce matching fixture responses.
+- Rust MCP server fixtures match the core graph contract.

@@ -79,7 +79,8 @@ The first usable release should prove:
 
 ### Phase 0: Design Scaffold
 
-Create repository identity, specs, ADRs, and a minimal Rust/TypeScript workspace.
+Create repository identity, specs, ADRs, and a minimal Rust workspace with core
+and MCP server crates.
 
 ### Phase 1: Deterministic Graph MVP
 
