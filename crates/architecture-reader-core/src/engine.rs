@@ -600,6 +600,14 @@ fn resolve_node_id(graph: &ArchitectureGraph, needle: &str) -> Option<String> {
         }
     }
 
+    if let Some(node) = graph
+        .nodes
+        .iter()
+        .find(|n| n.kind != "symbol" && n.label == needle)
+    {
+        return Some(node.id.clone());
+    }
+
     let symbol_matches: Vec<_> = graph
         .nodes
         .iter()
