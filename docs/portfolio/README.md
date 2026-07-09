@@ -28,19 +28,20 @@ dashboard.
 
 ## Runtime Standard
 
-Rust is the default core runtime for new SOTA engines. It should own parsing,
-indexing, graph construction, search, streaming IO, policy enforcement, and
-other deterministic high-throughput work.
+Rust is the default runtime for new SOTA MCP engines and MCP servers. It should
+own parsing, indexing, graph construction, search, streaming IO, policy
+enforcement, deterministic media/document reading, tool schemas, stdio serving,
+and future streamable HTTP serving.
 
-Bun or TypeScript may remain as a thin MCP adapter when it materially reduces
-protocol risk, package friction, or provider-integration cost. The adapter must
-not become the product core. It should delegate to the Rust engine through a
-stable local command, stdio JSON-RPC, or embedded native binding once the engine
-contract is stable.
+The target MCP server stack is the official
+[`modelcontextprotocol/rust-sdk`](https://github.com/modelcontextprotocol/rust-sdk)
+`rmcp` crate plus project-owned Rust engine crates. Bun or TypeScript can remain
+for generated clients, tests, npm wrapper metadata, and migration compatibility,
+but they are not the target MCP adapter runtime.
 
-Long term, high-performance MCPs should converge toward a Rust-native server
-binary when the Rust MCP SDK surface, schema generation, transport support, and
-release process can match the TypeScript adapter without product regression.
+Existing TypeScript MCPs should migrate by first freezing tool contracts and
+evidence fixtures, then replacing the server runtime with Rust while preserving
+the same public tool surface and package installation path.
 
 ## Install Standard
 

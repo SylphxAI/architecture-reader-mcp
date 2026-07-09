@@ -53,10 +53,11 @@ remain owned by their source repositories.
 - Specifications: [`docs/specs/`](./docs/specs/)
 - ADRs: [`docs/adr/`](./docs/adr/)
 - Portfolio plan: [`docs/portfolio/`](./docs/portfolio/)
+- SOTA family roadmap: [`docs/roadmap/sota-family-roadmap.md`](./docs/roadmap/sota-family-roadmap.md)
 - Security boundary: [`SECURITY.md`](./SECURITY.md)
 - MCP server metadata: [`server.json`](./server.json)
-- Rust engine workspace: [`crates/`](./crates/)
-- TypeScript MCP adapter workspace: [`packages/mcp-server/`](./packages/mcp-server/)
+- Rust workspace: [`crates/`](./crates/)
+- Rust MCP server crate: [`crates/architecture-reader-mcp/`](./crates/architecture-reader-mcp/)
 - Baseline CI workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
 ## Delivery Proof

@@ -137,11 +137,14 @@ dashboard. The gap is an agent-facing architecture evidence service:
 
 ## Stack Judgment
 
-Rust is the right long-term home for the heavy engine: graph traversal, ranking,
-incremental indexes, large-repository performance, and CLI/service reuse.
+Rust is the right home for both the heavy engine and the MCP server: graph
+traversal, ranking, incremental indexes, large-repository performance,
+CLI/service reuse, stdio serving, and future streamable HTTP support.
 
-Bun/TypeScript is the right adapter and first integration layer because existing
-Sylphx MCP patterns, Synth packages, and CodeRAG are TypeScript-facing today.
+Existing Sylphx MCP patterns, Synth packages, and CodeRAG are
+TypeScript-facing today. They should be consumed through stable contracts,
+fixtures, generated metadata, or process boundaries rather than by making
+TypeScript the MCP adapter runtime.
 
-The strongest design is hybrid, with a narrow engine boundary and a thin MCP
-adapter.
+The strongest design is Rust-native, with a narrow core/server boundary and
+explicit integration contracts for TypeScript-facing sibling packages.

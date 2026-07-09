@@ -14,24 +14,25 @@ flowchart LR
   F["Docs and ADR extractors"] --> C
   G["Workflow/schema/config extractors"] --> C
   C --> H["Rust graph/query engine"]
-  H --> I["TypeScript/Bun MCP adapter"]
+  H --> I["Rust MCP server using rmcp"]
   I --> J["AI agent"]
 ```
 
 ## Main Components
 
-### TypeScript/Bun MCP Adapter
+### Rust MCP Server
 
-Owns MCP protocol integration, tool schemas, request validation, adapter wiring
-to existing Sylphx TypeScript packages, and response shaping for agents. It is a
-thin boundary and should not own graph algorithms or long-term storage formats.
+Owns MCP protocol integration, tool schemas, request validation, stdio
+transport, future streamable HTTP transport, logging, and response shaping for
+agents. It uses the official `modelcontextprotocol/rust-sdk` `rmcp` crate and
+must stay thin over the core engine.
 
 ### Rust Core Engine
 
 Owns the architecture graph model, graph traversal, query planning, ranking,
 impact analysis, cache keying, index validation, and storage abstraction. The
-engine must remain usable without MCP so CLI, CI, or future service adapters can
-reuse it.
+engine must remain usable without MCP so CLI, CI, release checks, and future
+service deployment forms can reuse it.
 
 ### Extractor Adapters
 

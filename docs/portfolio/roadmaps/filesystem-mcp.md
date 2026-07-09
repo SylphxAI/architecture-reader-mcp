@@ -21,7 +21,8 @@ auditable by humans and agents.
 
 - Rust core for path canonicalization, policy enforcement, directory walking,
   search, diff application, hashing, and file IO.
-- MCP adapter may remain thin during migration.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp` for the public
+  tool surface.
 - Shared evidence envelope for path, root, content hash, byte or line range,
   operation id, diff summary, and policy decision.
 
@@ -49,7 +50,7 @@ auditable by humans and agents.
 - Implement canonical path and root policy in Rust.
 - Add fast walk and search engine.
 - Add deterministic diff preview and apply primitives.
-- Keep adapter thin.
+- Add Rust MCP handlers over the policy and IO core.
 
 ### Phase 2: Audit And Recovery
 
@@ -68,7 +69,7 @@ auditable by humans and agents.
 
 - Ship optional binary packages.
 - Publish performance benchmarks against large repo fixtures.
-- Evaluate direct Rust MCP server.
+- Make the Rust MCP server the canonical runtime.
 
 ## Validation Gates
 
@@ -84,4 +85,4 @@ auditable by humans and agents.
 - Write operation safety model.
 - Search and walk performance model.
 - Audit ledger format.
-- Direct Rust server migration.
+- Rust MCP server boundary.

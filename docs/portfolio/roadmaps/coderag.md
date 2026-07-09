@@ -8,7 +8,8 @@ right code evidence fast enough that agents can reason before editing.
 ## Current Boundary
 
 The current project is a Bun and TypeScript monorepo with a TypeScript core and
-an MCP server exposing `codebase_search`.
+an MCP server exposing `codebase_search`. The target runtime is Rust for both
+the retrieval engine and MCP serving.
 
 ## SOTA End-State
 
@@ -21,8 +22,8 @@ and symbol provenance.
 
 - Rust core for filesystem scanning, indexing, ranking, snippet extraction, and
   incremental updates.
-- TypeScript adapter may remain for MCP protocol and package continuity during
-  migration.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp`, preserving the
+  existing public tool contract during migration.
 - Shared index contract that Architecture Reader can consume for structural
   context and context-pack generation.
 - Optional embedding providers behind a deterministic cache and fallback lexical
@@ -52,7 +53,7 @@ and symbol provenance.
 - Build Rust scanner and ranking library.
 - Add persistent index snapshots.
 - Add deterministic snippet extraction.
-- Keep TypeScript MCP adapter as a thin launcher.
+- Add a Rust MCP server facade for the frozen `codebase_search` contract.
 
 ### Phase 2: Hybrid Ranking
 
@@ -72,7 +73,7 @@ and symbol provenance.
 - Publish benchmark suite for cold index, incremental index, search p95, and
   memory ceiling.
 - Ship native binary packages.
-- Evaluate direct Rust MCP server once adapter parity is proven.
+- Make the Rust MCP server the canonical package entrypoint.
 
 ## Validation Gates
 
@@ -88,4 +89,4 @@ and symbol provenance.
 - Ranking signal model.
 - Embedding cache and degraded-mode policy.
 - Architecture Reader interoperability.
-- Native binary packaging.
+- Rust MCP server and native binary packaging.

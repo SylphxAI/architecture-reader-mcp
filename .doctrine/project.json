@@ -35,8 +35,8 @@
   "validation": {
     "local": [
       "json validation for .doctrine/project.json and project.manifest.json",
-      "cargo metadata for Rust workspace once code dependencies are added",
-      "package metadata validation for TypeScript workspace",
+      "cargo metadata for Rust workspace",
+      "cargo test for Rust crates",
       "git diff --check"
     ],
     "releaseRequiredForDone": true

@@ -39,20 +39,20 @@ engineering workflows.
 
 ## Recommended Implementation Stack
 
-Use a hybrid stack:
+Use a Rust-native stack:
 
 - Rust core for the architecture graph engine, index formats, query planning,
   traversal, ranking, diff/impact computation, and high-volume repository work.
-- TypeScript/Bun MCP adapter for MCP protocol ergonomics, existing Sylphx MCP
-  conventions, and first-class integration with Synth and CodeRAG package
-  surfaces.
+- Rust MCP server crate using the official
+  [`modelcontextprotocol/rust-sdk`](https://github.com/modelcontextprotocol/rust-sdk)
+  `rmcp` crate for protocol handling, stdio transport, typed tool schemas, and
+  future streamable HTTP support.
 
-If forced to ship a first slice in one runtime, start with Bun/TypeScript because
-the internal parser/search/MCP packages are already TypeScript-facing. Keep the
-Rust core boundary in the repo from day one so the performance-critical engine
-does not become coupled to the MCP adapter.
+TypeScript can remain a consumer language for generated clients, fixtures, or
+npm wrapper metadata, but the MCP server runtime and product logic should not be
+implemented as a TypeScript adapter.
 
-See [`docs/adr/ADR-DRAFT-hybrid-rust-core-bun-mcp-adapter.md`](./docs/adr/ADR-DRAFT-hybrid-rust-core-bun-mcp-adapter.md).
+See [`docs/portfolio/ADR-DRAFT-rust-first-runtime-distribution.md`](./docs/portfolio/ADR-DRAFT-rust-first-runtime-distribution.md).
 
 ## Tool Surface
 
@@ -79,8 +79,7 @@ source, freshness, confidence, and uncertainty.
 architecture-reader-mcp/
   crates/
     architecture-reader-core/    # Rust architecture graph contracts and engine
-  packages/
-    mcp-server/                  # TypeScript/Bun MCP adapter
+    architecture-reader-mcp/     # Rust MCP server using rmcp
   docs/
     adr/                         # Architecture decisions
     specs/                       # Product, graph, indexing, and tool specs
@@ -98,6 +97,7 @@ architecture-reader-mcp/
 - [Indexing Pipeline Spec](./docs/specs/2026-07-09-indexing-pipeline.md)
 - [Category And Internal Research](./docs/research/2026-07-09-category-and-internal-analysis.md)
 - [MCP Portfolio Plan](./docs/portfolio/README.md)
+- [SOTA Family Roadmap](./docs/roadmap/sota-family-roadmap.md)
 
 ## Development
 
@@ -105,7 +105,7 @@ This scaffold intentionally contains minimal code. The next implementation slice
 should add:
 
 1. Rust graph model serialization tests.
-2. Bun MCP adapter with tool schemas and stubbed handlers.
+2. Rust MCP server tool schemas and stubbed `rmcp` handlers.
 3. Deterministic repository scanner for manifests, workspaces, docs, and import
    edges.
 4. Synth-backed AST extractor adapter.

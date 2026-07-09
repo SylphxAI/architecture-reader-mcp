@@ -21,6 +21,7 @@ frame, crop, OCR, and transcript evidence.
 
 - Rust core for probing, timeline assembly, hashing, cache management, and
   orchestration.
+- Rust MCP server using `modelcontextprotocol/rust-sdk` / `rmcp`.
 - Native media tool integration through controlled adapters.
 - Shared evidence envelope for file hash, stream id, timestamp, frame index,
   subtitle span, transcript span, scene id, and extraction route.
@@ -70,7 +71,8 @@ frame, crop, OCR, and transcript evidence.
 
 - Ship native binary packaging where possible.
 - Publish benchmark scorecard across fixture formats.
-- Evaluate direct Rust MCP server once media dependency packaging is stable.
+- Ship the Rust MCP server as the canonical runtime once media dependency
+  packaging is stable.
 
 ## Validation Gates
 
@@ -83,6 +85,7 @@ frame, crop, OCR, and transcript evidence.
 ## ADRs To Land In Video Reader
 
 - Native media adapter boundary.
+- Rust MCP server boundary.
 - Timeline evidence schema.
 - Transcript and OCR provider policy.
 - Large-file cache model.

@@ -9,8 +9,7 @@
     "SylphxAI"
   ],
   "primaryLanguages": [
-    "Rust",
-    "TypeScript"
+    "Rust"
   ],
   "publicSurfaces": [
     "README.md",
@@ -21,7 +20,7 @@
     "docs/adr",
     "server.json",
     "crates/architecture-reader-core",
-    "packages/mcp-server"
+    "crates/architecture-reader-mcp"
   ],
   "canonicalDocs": {
     "projectBoundary": "PROJECT.md",
