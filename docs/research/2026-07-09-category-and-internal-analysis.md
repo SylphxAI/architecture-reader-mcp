@@ -85,6 +85,48 @@ the family plan. Use Synth first where multi-language coverage is stronger, but
 evaluate AST through public packages, fixtures, source-span conformance, and
 benchmarks where its ANTLR-backed contracts fit the language better.
 
+### GroundAtlas
+
+Observed repository: `SylphxAI/groundatlas`.
+
+GroundAtlas is the source-grounded repository control plane for humans and
+agents. It owns deterministic source inventories, truth-home routing,
+vendor-neutral project manifests, generated-map freshness, fleet scorecards, and
+orientation surfaces. It explicitly does not own downstream architecture
+decisions or replace ADRs, specs, schemas, tests, workflows, or source code.
+
+Conclusion: GroundAtlas is a foundation and control-plane sibling. Architecture
+Reader should align with GroundAtlas manifests, source-truth routing, and
+freshness semantics where useful, while keeping architecture graph extraction,
+trace semantics, and MCP answer contracts in this repository.
+
+### Codec
+
+Observed repository: `SylphxAI/codec`.
+
+Codec is an active foundation library for media codec, image-processing,
+conversion, metadata, text, CLI, and optional WASM package surfaces. It owns
+generic codec/conversion primitives and package release contracts; consuming
+applications and Reader MCPs own product workflows and evidence envelopes.
+
+Conclusion: Codec belongs in the portfolio as a Reader media foundation. Reader
+MCPs may consume released Codec packages for deterministic extraction where it
+improves speed or coverage. Architecture Reader only links resulting media
+evidence to repository concepts; it does not own media codec implementation.
+
+### Video Application Repository
+
+Observed repository: `SylphxAI/video`.
+
+`video` is an AgentVerse application for video creation, rendering, publishing,
+web delivery, asset storage, database migrations, and external platform
+integrations. It is not the same product as `video-reader-mcp`.
+
+Conclusion: `video` should not be counted as a missing MCP product. It is an
+adjacent active application with possible future fixture value, but the MCP
+family should not depend on it unless a separate ADR promotes a shared
+foundation surface.
+
 ### Visualization-First Codebase Graph Category
 
 Category research shows demand for repository scanning, graph-shaped knowledge,
@@ -141,10 +183,11 @@ Rust is the right home for both the heavy engine and the MCP server: graph
 traversal, ranking, incremental indexes, large-repository performance,
 CLI/service reuse, stdio serving, and future streamable HTTP support.
 
-Existing Sylphx MCP patterns, Synth packages, and CodeRAG are
-TypeScript-facing today. They should be consumed through stable contracts,
-fixtures, generated metadata, or process boundaries rather than by making
-TypeScript the MCP adapter runtime.
+Existing Sylphx MCP patterns, Synth packages, AST contracts, GroundAtlas
+manifests, Codec packages, and CodeRAG are TypeScript-facing today. They should
+be consumed through stable contracts, fixtures, generated metadata, released
+packages, or process boundaries rather than by making TypeScript the MCP adapter
+runtime.
 
 The strongest design is Rust-native, with a narrow core/server boundary and
 explicit integration contracts for TypeScript-facing sibling packages.

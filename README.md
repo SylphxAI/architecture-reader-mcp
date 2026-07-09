@@ -25,8 +25,12 @@ published, merged, released, deployed, or production-verified.
 Adjacent tools cover important slices but leave an agent-specific gap:
 
 - CodeRAG answers generic code search over chunks.
+- GroundAtlas answers repository truth-home routing, source maps, freshness, and
+  project manifest questions.
 - Synth provides a universal AST package family across many languages.
 - SylphxAI AST provides ANTLR-backed typed parser contracts and fixtures.
+- Codec provides reusable media codec and conversion primitives for Reader
+  workflows.
 - Visualization-first codebase graph tools optimize for human exploration.
 - Source-code fact systems model code as durable facts.
 - Static analysis systems provide structural query and code property graph
