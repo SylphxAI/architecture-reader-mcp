@@ -12,7 +12,7 @@ permissions:
 jobs:
   validate:
     name: validate release gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sylphx, linux, standard]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
