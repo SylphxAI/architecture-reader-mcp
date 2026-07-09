@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -89,7 +89,43 @@ impl GraphBuilder {
     }
 }
 
+pub fn hash_file_bytes(path: &Path) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
+    Some(format!("{:x}", Sha256::digest(&bytes)))
+}
+
+pub fn inventory_files(root: &Path, options: &ScanOptions) -> HashMap<String, String> {
+    let mut inventory = HashMap::new();
+    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() || !should_include(path, root, options) {
+            continue;
+        }
+        if let Ok(meta) = fs::metadata(path) {
+            if meta.len() > options.max_file_bytes {
+                continue;
+            }
+        }
+        let rel = path.strip_prefix(root).unwrap_or(path);
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if let Some(hash) = hash_file_bytes(path) {
+            inventory.insert(rel_str, hash);
+        }
+    }
+    inventory
+}
+
 pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<String>, dirty: bool) -> ArchitectureGraph {
+    scan_repository_paths(root, options, None, git_commit, dirty)
+}
+
+pub fn scan_repository_paths(
+    root: &Path,
+    options: &ScanOptions,
+    only_paths: Option<&HashSet<String>>,
+    git_commit: Option<String>,
+    dirty: bool,
+) -> ArchitectureGraph {
     let mut builder = GraphBuilder::default();
     let root_str = root.to_string_lossy().to_string();
     let repo_ev = builder.push_evidence("manifest", &root_str, "repo-scanner@0.1.0", None, None);
@@ -106,53 +142,22 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
         if !should_include(path, root, options) {
             continue;
         }
-        files_scanned += 1;
         let rel = path.strip_prefix(root).unwrap_or(path);
         let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if let Some(allowed) = only_paths {
+            if !allowed.contains(&rel_str) {
+                continue;
+            }
+        }
+        files_scanned += 1;
         if let Ok(meta) = fs::metadata(path) {
             if meta.len() > options.max_file_bytes {
                 continue;
             }
         }
 
-        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-        if file_name == "package.json" || file_name == "Cargo.toml" {
-            index_manifest(&mut builder, &rel_str, path);
-            files_indexed += 1;
-            continue;
-        }
-
-        if rel_str.starts_with("docs/") && rel_str.ends_with(".md") {
-            index_document(&mut builder, &rel_str, if rel_str.contains("/adr/") { "adr" } else { "document" });
-            files_indexed += 1;
-            continue;
-        }
-
-        if rel_str.ends_with(".json") && (rel_str.contains("/schemas/") || rel_str.ends_with(".schema.json")) {
-            index_json_schema(&mut builder, &rel_str, path);
-            files_indexed += 1;
-            continue;
-        }
-
-        if rel_str.ends_with(".ts")
-            || rel_str.ends_with(".tsx")
-            || rel_str.ends_with(".js")
-            || rel_str.ends_with(".mjs")
-        {
-            let used_synth = index_ts_with_optional_synth(&mut builder, &rel_str, path, options.use_synth);
-            if !used_synth {
-                index_ts_imports(&mut builder, &rel_str, path);
-            }
-            index_ts_routes(&mut builder, &rel_str, path);
-            index_ts_schemas(&mut builder, &rel_str, path);
-            files_indexed += 1;
-            continue;
-        }
-
-        if rel_str.ends_with(".rs") {
-            index_rs_imports(&mut builder, &rel_str, path);
-            files_indexed += 1;
-        }
+        index_file(&mut builder, root, path, &rel_str, options);
+        files_indexed += 1;
     }
 
     let package_count = builder.nodes.iter().filter(|n| n.kind == "package").count();
@@ -199,6 +204,134 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
         claims: builder.claims,
         evidence: builder.evidence,
     }
+}
+
+fn index_file(builder: &mut GraphBuilder, _root: &Path, path: &Path, rel_str: &str, options: &ScanOptions) {
+    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+    if file_name == "package.json" || file_name == "Cargo.toml" {
+        index_manifest(builder, rel_str, path);
+        return;
+    }
+
+    if rel_str.starts_with("docs/") && rel_str.ends_with(".md") {
+        index_document(
+            builder,
+            rel_str,
+            if rel_str.contains("/adr/") { "adr" } else { "document" },
+        );
+        return;
+    }
+
+    if rel_str.ends_with(".json") && (rel_str.contains("/schemas/") || rel_str.ends_with(".schema.json")) {
+        index_json_schema(builder, rel_str, path);
+        return;
+    }
+
+    if rel_str.ends_with(".ts")
+        || rel_str.ends_with(".tsx")
+        || rel_str.ends_with(".js")
+        || rel_str.ends_with(".mjs")
+    {
+        let used_synth = index_ts_with_optional_synth(builder, rel_str, path, options.use_synth);
+        if !used_synth {
+            index_ts_imports(builder, rel_str, path);
+        }
+        index_ts_routes(builder, rel_str, path);
+        index_ts_schemas(builder, rel_str, path);
+        return;
+    }
+
+    if rel_str.ends_with(".rs") {
+        index_rs_imports(builder, rel_str, path);
+    }
+}
+
+pub fn prune_graph_for_paths(mut graph: ArchitectureGraph, paths: &HashSet<String>) -> ArchitectureGraph {
+    if paths.is_empty() {
+        return graph;
+    }
+
+    let removed_node_ids: HashSet<String> = graph
+        .nodes
+        .iter()
+        .filter(|node| node.path.as_ref().is_some_and(|p| paths.contains(p)))
+        .map(|node| node.id.clone())
+        .collect();
+
+    graph.nodes.retain(|node| {
+        node.path.as_ref().is_none_or(|path| !paths.contains(path)) && !removed_node_ids.contains(&node.id)
+    });
+
+    graph.evidence.retain(|evidence| !paths.contains(&evidence.path));
+
+    let live_nodes: HashSet<String> = graph.nodes.iter().map(|node| node.id.clone()).collect();
+    graph.edges.retain(|edge| live_nodes.contains(&edge.from) && live_nodes.contains(&edge.to));
+
+    let live_evidence: HashSet<String> = graph.evidence.iter().map(|evidence| evidence.id.clone()).collect();
+    graph.claims.retain(|claim| {
+        claim.evidence_ids.iter().all(|id| live_evidence.contains(id))
+            && claim.node_ids.iter().all(|id| live_nodes.contains(id))
+            && claim.edge_ids.iter().all(|edge_id| graph.edges.iter().any(|edge| edge.id == *edge_id))
+    });
+
+    graph
+}
+
+pub fn merge_graphs(mut base: ArchitectureGraph, delta: ArchitectureGraph) -> ArchitectureGraph {
+    let mut seen_nodes: HashSet<String> = base.nodes.iter().map(|node| node.id.clone()).collect();
+    for node in delta.nodes {
+        if seen_nodes.insert(node.id.clone()) {
+            base.nodes.push(node);
+        }
+    }
+
+    let mut seen_edges: HashSet<String> = base.edges.iter().map(|edge| edge.id.clone()).collect();
+    for edge in delta.edges {
+        if seen_edges.insert(edge.id.clone()) {
+            base.edges.push(edge);
+        }
+    }
+
+    let mut seen_claims: HashSet<String> = base.claims.iter().map(|claim| claim.id.clone()).collect();
+    for claim in delta.claims {
+        if seen_claims.insert(claim.id.clone()) {
+            base.claims.push(claim);
+        }
+    }
+
+    let mut seen_evidence: HashSet<String> = base.evidence.iter().map(|evidence| evidence.id.clone()).collect();
+    for evidence in delta.evidence {
+        if seen_evidence.insert(evidence.id.clone()) {
+            base.evidence.push(evidence);
+        }
+    }
+
+    for extractor in delta.extractors {
+        if !base.extractors.contains(&extractor) {
+            base.extractors.push(extractor);
+        }
+    }
+
+    base.repository = delta.repository;
+    base.schema_version = delta.schema_version;
+    base
+}
+
+pub fn incremental_refresh(
+    root: &Path,
+    options: &ScanOptions,
+    existing: ArchitectureGraph,
+    changed_paths: &HashSet<String>,
+    deleted_paths: &HashSet<String>,
+    git_commit: Option<String>,
+    dirty: bool,
+) -> ArchitectureGraph {
+    let mut affected = changed_paths.clone();
+    affected.extend(deleted_paths.iter().cloned());
+
+    let pruned = prune_graph_for_paths(existing, &affected);
+    let delta = scan_repository_paths(root, options, Some(changed_paths), git_commit, dirty);
+    merge_graphs(pruned, delta)
 }
 
 fn should_include(path: &Path, root: &Path, options: &ScanOptions) -> bool {

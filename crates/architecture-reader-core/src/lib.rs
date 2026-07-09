@@ -120,6 +120,23 @@ mod tests {
     }
 
     #[test]
+    fn auto_mode_returns_cache_hit_when_inventory_is_unchanged() {
+        let root = fixture_root();
+        let full_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
+        let first = engine::handle_tool("architecture_index", full_input.clone());
+        assert_eq!(first.status, "ok");
+        assert_eq!(first.answer.as_ref().and_then(|a| a.get("refreshMode")).and_then(|v| v.as_str()), Some("full"));
+
+        let auto_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "auto" });
+        let second = engine::handle_tool("architecture_index", auto_input);
+        assert_eq!(second.status, "ok");
+        assert_eq!(
+            second.answer.as_ref().and_then(|a| a.get("refreshMode")).and_then(|v| v.as_str()),
+            Some("cache_hit")
+        );
+    }
+
+    #[test]
     fn search_finds_auth_module_in_fixture() {
         let root = fixture_root();
         let index_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });

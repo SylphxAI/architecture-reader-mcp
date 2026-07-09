@@ -49,5 +49,8 @@ jobs:
       - name: Public benchmark proof
         run: bun run benchmark:public-proof
 
+      - name: Release gate
+        run: bun run benchmark:release-gate
+
       - name: Check whitespace errors
         run: git diff --check HEAD

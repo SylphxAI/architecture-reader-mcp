@@ -5,10 +5,12 @@ use std::time::Instant;
 use serde_json::json;
 
 use crate::git::{freshness, read_git_state};
-use crate::scanner::{scan_repository, ScanOptions};
-use crate::store::{load_graph, save_graph};
+use crate::scanner::{
+    incremental_refresh, inventory_files, scan_repository, ScanOptions,
+};
+use crate::store::{load_file_hashes, load_graph, save_file_hashes, save_graph, FileHashManifest};
 use crate::types::{
-    ArchitectureGraph, EvidenceRef, Metrics, RepositoryState, ToolEnvelope,
+    ArchitectureGraph, EvidenceRef, Metrics, RepositoryState, ToolEnvelope, GRAPH_SCHEMA_VERSION,
 };
 
 pub fn handle_tool(tool: &str, input: serde_json::Value) -> ToolEnvelope {
@@ -123,13 +125,93 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     }
 
     let git = read_git_state(&root);
-    let graph = scan_repository(&root, &options, git.commit.clone(), git.dirty);
-    if let Err(err) = save_graph(&root, &graph) {
-        return ToolEnvelope::error(
-            "INTERNAL_ERROR",
-            &format!("Failed to persist index: {err}"),
-            None,
-        );
+    let inventory = inventory_files(&root, &options);
+    let stored_hashes = load_file_hashes(&root);
+    let refresh_mode;
+    let graph = if mode == "auto" {
+        if let (Some(existing), Some(stored)) = (load_graph(&root), stored_hashes.as_ref()) {
+            if existing.schema_version == GRAPH_SCHEMA_VERSION
+                && stored.schema_version == GRAPH_SCHEMA_VERSION
+                && stored.file_hashes == inventory
+            {
+                refresh_mode = "cache_hit";
+                ArchitectureGraph {
+                    repository: crate::types::RepositorySnapshot {
+                        root: existing.repository.root.clone(),
+                        git_commit: git.commit.clone(),
+                        worktree_dirty: git.dirty,
+                    },
+                    ..existing
+                }
+            } else if existing.schema_version == GRAPH_SCHEMA_VERSION
+                && stored.schema_version == GRAPH_SCHEMA_VERSION
+            {
+                let mut changed = HashSet::new();
+                let mut deleted = HashSet::new();
+                for (path, hash) in &inventory {
+                    match stored.file_hashes.get(path) {
+                        Some(previous) if previous == hash => {}
+                        Some(_) | None => {
+                            changed.insert(path.clone());
+                        }
+                    }
+                }
+                for path in stored.file_hashes.keys() {
+                    if !inventory.contains_key(path) {
+                        deleted.insert(path.clone());
+                    }
+                }
+
+                let affected = changed.len() + deleted.len();
+                if affected > 0 && affected * 2 <= inventory.len().max(1) {
+                    refresh_mode = "incremental";
+                    incremental_refresh(
+                        &root,
+                        &options,
+                        existing,
+                        &changed,
+                        &deleted,
+                        git.commit.clone(),
+                        git.dirty,
+                    )
+                } else {
+                    refresh_mode = "full";
+                    scan_repository(&root, &options, git.commit.clone(), git.dirty)
+                }
+            } else {
+                refresh_mode = "full";
+                scan_repository(&root, &options, git.commit.clone(), git.dirty)
+            }
+        } else {
+            refresh_mode = "full";
+            scan_repository(&root, &options, git.commit.clone(), git.dirty)
+        }
+    } else {
+        refresh_mode = "full";
+        scan_repository(&root, &options, git.commit.clone(), git.dirty)
+    };
+
+    if refresh_mode != "cache_hit" {
+        if let Err(err) = save_graph(&root, &graph) {
+            return ToolEnvelope::error(
+                "INTERNAL_ERROR",
+                &format!("Failed to persist index: {err}"),
+                None,
+            );
+        }
+        if let Err(err) = save_file_hashes(
+            &root,
+            &FileHashManifest {
+                schema_version: GRAPH_SCHEMA_VERSION.into(),
+                file_hashes: inventory,
+            },
+        ) {
+            return ToolEnvelope::error(
+                "INTERNAL_ERROR",
+                &format!("Failed to persist file hash manifest: {err}"),
+                None,
+            );
+        }
     }
 
     let manifest_nodes = graph.nodes.iter().filter(|n| n.kind == "package").count();
@@ -155,6 +237,7 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
         repo,
         json!({
             "indexed": true,
+            "refreshMode": refresh_mode,
             "filesScanned": graph.nodes.len(),
             "filesIndexed": graph.nodes.len(),
             "nodes": graph.nodes.len(),

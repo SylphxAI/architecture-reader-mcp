@@ -15,7 +15,9 @@
     "build": "bun run build:rust",
     "test": "cargo test && bun test",
     "test:public-surface": "bun test test/readmeDiscovery.test.ts",
-    "benchmark:public-proof": "bun run build:rust && bun run scripts/benchmark-public-proof.ts"
+    "doctor": "bun run packages/mcp-server/src/doctor.ts",
+    "benchmark:public-proof": "bun run build:rust && bun run scripts/benchmark-public-proof.ts",
+    "benchmark:release-gate": "bun run build:rust && bun run scripts/release-gate.ts"
   },
   "repository": {
     "type": "git",

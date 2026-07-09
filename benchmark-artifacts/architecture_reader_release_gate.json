@@ -1,0 +1,61 @@
+{
+  "profile": "architecture_reader_release_gate",
+  "generated_at": "2026-07-09T04:33:11.631Z",
+  "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
+  "status": "passed",
+  "summary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "checks": [
+    {
+      "id": "rust:graph_core",
+      "status": "passed",
+      "message": "Rust architecture-reader-core graph engine is present"
+    },
+    {
+      "id": "fixtures:sample_repo",
+      "status": "passed",
+      "message": "Golden sample-repo fixture is checked in"
+    },
+    {
+      "id": "spec:indexing_pipeline",
+      "status": "passed",
+      "message": "Indexing pipeline spec documents incremental refresh behavior"
+    },
+    {
+      "id": "doctor:fixture_repo",
+      "status": "passed",
+      "message": "doctor reports the golden fixture repository is available",
+      "evidence": {
+        "doctorStatus": "ready"
+      }
+    },
+    {
+      "id": "boundary:architecture_index",
+      "status": "passed",
+      "message": "architecture_index returns a populated graph envelope from the Rust CLI",
+      "evidence": {
+        "nodeCount": 16,
+        "edgeCount": 10
+      }
+    },
+    {
+      "id": "boundary:architecture_search",
+      "status": "passed",
+      "message": "architecture_search returns stable evidence locators for the fixture repo",
+      "evidence": {
+        "matchCount": 5
+      }
+    },
+    {
+      "id": "boundary:incremental_cache_hit",
+      "status": "passed",
+      "message": "architecture_index mode=auto reuses the persisted index when file hashes are unchanged",
+      "evidence": {
+        "refreshMode": "cache_hit"
+      }
+    }
+  ]
+}
