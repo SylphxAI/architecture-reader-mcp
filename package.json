@@ -11,7 +11,7 @@
   "scripts": {
     "validate:json": "python3 -m json.tool .doctrine/project.json >/dev/null && python3 -m json.tool project.manifest.json >/dev/null",
     "validate": "bun run validate:json",
-    "build:rust": "cargo build --release",
+    "build:rust": "cargo build --release -p architecture-reader-core -p architecture-reader-cli -p architecture-reader-mcp-server && bun scripts/stage-rust-mcp.ts",
     "build": "bun run build:rust",
     "test": "cargo test && bun test",
     "test:public-surface": "bun test test/readmeDiscovery.test.ts",

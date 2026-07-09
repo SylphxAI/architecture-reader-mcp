@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-09T04:59:34.235Z",
+  "generated_at": "2026-07-09T10:22:25.867Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 11,
-    "passed": 11,
+    "total": 17,
+    "passed": 17,
     "failed": 0
   },
   "checks": [
@@ -89,6 +89,39 @@
       "evidence": {
         "directImpactCount": 4
       }
+    },
+    {
+      "id": "mcp:rust_adapter_default",
+      "status": "passed",
+      "message": "Default npm bin launches the Rust rmcp MCP server; TypeScript adapter is opt-in only"
+    },
+    {
+      "id": "boundary:rust_cli_engine",
+      "status": "passed",
+      "message": "Shipped-path matrix test proves all seven primary tools route through Rust core without legacy runtime",
+      "evidence": {
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "publish:changeset_config",
+      "status": "passed",
+      "message": "Changesets config is present for npm publish workflow"
+    },
+    {
+      "id": "publish:release_workflow",
+      "status": "passed",
+      "message": "Release and MCP Registry publish workflows are present"
+    },
+    {
+      "id": "publish:registry_metadata",
+      "status": "passed",
+      "message": "server.json documents the publishable npm package identifier"
+    },
+    {
+      "id": "adr:core_promoted",
+      "status": "passed",
+      "message": "Core hybrid-runtime and agent-native tool ADRs are promoted to Accepted"
     }
   ]
 }

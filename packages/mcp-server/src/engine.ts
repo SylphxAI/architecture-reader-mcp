@@ -30,13 +30,18 @@ export type ToolEnvelope = {
   nextAction?: string;
 };
 
-export function invokeEngine(tool: string, input: Record<string, unknown>): ToolEnvelope {
+export function invokeEngine(
+  tool: string,
+  input: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): ToolEnvelope {
   const binary = resolveCliBinary();
   const payload = JSON.stringify({ tool, input });
   const result = spawnSync(binary, [], {
     input: payload,
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    env,
   });
 
   if (result.error) {

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { invokeEngine } from '../packages/mcp-server/src/engine.ts';
@@ -185,6 +186,44 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     impact.status === 'ok' && directImpact.length > 0,
     'architecture_impact reports direct impact nodes for changed fixture paths',
     { directImpactCount: directImpact.length }
+  );
+
+  const binWrapper = readFileSync(path.join(repoRoot, 'bin/architecture-reader-mcp'), 'utf8');
+  addCheck(
+    checks,
+    'mcp:rust_adapter_default',
+    binWrapper.includes('architecture-reader-mcp-server') &&
+      binWrapper.includes('resolve_rust_bin') &&
+      binWrapper.includes('use_ts_transport'),
+    'Default npm bin launches the Rust rmcp MCP server; TypeScript adapter is opt-in only'
+  );
+
+  const matrixProbe = spawnSync(
+    'bun',
+    ['test', 'packages/mcp-server/test/shippedPath.matrix.test.ts'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        ARCHITECTURE_READER_ALLOW_LEGACY_ENGINE: '',
+      },
+      timeout: 300_000,
+    }
+  );
+  addCheck(
+    checks,
+    'boundary:rust_cli_engine',
+    fileExists('packages/mcp-server/test/shippedPath.matrix.test.ts') &&
+      matrixProbe.status === 0,
+    'Shipped-path matrix test proves all seven primary tools route through Rust core without legacy runtime',
+    matrixProbe.status === 0
+      ? { exitCode: 0 }
+      : {
+          exitCode: matrixProbe.status,
+          stderr: matrixProbe.stderr?.slice(-2000),
+          stdout: matrixProbe.stdout?.slice(-2000),
+        }
   );
 
   addCheck(

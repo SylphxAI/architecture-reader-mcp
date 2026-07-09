@@ -2,6 +2,7 @@
 members = [
   "crates/architecture-reader-core",
   "crates/architecture-reader-cli",
+  "crates/architecture-reader-mcp-server",
 ]
 resolver = "2"
 

@@ -265,7 +265,11 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
         Err(e) => return e,
     };
     let repo = repository_state(&root, Some(&graph));
-    let gaps = coverage_gaps(&graph);
+    let synth_active = graph
+        .extractors
+        .iter()
+        .any(|extractor| extractor.starts_with("synth-"));
+    let gaps = coverage_gaps(&graph, synth_active);
     ToolEnvelope::ok(
         repo,
         json!({
@@ -275,7 +279,9 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "coverage": {
                 "nodes": graph.nodes.len(),
                 "edges": graph.edges.len(),
-                "claims": graph.claims.len()
+                "claims": graph.claims.len(),
+                "synthMode": if synth_active { "active" } else { "off" },
+                "importGraphRoute": if synth_active { "synth_ast" } else { "regex_fallback" }
             }
         }),
         graph.evidence.clone(),
@@ -330,7 +336,13 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
-        coverage_gaps(&graph),
+        coverage_gaps(
+            &graph,
+            graph
+                .extractors
+                .iter()
+                .any(|extractor| extractor.starts_with("synth-")),
+        ),
         metrics(started, &graph),
     )
 }
@@ -398,7 +410,13 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
         repo,
         json!({ "matches": matches }),
         evidence,
-        coverage_gaps(&graph),
+        coverage_gaps(
+            &graph,
+            graph
+                .extractors
+                .iter()
+                .any(|extractor| extractor.starts_with("synth-")),
+        ),
         metrics(started, &graph),
     )
 }
@@ -482,7 +500,13 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
             "unknownImpact": []
         }),
         graph.evidence.clone(),
-        coverage_gaps(&graph),
+        coverage_gaps(
+            &graph,
+            graph
+                .extractors
+                .iter()
+                .any(|extractor| extractor.starts_with("synth-")),
+        ),
         metrics(started, &graph),
     )
 }
@@ -536,7 +560,7 @@ fn architecture_evidence(input: serde_json::Value) -> ToolEnvelope {
     )
 }
 
-fn coverage_gaps(graph: &ArchitectureGraph) -> Vec<String> {
+fn coverage_gaps(graph: &ArchitectureGraph, synth_active: bool) -> Vec<String> {
     let mut gaps = Vec::new();
     if graph.nodes.iter().all(|n| n.kind != "route") {
         gaps.push("Route extraction not yet implemented.".into());
@@ -547,8 +571,10 @@ fn coverage_gaps(graph: &ArchitectureGraph) -> Vec<String> {
     if graph.repository.worktree_dirty {
         gaps.push("Working tree has uncommitted changes.".into());
     }
-    if !graph.extractors.iter().any(|extractor| extractor.starts_with("synth-")) {
-        gaps.push("Synth AST substrate not active; import graph uses regex fallback.".into());
+    if !synth_active {
+        gaps.push(
+            "Synth AST substrate is off by default (importGraphRoute=regex_fallback). Set ARCHITECTURE_READER_USE_SYNTH=1 to enable synth_ast in CI or local runs.".into(),
+        );
     }
     gaps
 }
