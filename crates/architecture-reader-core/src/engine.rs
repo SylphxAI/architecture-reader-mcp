@@ -554,11 +554,32 @@ fn coverage_gaps(graph: &ArchitectureGraph) -> Vec<String> {
 }
 
 fn resolve_node_id(graph: &ArchitectureGraph, needle: &str) -> Option<String> {
-    graph
+    if let Some(node) = graph
         .nodes
         .iter()
         .find(|n| n.id == needle || n.path.as_deref() == Some(needle) || n.label == needle)
-        .map(|n| n.id.clone())
+    {
+        return Some(node.id.clone());
+    }
+
+    let symbol_matches: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "symbol" && n.label == needle)
+        .collect();
+    if symbol_matches.len() == 1 {
+        return Some(symbol_matches[0].id.clone());
+    }
+
+    if let Some((path, symbol)) = needle.split_once("::") {
+        return graph
+            .nodes
+            .iter()
+            .find(|n| n.kind == "symbol" && n.label == symbol && n.path.as_deref() == Some(path))
+            .map(|n| n.id.clone());
+    }
+
+    None
 }
 
 fn bfs_path(

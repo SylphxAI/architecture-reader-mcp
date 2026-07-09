@@ -135,6 +135,44 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     { pathLength: tracePath.length }
   );
 
+  const callTrace = invokeEngine('architecture_trace', {
+    root: fixtureRoot,
+    from: 'authMiddleware',
+    to: 'validateToken',
+    relation: 'calls',
+    maxDepth: 4,
+  });
+  const callTracePath = (callTrace.answer as { path?: unknown[] } | undefined)?.path ?? [];
+  addCheck(
+    checks,
+    'boundary:architecture_symbol_call_trace',
+    callTrace.status === 'ok' && callTracePath.length >= 2,
+    'architecture_trace follows symbol call edges between authMiddleware and validateToken',
+    { pathLength: callTracePath.length }
+  );
+
+  const pythonIndex = invokeEngine('architecture_index', { root: fixtureRoot, mode: 'full' });
+  const graphPath = path.join(fixtureRoot, '.architecture-reader', 'graph.json');
+  const graph = existsSync(graphPath)
+    ? (JSON.parse(readFileSync(graphPath, 'utf8')) as {
+        nodes?: Array<{ kind?: string; path?: string }>;
+        edges?: Array<{ kind?: string; from?: string; to?: string }>;
+      })
+    : {};
+  const hasPythonModule = (graph.nodes ?? []).some(
+    (node) => node.kind === 'module' && node.path === 'src/ml/scorer.py'
+  );
+  const hasPythonImport = (graph.edges ?? []).some(
+    (edge) => edge.kind === 'imports' && edge.from?.includes('scorer.py')
+  );
+  addCheck(
+    checks,
+    'boundary:python_adapter',
+    pythonIndex.status === 'ok' && hasPythonModule && hasPythonImport,
+    'Python files are indexed with import edges in the architecture graph',
+    { hasPythonModule, hasPythonImport }
+  );
+
   const impact = invokeEngine('architecture_impact', {
     root: fixtureRoot,
     changedPaths: ['src/server/routes.ts'],

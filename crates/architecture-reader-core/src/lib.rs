@@ -18,6 +18,12 @@ pub use types::{
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+
+    fn fixture_index_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     fn fixture_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -40,6 +46,7 @@ mod tests {
 
     #[test]
     fn indexes_fixture_and_returns_spec_envelope() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
         let input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
         let envelope = engine::handle_tool("architecture_index", input);
@@ -77,6 +84,7 @@ mod tests {
 
     #[test]
     fn status_no_longer_reports_route_or_schema_gaps_after_index() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
         let index_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
         let _ = engine::handle_tool("architecture_index", index_input);
@@ -121,6 +129,7 @@ mod tests {
 
     #[test]
     fn auto_mode_returns_cache_hit_when_inventory_is_unchanged() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
         let full_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
         let first = engine::handle_tool("architecture_index", full_input.clone());
@@ -137,7 +146,54 @@ mod tests {
     }
 
     #[test]
+    fn indexes_python_imports_and_call_edges() {
+        let root = fixture_root();
+        let git = git::read_git_state(&root);
+        let graph = scanner::scan_repository(&root, &scanner::ScanOptions::default(), git.commit, git.dirty);
+
+        assert!(graph.nodes.iter().any(|node| {
+            node.kind == "module" && node.path.as_deref() == Some("src/ml/scorer.py")
+        }));
+        assert!(graph.edges.iter().any(|edge| {
+            edge.kind == "imports"
+                && edge.from.contains("scorer.py")
+                && edge.to.contains("auth.token")
+        }));
+        assert!(graph.extractors.iter().any(|extractor| extractor.starts_with("python@")));
+    }
+
+    #[test]
+    fn trace_finds_symbol_call_path_in_fixture() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let index_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
+        let _ = engine::handle_tool("architecture_index", index_input);
+        let trace_input = serde_json::json!({
+            "root": root.to_string_lossy(),
+            "from": "authMiddleware",
+            "to": "validateToken",
+            "relation": "calls",
+            "maxDepth": 4
+        });
+        let envelope = engine::handle_tool("architecture_trace", trace_input);
+        assert_eq!(envelope.status, "ok");
+        let path = envelope
+            .answer
+            .as_ref()
+            .and_then(|answer| answer.get("path"))
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            path.len() >= 2,
+            "expected symbol call trace path, got {:?}",
+            path
+        );
+    }
+
+    #[test]
     fn search_finds_auth_module_in_fixture() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
         let index_input = serde_json::json!({ "root": root.to_string_lossy(), "mode": "full" });
         let _ = engine::handle_tool("architecture_index", index_input);

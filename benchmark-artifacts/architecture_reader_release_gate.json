@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-09T04:39:58.453Z",
+  "generated_at": "2026-07-09T04:59:34.235Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 9,
-    "passed": 9,
+    "total": 11,
+    "passed": 11,
     "failed": 0
   },
   "checks": [
@@ -37,8 +37,8 @@
       "status": "passed",
       "message": "architecture_index returns a populated graph envelope from the Rust CLI",
       "evidence": {
-        "nodeCount": 16,
-        "edgeCount": 10
+        "nodeCount": 24,
+        "edgeCount": 18
       }
     },
     {
@@ -63,6 +63,23 @@
       "message": "architecture_trace returns a non-empty path between routes and auth modules in the fixture repo",
       "evidence": {
         "pathLength": 2
+      }
+    },
+    {
+      "id": "boundary:architecture_symbol_call_trace",
+      "status": "passed",
+      "message": "architecture_trace follows symbol call edges between authMiddleware and validateToken",
+      "evidence": {
+        "pathLength": 2
+      }
+    },
+    {
+      "id": "boundary:python_adapter",
+      "status": "passed",
+      "message": "Python files are indexed with import edges in the architecture graph",
+      "evidence": {
+        "hasPythonModule": true,
+        "hasPythonImport": true
       }
     },
     {

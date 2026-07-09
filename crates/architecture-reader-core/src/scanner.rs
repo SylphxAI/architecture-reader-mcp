@@ -183,9 +183,11 @@ pub fn scan_repository_paths(
     let mut extractors = vec![
         "manifest@0.1.0".into(),
         "import-graph@0.1.0".into(),
+        "call-graph@0.1.0".into(),
         "docs@0.1.0".into(),
         "routes@0.1.0".into(),
         "schema@0.1.0".into(),
+        "python@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -232,10 +234,13 @@ fn index_file(builder: &mut GraphBuilder, _root: &Path, path: &Path, rel_str: &s
         || rel_str.ends_with(".js")
         || rel_str.ends_with(".mjs")
     {
+        let content = fs::read_to_string(path).unwrap_or_default();
         let used_synth = index_ts_with_optional_synth(builder, rel_str, path, options.use_synth);
         if !used_synth {
             index_ts_imports(builder, rel_str, path);
         }
+        index_ts_symbols(builder, rel_str, &content);
+        index_ts_calls(builder, rel_str, &content);
         index_ts_routes(builder, rel_str, path);
         index_ts_schemas(builder, rel_str, path);
         return;
@@ -243,6 +248,10 @@ fn index_file(builder: &mut GraphBuilder, _root: &Path, path: &Path, rel_str: &s
 
     if rel_str.ends_with(".rs") {
         index_rs_imports(builder, rel_str, path);
+    }
+
+    if rel_str.ends_with(".py") {
+        index_py_module(builder, rel_str, path);
     }
 }
 
@@ -508,6 +517,320 @@ fn extract_json_schema_label(content: &str) -> Option<String> {
 fn line_number_at(content: &str, byte_offset: usize) -> u32 {
     let prefix = &content[..byte_offset.min(content.len())];
     prefix.lines().count().max(1) as u32
+}
+
+fn index_ts_symbols(builder: &mut GraphBuilder, rel: &str, content: &str) {
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if !builder.has_node(&file_id) {
+        let file_ev = builder.push_evidence("ast", rel, "call-graph@0.1.0", None, None);
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+
+    let patterns = [
+        (
+            Regex::new(r#"(?m)^export\s+(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)"#).unwrap(),
+            "function",
+        ),
+        (
+            Regex::new(r#"(?m)^export\s+class\s+([A-Za-z_][A-Za-z0-9_]*)"#).unwrap(),
+            "class",
+        ),
+        (
+            Regex::new(r#"(?m)^function\s+([A-Za-z_][A-Za-z0-9_]*)"#).unwrap(),
+            "function",
+        ),
+    ];
+
+    for (pattern, kind) in patterns {
+        for cap in pattern.captures_iter(content) {
+            let name = cap[1].to_string();
+            let line = line_number_at(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "call-graph@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+    }
+}
+
+fn index_ts_calls(builder: &mut GraphBuilder, rel: &str, content: &str) {
+    let import_map = ts_import_local_map(content);
+    let symbols = ts_symbol_spans(content);
+    if symbols.is_empty() {
+        return;
+    }
+
+    let call_re = Regex::new(r#"(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || matches!(callee.as_str(), "if" | "for" | "while" | "switch" | "return") {
+                    continue;
+                }
+                if let Some(target_id) = resolve_ts_call_target(builder, rel, &import_map, &callee) {
+                    let ev = builder.push_evidence(
+                        "ast",
+                        rel,
+                        "call-graph@0.1.0",
+                        Some(line_number),
+                        Some(line_number),
+                    );
+                    builder.push_edge("calls", &caller_id, &target_id, &ev);
+                }
+            }
+        }
+    }
+}
+
+fn ts_import_local_map(content: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    let import_re = Regex::new(
+        r#"(?m)^\s*import\s+(?:\{([^}]+)\}|([A-Za-z_][A-Za-z0-9_]*))\s+from\s+['"]([^'"]+)['"]"#,
+    )
+    .unwrap();
+    let from_import_re =
+        Regex::new(r#"(?m)^\s*from\s+([A-Za-z0-9_.]+)\s+import\s+([A-Za-z0-9_,\s]+)"#).unwrap();
+
+    for cap in import_re.captures_iter(content) {
+        let source = cap[3].to_string();
+        if let Some(named) = cap.get(1) {
+            for part in named.as_str().split(',') {
+                let token = part.trim();
+                let local = token
+                    .split(" as ")
+                    .next()
+                    .unwrap_or(token)
+                    .trim()
+                    .to_string();
+                if !local.is_empty() {
+                    out.insert(local, source.clone());
+                }
+            }
+        } else if let Some(default_import) = cap.get(2) {
+            out.insert(default_import.as_str().to_string(), source);
+        }
+    }
+
+    for cap in from_import_re.captures_iter(content) {
+        let source = cap[1].to_string();
+        for part in cap[2].split(',') {
+            let token = part.trim();
+            let local = token.split(" as ").next().unwrap_or(token).trim().to_string();
+            if !local.is_empty() {
+                out.insert(local, source.clone());
+            }
+        }
+    }
+    out
+}
+
+fn ts_symbol_spans(content: &str) -> Vec<(String, u32, u32)> {
+    let symbol_re = Regex::new(
+        r#"(?m)^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)"#,
+    )
+    .unwrap();
+    let mut starts = Vec::new();
+    for cap in symbol_re.captures_iter(content) {
+        let name = cap[1].to_string();
+        let start = line_number_at(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        starts.push((name, start));
+    }
+
+    let total_lines = content.lines().count().max(1) as u32;
+    starts
+        .iter()
+        .enumerate()
+        .map(|(index, (name, start))| {
+            let end = starts
+                .get(index + 1)
+                .map(|(_, next_start)| next_start.saturating_sub(1))
+                .unwrap_or(total_lines);
+            (name.clone(), *start, end)
+        })
+        .collect()
+}
+
+fn resolve_ts_call_target(
+    builder: &GraphBuilder,
+    rel: &str,
+    import_map: &HashMap<String, String>,
+    callee: &str,
+) -> Option<String> {
+    if let Some(local_target) = builder
+        .nodes
+        .iter()
+        .find(|node| node.kind == "symbol" && node.path.as_deref() == Some(rel) && node.label == callee)
+        .map(|node| node.id.clone())
+    {
+        return Some(local_target);
+    }
+
+    let import_source = import_map.get(callee)?;
+    if import_source.starts_with('.') {
+        let resolved_path = normalize_relative_module_path(rel, import_source)?;
+        return builder
+            .nodes
+            .iter()
+            .find(|node| {
+                node.kind == "symbol"
+                    && node.label == callee
+                    && node.path.as_deref() == Some(resolved_path.as_str())
+            })
+            .map(|node| node.id.clone())
+            .or_else(|| {
+                let dep_id = format!("node:module:dep:{import_source}");
+                if builder.has_node(&dep_id) {
+                    Some(dep_id)
+                } else {
+                    None
+                }
+            });
+    }
+
+    let dep_id = format!("node:module:dep:{import_source}");
+    if builder.has_node(&dep_id) {
+        Some(dep_id)
+    } else {
+        None
+    }
+}
+
+fn normalize_relative_module_path(from_rel: &str, import_source: &str) -> Option<String> {
+    if !import_source.starts_with('.') {
+        return None;
+    }
+    let from = Path::new(from_rel);
+    let parent = from.parent()?;
+    let joined = parent.join(import_source);
+    let mut normalized = normalize_posix_path(&joined.to_string_lossy().replace('\\', "/"));
+    if normalized.ends_with(".js") || normalized.ends_with(".mjs") {
+        let stem = normalized[..normalized.rfind('.')?].to_string();
+        normalized = stem;
+    }
+    if !normalized.ends_with(".ts") && !normalized.ends_with(".tsx") {
+        normalized.push_str(".ts");
+    }
+    Some(normalized)
+}
+
+fn normalize_posix_path(path: &str) -> String {
+    let mut stack: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            stack.pop();
+        } else {
+            stack.push(part);
+        }
+    }
+    stack.join("/")
+}
+
+fn index_py_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_ev = builder.push_evidence("ast", rel, "python@0.1.0", None, None);
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+
+    let import_re = Regex::new(r#"(?m)^\s*import\s+([A-Za-z0-9_.]+)"#).unwrap();
+    let from_import_re =
+        Regex::new(r#"(?m)^\s*from\s+([A-Za-z0-9_.]+)\s+import\s+([A-Za-z0-9_,\s]+)"#).unwrap();
+    let mut import_map = HashMap::new();
+
+    for cap in import_re.captures_iter(&content) {
+        let module = cap[1].to_string();
+        let dep_id = format!("node:module:dep:{module}");
+        if !builder.has_node(&dep_id) {
+            builder.push_node(&dep_id, "module", &module, None, &file_ev);
+        }
+        builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        import_map.insert(module.clone(), module);
+    }
+
+    for cap in from_import_re.captures_iter(&content) {
+        let module = cap[1].to_string();
+        let dep_id = format!("node:module:dep:{module}");
+        if !builder.has_node(&dep_id) {
+            builder.push_node(&dep_id, "module", &module, None, &file_ev);
+        }
+        builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        for part in cap[2].split(',') {
+            let token = part.trim();
+            let local = token.split(" as ").next().unwrap_or(token).trim().to_string();
+            if !local.is_empty() {
+                import_map.insert(local, module.clone());
+            }
+        }
+    }
+
+    let def_re = Regex::new(r#"(?m)^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let call_re = Regex::new(r#"(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let mut symbols = Vec::new();
+
+    for cap in def_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+        let ev = builder.push_evidence("ast", rel, "python@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+        symbols.push((name, line, line + 64));
+    }
+
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || callee == "def" {
+                    continue;
+                }
+                let target_id = if let Some(local) = builder
+                    .nodes
+                    .iter()
+                    .find(|node| {
+                        node.kind == "symbol"
+                            && node.path.as_deref() == Some(rel)
+                            && node.label == callee
+                    })
+                    .map(|node| node.id.clone())
+                {
+                    local
+                } else if let Some(module) = import_map.get(&callee) {
+                    format!("node:module:dep:{module}")
+                } else {
+                    continue;
+                };
+                let ev = builder.push_evidence(
+                    "ast",
+                    rel,
+                    "python@0.1.0",
+                    Some(line_number),
+                    Some(line_number),
+                );
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
+    }
+    let _ = path;
 }
 
 fn index_rs_imports(builder: &mut GraphBuilder, rel: &str, path: &Path) {
