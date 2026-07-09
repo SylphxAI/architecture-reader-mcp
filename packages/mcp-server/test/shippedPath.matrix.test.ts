@@ -1,22 +1,18 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
-import { chmodSync, cpSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { invokeEngine } from '../src/engine.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-const fixtureTemplate = join(repoRoot, 'fixtures/sample-repo');
+const fixtureRoot = join(repoRoot, 'fixtures/sample-repo');
 
 describe('shipped path matrix (Rust core, no legacy flags)', () => {
-  let fixtureRoot: string;
   let fakeNodeEnv: NodeJS.ProcessEnv;
   let nodeInvokeLog: string;
 
   beforeAll(() => {
-    fixtureRoot = mkdtempSync(join(os.tmpdir(), 'architecture-reader-matrix-fixture-'));
-    cpSync(fixtureTemplate, fixtureRoot, { recursive: true });
-
     const releaseCli = join(repoRoot, 'target/release/architecture-reader-cli');
     const debugCli = join(repoRoot, 'target/debug/architecture-reader-cli');
     expect(existsSync(releaseCli) || existsSync(debugCli)).toBe(true);
@@ -43,7 +39,7 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
       fakeNodeEnv
     );
     expect(index.status).toBe('ok');
-  }, { timeout: 300_000 });
+  });
 
   const invoke = (tool: string, input: Record<string, unknown>) =>
     invokeEngine(tool, input, fakeNodeEnv);

@@ -200,13 +200,14 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
 
   const matrixProbe = spawnSync(
     'bun',
-    ['test', 'packages/mcp-server/test/shippedPath.matrix.test.ts'],
+    ['test', 'packages/mcp-server/test/shippedPath.matrix.test.ts', '--concurrency', '1'],
     {
       cwd: repoRoot,
       encoding: 'utf8',
       env: {
         ...process.env,
         ARCHITECTURE_READER_ALLOW_LEGACY_ENGINE: '',
+        ARCHITECTURE_READER_USE_SYNTH: '',
       },
       timeout: 300_000,
     }
