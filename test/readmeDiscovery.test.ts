@@ -34,6 +34,17 @@ describe('README discovery surfaces', () => {
     expect(server.tools).toContain('architecture_evidence');
     expect(existsSync('docs/specs/2026-07-09-tool-contract.md')).toBe(true);
     expect(existsSync('docs/portfolio/roadmaps/architecture-reader-mcp.md')).toBe(true);
+    expect(existsSync('docs/portfolio/roadmaps/gpt-review.md')).toBe(true);
     expect(existsSync('.github/workflows/ci.yml')).toBe(true);
+  });
+
+  it('marks sunset MCP repos as archived in the portfolio plan', () => {
+    const portfolio = readText('docs/portfolio/README.md');
+
+    expect(portfolio).toContain('## Archived MCP Projects');
+    expect(portfolio).toContain('consultant-mcp');
+    expect(portfolio).toContain('gpt-review');
+    expect(portfolio).toContain('2026-07-09');
+    expect(portfolio).not.toContain('consultant-mcp` | Give agents safe local operations and structured decision review');
   });
 });

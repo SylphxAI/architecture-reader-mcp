@@ -24,7 +24,7 @@ dashboard.
 | --- | --- | --- |
 | Reader | `pdf-reader-mcp`, `image-reader-mcp`, `video-reader-mcp`, `smart-reader-mcp` | Turn files and media into citeable agent evidence. |
 | Code Intelligence | `coderag`, `architecture-reader-mcp` | Let agents retrieve code facts, architectural maps, dependency traces, and impact evidence. |
-| Control | `filesystem-mcp`, `consultant-mcp` | Give agents safe local operations and structured decision review. |
+| Control | `filesystem-mcp` | Give agents safe, bounded local filesystem operations. |
 
 ## Runtime Standard
 
@@ -126,6 +126,17 @@ Every MCP repo should have:
 The suite should look like one product family: consistent names, command names,
 output envelopes, trust warnings, benchmark style, and release quality.
 
+## Archived MCP Projects
+
+These repositories are **read-only on GitHub** and are no longer active portfolio
+delivery targets. Keep historical roadmaps for context; do not treat them as
+installable products.
+
+| Repo | Archived | Former category job |
+| --- | --- | --- |
+| [`consultant-mcp`](https://github.com/SylphxAI/consultant-mcp) | 2026-07-09 | Typed consultant panel for high-stakes agent decisions |
+| [`gpt-review`](https://github.com/SylphxAI/gpt-review) | 2026-07-09 | Governed-workflow engine, MCP server, and external GPT review gate |
+
 ## ADR Index
 
 - `ADR-DRAFT-rust-first-runtime-distribution.md`
@@ -142,4 +153,5 @@ output envelopes, trust warnings, benchmark style, and release quality.
 - `roadmaps/video-reader-mcp.md`
 - `roadmaps/smart-reader-mcp.md`
 - `roadmaps/filesystem-mcp.md`
-- `roadmaps/consultant-mcp.md`
+- `roadmaps/consultant-mcp.md` (archived — historical)
+- `roadmaps/gpt-review.md` (archived — historical)

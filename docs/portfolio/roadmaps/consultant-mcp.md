@@ -1,5 +1,8 @@
 # Roadmap: Consultant MCP
 
+> **Status: archived (2026-07-09).** [SylphxAI/consultant-mcp](https://github.com/SylphxAI/consultant-mcp)
+> is read-only on GitHub. This roadmap is retained for historical context only.
+
 ## Category Position
 
 Consultant MCP is the structured decision-review and research panel for agents.
