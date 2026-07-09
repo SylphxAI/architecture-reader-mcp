@@ -25,13 +25,20 @@ dashboard.
 | Reader | `pdf-reader-mcp`, `image-reader-mcp`, `video-reader-mcp`, `smart-reader-mcp` | Turn files and media into citeable agent evidence. |
 | Code Intelligence | `coderag`, `architecture-reader-mcp` | Let agents retrieve code facts, architectural maps, dependency traces, and impact evidence. |
 | Control | `filesystem-mcp`, `consultant-mcp` | Give agents safe local operations and structured decision review. |
-| Foundations | `ast`, `synth`, `mcp-server-sdk` | Provide parser contracts, package fixtures, and legacy SDK compatibility surfaces without owning product MCP servers. |
+| Foundations | `ast`, `synth`, `groundatlas`, `codec`, `mcp-server-sdk` | Provide parser contracts, source-truth routing, media primitives, package fixtures, and compatibility surfaces without owning product MCP servers. |
 | Mission Control | `mission-control` | Track work, proof chains, runtime MCP migration, and fleet activity for Sylphx agents. |
 | Curation | `awesome-mcp-servers` | Present a coherent public MCP catalog and distribution doorway. |
 
 Archived projects such as `reader-evidence`, `smart-read-mcp`, `linear-mcp`,
-`rag-server-mcp`, and `tools` are historical or transition surfaces. They should
-not drive new product strategy unless explicitly revived through a new ADR.
+`rag-server-mcp`, `tools`, `flow`, and `ai-sdk-provider-claude-code` are
+historical, transition, or adjacent AI-tooling surfaces. They should not drive
+new product strategy unless explicitly revived through a new ADR.
+
+Adjacent active application repositories, such as `video`, are not MCP family
+members by name alone. `video` owns AgentVerse application workflows and content
+operations; `video-reader-mcp` owns temporal video evidence reading for agents.
+If an application repo becomes a shared MCP foundation, that boundary must be
+accepted through its own ADR before the portfolio depends on it.
 
 ## Runtime Standard
 
@@ -156,6 +163,8 @@ output envelopes, trust warnings, benchmark style, and release quality.
 
 - `SylphxAI/ast`: `docs/roadmap/mcp-family-ast-foundation.md`
 - `SylphxAI/synth`: `docs/roadmap/mcp-family-ast-foundation.md`
+- `SylphxAI/groundatlas`: `docs/specs/final-product-goal.md`
+- `SylphxAI/codec`: `PROJECT.md`
 - `SylphxAI/mcp-server-sdk`: `docs/roadmap/sota-family-roadmap.md`
 - `SylphxAI/mission-control`: `docs/roadmap/sota-mcp-runtime-roadmap.md`
 - `SylphxAI/awesome-mcp-servers`: `docs/roadmap/sota-family-roadmap.md`

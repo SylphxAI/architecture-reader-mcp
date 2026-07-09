@@ -20,8 +20,10 @@ evidence graph that agents can query before planning or editing.
 | Project | Relationship |
 | --- | --- |
 | CodeRAG | Provides code retrieval candidates and context packs. Architecture Reader owns graph facts, traces, and impact semantics. |
+| GroundAtlas | Provides source-truth routing, manifest semantics, freshness gates, and fleet orientation. Architecture Reader owns architecture graph extraction and MCP answer contracts. |
 | Filesystem MCP | Provides safe file access and write operations. Architecture Reader may recommend affected files but does not edit them. |
 | Reader MCPs | Provide evidence from PDFs, images, videos, and media docs that live beside source code. Architecture Reader links that evidence to repo concepts when relevant. |
+| Codec | Provides reusable media codec and conversion primitives that Reader MCPs can consume. Architecture Reader does not own media codec behavior. |
 | Consultant MCP | Reviews architecture decisions and roadmap tradeoffs using Architecture Reader evidence as input. |
 | Smart Reader MCP | Routes attached design artifacts and repo media into reader-specific evidence. |
 
