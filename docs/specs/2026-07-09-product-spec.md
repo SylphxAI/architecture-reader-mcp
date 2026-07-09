@@ -85,7 +85,8 @@ and MCP server crates.
 ### Phase 1: Deterministic Graph MVP
 
 Implement repository scan, manifest extraction, docs/ADR extraction,
-Synth-backed symbol extraction, graph serialization, and MCP status/overview.
+parser-substrate symbol extraction, graph serialization, and MCP
+status/overview.
 
 ### Phase 2: Query Tools
 

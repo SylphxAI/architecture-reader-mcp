@@ -9,7 +9,7 @@ through MCP tools optimized for AI agents.
 flowchart LR
   A["Repository checkout"] --> B["Deterministic scanners"]
   B --> C["Architecture evidence graph"]
-  D["Synth AST adapters"] --> C
+  D["Parser substrate adapters"] --> C
   E["CodeRAG search adapter"] --> C
   F["Docs and ADR extractors"] --> C
   G["Workflow/schema/config extractors"] --> C
@@ -40,7 +40,8 @@ Extractors are versioned adapters that convert repository evidence into graph
 nodes, edges, and claims. Initial adapters:
 
 - Manifest extractor: package metadata, workspaces, Cargo, Python, Go, Java.
-- Synth AST extractor: symbols, spans, imports, exports, syntax evidence.
+- Parser-substrate extractor: symbols, spans, imports, exports, syntax evidence
+  from Synth or AST public contracts.
 - CodeRAG adapter: optional fallback for generic chunk retrieval.
 - Docs/ADR extractor: decisions, documented boundaries, concepts, references.
 - Workflow/config extractor: CI, deployment, routing, schemas, infrastructure.
@@ -53,7 +54,8 @@ inference to deterministic evidence.
 1. Resolve the repository root and git commit.
 2. Read ignore rules and skip generated/vendor folders by default.
 3. Scan manifests, docs, configs, workflows, schemas, and source files.
-4. Parse supported source files with Synth or a future Rust parser adapter.
+4. Parse supported source files with a selected parser substrate such as Synth,
+   AST fixtures, or a future Rust parser adapter.
 5. Normalize extracted facts into the evidence graph.
 6. Build indexes for graph traversal, lexical lookup, structural filters, and
    optional semantic retrieval.
@@ -97,9 +99,9 @@ Every tool response includes:
 
 ## Relationship To Existing Repositories
 
-- Synth owns parser contracts and language parser packages.
-- `SylphxAI/ast` owns ANTLR/TypeScript AST parsing tools currently centered on
-  JavaScript.
+- Synth owns the `@sylphx/synth*` parser/tool package family.
+- `SylphxAI/ast` owns the `@sylphlab/ast-*` ANTLR-backed parser-contract line,
+  currently centered on JavaScript.
 - CodeRAG owns generic code chunk indexing and search.
 - Reader MCP repositories own media/document reading.
 - Architecture Reader MCP owns architecture-level graph and agent answer

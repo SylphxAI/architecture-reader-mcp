@@ -40,7 +40,7 @@ All tools return the same top-level envelope:
   "path": "src/server.ts",
   "startLine": 10,
   "endLine": 42,
-  "extractor": "synth-typescript@0.3.x",
+  "extractor": "parser-substrate-typescript@0.3.x",
   "confidence": "deterministic"
 }
 ```

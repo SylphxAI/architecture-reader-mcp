@@ -48,9 +48,9 @@ Observed repository: `work/repos/synth`; public repo metadata confirms
 `SylphxAI/synth` is active. npm readback returned `@sylphx/synth@0.3.2` and
 `@sylphx/synth-rust@0.3.1`.
 
-Synth owns the `@sylphx/synth*` parser/tool package family. `PROJECT.md` states
-that Synth owns AST contracts, parser implementations, package exports, docs,
-and benchmark/tooling surfaces directly tied to Synth packages.
+Synth owns the `@sylphx/synth*` parser/tool package family. Current project
+planning treats those contracts as Synth-owned package surfaces, not as
+ownership over the separate `SylphxAI/ast` package line.
 
 Important implementation evidence:
 
@@ -61,17 +61,17 @@ Important implementation evidence:
 - `packages/synth-rust/src/parser.ts` converts Rust tree-sitter output into the
   Synth universal AST via async WASM parsing.
 
-Conclusion: Synth is the best current Sylphx parser substrate for a first
-Architecture Reader implementation.
+Conclusion: Synth is the strongest current multi-language parser substrate for a
+first Architecture Reader implementation, but Architecture Reader must keep a
+parser-substrate adapter boundary so language choices can be fixture- and
+benchmark-driven.
 
 ### SylphxAI/ast
 
-Observed repository: `/Users/kyle/ast`, remote `https://github.com/SylphxAI/ast`.
+Observed repository: `SylphxAI/ast`, remote `https://github.com/SylphxAI/ast`.
 
-The local checkout is on `codex/adr81-selector-facts`, one commit ahead of
-`origin/main`. The project is a TypeScript monorepo for AST parsing tools,
-currently centered on JavaScript parsing through ANTLR and shared CST/AST core
-interfaces.
+The project is a TypeScript monorepo for AST parsing tools, currently centered
+on JavaScript parsing through ANTLR and shared CST/AST core interfaces.
 
 Important implementation evidence:
 
@@ -80,10 +80,10 @@ Important implementation evidence:
 - `packages/core/src/index.ts` defines generic CST interfaces but still contains
   refinement comments and placeholder exports.
 
-Conclusion: `SylphxAI/ast` is useful as internal AST knowledge, but it is not
-yet the best multi-language substrate for this product. Use Synth first; keep an
-adapter boundary so `SylphxAI/ast` can provide JavaScript-specific extraction if
-that package matures.
+Conclusion: `SylphxAI/ast` is a real foundation project and must be included in
+the family plan. Use Synth first where multi-language coverage is stronger, but
+evaluate AST through public packages, fixtures, source-span conformance, and
+benchmarks where its ANTLR-backed contracts fit the language better.
 
 ### Visualization-First Codebase Graph Category
 

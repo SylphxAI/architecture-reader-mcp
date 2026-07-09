@@ -25,7 +25,8 @@ published, merged, released, deployed, or production-verified.
 Adjacent tools cover important slices but leave an agent-specific gap:
 
 - CodeRAG answers generic code search over chunks.
-- Synth provides a universal AST substrate across many languages.
+- Synth provides a universal AST package family across many languages.
+- SylphxAI AST provides ANTLR-backed typed parser contracts and fixtures.
 - Visualization-first codebase graph tools optimize for human exploration.
 - Source-code fact systems model code as durable facts.
 - Static analysis systems provide structural query and code property graph
@@ -108,7 +109,7 @@ should add:
 2. Rust MCP server tool schemas and stubbed `rmcp` handlers.
 3. Deterministic repository scanner for manifests, workspaces, docs, and import
    edges.
-4. Synth-backed AST extractor adapter.
+4. Parser-substrate extractor adapter with Synth and AST fixture support.
 5. Golden-fixture tests against small TypeScript and Rust repositories.
 
 Local validation for this scaffold:

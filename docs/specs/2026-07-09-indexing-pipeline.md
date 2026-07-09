@@ -29,7 +29,7 @@ coverage gaps.
 Run extractor adapters:
 
 - manifest/workspace extractor;
-- Synth AST extractor;
+- parser-substrate extractor for Synth and AST outputs;
 - import/export extractor;
 - docs/ADR extractor;
 - schema/config/workflow extractor;
@@ -101,7 +101,7 @@ Each extractor returns:
 
 ```json
 {
-  "name": "synth-typescript",
+  "name": "parser-substrate-typescript",
   "version": "0.3.x",
   "facts": [],
   "evidence": [],

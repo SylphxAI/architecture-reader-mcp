@@ -117,7 +117,7 @@ nodes, edges, and evidence.
   "path": "src/middleware/auth.ts",
   "startLine": 1,
   "endLine": 80,
-  "extractor": "synth-typescript",
+  "extractor": "parser-substrate-typescript",
   "extractorVersion": "0.3.x",
   "contentHash": "sha256:...",
   "confidence": "deterministic"

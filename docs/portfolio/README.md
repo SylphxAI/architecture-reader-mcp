@@ -25,6 +25,13 @@ dashboard.
 | Reader | `pdf-reader-mcp`, `image-reader-mcp`, `video-reader-mcp`, `smart-reader-mcp` | Turn files and media into citeable agent evidence. |
 | Code Intelligence | `coderag`, `architecture-reader-mcp` | Let agents retrieve code facts, architectural maps, dependency traces, and impact evidence. |
 | Control | `filesystem-mcp`, `consultant-mcp` | Give agents safe local operations and structured decision review. |
+| Foundations | `ast`, `synth`, `mcp-server-sdk` | Provide parser contracts, package fixtures, and legacy SDK compatibility surfaces without owning product MCP servers. |
+| Mission Control | `mission-control` | Track work, proof chains, runtime MCP migration, and fleet activity for Sylphx agents. |
+| Curation | `awesome-mcp-servers` | Present a coherent public MCP catalog and distribution doorway. |
+
+Archived projects such as `reader-evidence`, `smart-read-mcp`, `linear-mcp`,
+`rag-server-mcp`, and `tools` are historical or transition surfaces. They should
+not drive new product strategy unless explicitly revived through a new ADR.
 
 ## Runtime Standard
 
@@ -144,3 +151,11 @@ output envelopes, trust warnings, benchmark style, and release quality.
 - `roadmaps/smart-reader-mcp.md`
 - `roadmaps/filesystem-mcp.md`
 - `roadmaps/consultant-mcp.md`
+
+## Foundation And Control References
+
+- `SylphxAI/ast`: `docs/roadmap/mcp-family-ast-foundation.md`
+- `SylphxAI/synth`: `docs/roadmap/mcp-family-ast-foundation.md`
+- `SylphxAI/mcp-server-sdk`: `docs/roadmap/sota-family-roadmap.md`
+- `SylphxAI/mission-control`: `docs/roadmap/sota-mcp-runtime-roadmap.md`
+- `SylphxAI/awesome-mcp-servers`: `docs/roadmap/sota-family-roadmap.md`
