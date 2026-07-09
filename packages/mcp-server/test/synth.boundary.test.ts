@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { invokeEngine } from '../src/engine.ts';
 
 const fixtureRoot = join(
@@ -14,14 +14,6 @@ const probeScript = join(
 );
 
 describe('synth AST adapter boundary', () => {
-  beforeAll(() => {
-    process.env.ARCHITECTURE_READER_USE_SYNTH = '1';
-  });
-
-  afterAll(() => {
-    delete process.env.ARCHITECTURE_READER_USE_SYNTH;
-  });
-
   it('indexes fixture modules with synth-js provenance when probe is available', () => {
     if (!existsSync(probeScript)) {
       return;
