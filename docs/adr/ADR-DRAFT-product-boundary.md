@@ -16,7 +16,7 @@ architecture. The risk is overlapping existing ownership:
 - Synth already owns universal AST parser packages.
 - `SylphxAI/ast` owns ANTLR/TypeScript AST tooling, currently JavaScript-first.
 - Reader MCP repositories own document and media readers.
-- Dashboard-first codebase graph tools optimize for human visual exploration
+- Visualization-first codebase graph tools optimize for human visual exploration
   before agent tool use.
 
 ## Decision
@@ -47,7 +47,7 @@ Negative:
 Rejected. CodeRAG's primary shape is chunk search. Architecture graph queries,
 impact paths, and provenance-rich claims would broaden its scope.
 
-### Fork A Dashboard-First Competitor
+### Build A Visualization-First Product
 
 Rejected. The user target is MCP for agents, not a visualization-first plugin
 and dashboard product.

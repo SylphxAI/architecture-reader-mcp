@@ -22,15 +22,14 @@ published, merged, released, deployed, or production-verified.
 
 ## Why This Exists
 
-Existing tools cover important slices but leave an agent-specific gap:
+Adjacent tools cover important slices but leave an agent-specific gap:
 
 - CodeRAG answers generic code search over chunks.
 - Synth provides a universal AST substrate across many languages.
-- Dashboard-first codebase graph tools build interactive knowledge graphs for
-  humans.
-- Source-code fact systems such as Kythe and Glean model code as facts.
-- Static analysis systems such as CodeQL, Semgrep, ast-grep, and Joern provide
-  structural query or code property graph patterns.
+- Visualization-first codebase graph tools optimize for human exploration.
+- Source-code fact systems model code as durable facts.
+- Static analysis systems provide structural query and code property graph
+  patterns.
 
 Architecture Reader MCP claims the stronger agent-native category: fast,
 evidence-backed architecture answers for AI agents, with deterministic
@@ -85,7 +84,8 @@ architecture-reader-mcp/
   docs/
     adr/                         # Architecture decisions
     specs/                       # Product, graph, indexing, and tool specs
-    research/                    # Evidence and competitive analysis
+    research/                    # Evidence and category analysis
+    portfolio/                   # MCP portfolio ADRs and roadmaps
   server.json                    # MCP server metadata
 ```
 
@@ -96,7 +96,8 @@ architecture-reader-mcp/
 - [Tool Contract](./docs/specs/2026-07-09-tool-contract.md)
 - [Evidence Graph Spec](./docs/specs/2026-07-09-evidence-graph.md)
 - [Indexing Pipeline Spec](./docs/specs/2026-07-09-indexing-pipeline.md)
-- [Competitive And Internal Research](./docs/research/2026-07-09-competitive-and-internal-analysis.md)
+- [Category And Internal Research](./docs/research/2026-07-09-category-and-internal-analysis.md)
+- [MCP Portfolio Plan](./docs/portfolio/README.md)
 
 ## Development
 

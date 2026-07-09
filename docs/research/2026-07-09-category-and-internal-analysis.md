@@ -1,4 +1,4 @@
-# Competitive And Internal Analysis
+# Category And Internal Analysis
 
 Date: 2026-07-09
 
@@ -85,41 +85,44 @@ yet the best multi-language substrate for this product. Use Synth first; keep an
 adapter boundary so `SylphxAI/ast` can provide JavaScript-specific extraction if
 that package matures.
 
-### Dashboard-First Codebase Graph Competitor
+### Visualization-First Codebase Graph Category
 
-Observed a public plugin/dashboard product in the codebase-graph category. Its
-README describes a multi-agent pipeline that scans projects, builds a local
-knowledge graph JSON artifact, and serves an interactive dashboard.
+Category research shows demand for repository scanning, graph-shaped knowledge,
+incremental updates, domain extraction, documentation awareness, and human
+exploration surfaces.
 
-Important implementation evidence:
+Important design lessons:
 
-- Its core package defines node and edge types for a knowledge graph.
-- Its graph builder creates file, function, class, service, endpoint, schema,
-  pipeline, and resource nodes.
-- Its search module uses fuzzy search over graph nodes.
-- Its skill workflow defines multi-phase scan, batch, analyze, assemble, review,
-  and persist behavior.
+- Graph schemas need typed nodes and typed edges.
+- Repository scans should be incremental and resumable.
+- Domain entities such as services, endpoints, schemas, jobs, configs, and
+  resources matter more than raw files alone.
+- Search over graph nodes is useful, but evidence-backed agent answers need a
+  stronger contract than fuzzy node lookup.
+- Multi-phase scan pipelines are useful when they expose progress, coverage,
+  and reviewable evidence.
 
 Conclusion: Useful category signals are graph schema, incremental scan, diff
-impact, domain extraction, and documentation awareness. Weak fit for the Sylphx
-target: visualization and plugin workflow are primary, while our target is a
-typed MCP answer surface for agents. Architecture Reader MCP should compete by
-owning the agent-native architecture evidence category instead of advertising or
-anchoring itself to a named competitor.
+impact, domain extraction, and documentation awareness. The Sylphx target is
+stronger and narrower: a typed MCP answer surface for agents, backed by source
+evidence.
 
-## External Systems
+## External Category Signals
 
-External references were checked through public GitHub metadata on 2026-07-09.
+External category research was used as background input. The product documents
+do not anchor on external project names because the durable decision is what
+Architecture Reader MCP must become.
 
-| System | Observed description | Design lesson |
-| --- | --- | --- |
-| `tree-sitter/tree-sitter` | Incremental parsing system for programming tools, Rust implementation | Parser substrate must support incremental, multi-language parsing. |
-| `kythe/kythe` | Pluggable mostly language-agnostic ecosystem for code tools | Architecture facts should be language-agnostic and graph-shaped. |
-| `facebookincubator/Glean` | Collecting, deriving, and working with facts about source code | Separate raw facts from derived facts and keep derivation provenance. |
-| `github/codeql` | Libraries and queries powering code scanning | Rich query languages and derived analyses matter, but security query semantics are out of scope. |
-| `semgrep/semgrep` | Lightweight static analysis across many languages | Structural matching is powerful when syntax patterns are user-facing. |
-| `ast-grep/ast-grep` | Rust CLI for structural search, lint, and rewriting | Rust plus AST structural query is a strong performance precedent. |
-| `joernio/joern` | Code property graphs across multiple languages | Graph paths can answer impact and data/control relationship questions. |
+Design lessons:
+
+- Parser substrate must support incremental, multi-language parsing.
+- Architecture facts should be language-agnostic and graph-shaped.
+- Raw facts and derived facts must stay separate.
+- Derived facts must keep derivation provenance.
+- Structural matching is powerful when syntax patterns are user-facing.
+- Rust plus AST structural query is a strong performance direction.
+- Graph paths can answer impact, dependency, and data/control relationship
+  questions.
 
 ## Product Gap
 

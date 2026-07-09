@@ -12,10 +12,10 @@ Architecture questions require relationships across files, symbols, packages,
 routes, schemas, workflows, docs, and decisions. Search snippets alone do not
 preserve enough structure. Pure LLM summaries are not sufficiently auditable.
 
-Systems such as Kythe, Glean, and Joern show the value of source-code facts and
-graph relationships. Dashboard-first codebase graph products show demand for
-architecture learning, but their primary surface is visual exploration rather
-than agent-native evidence retrieval.
+Source-code fact systems and code property graph systems show the value of
+durable facts and graph relationships. Visualization-first codebase graph
+products show demand for architecture learning, but their primary surface is
+visual exploration rather than agent-native evidence retrieval.
 
 ## Decision
 

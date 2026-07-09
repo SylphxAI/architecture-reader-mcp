@@ -52,6 +52,7 @@ remain owned by their source repositories.
 - Architecture overview: [`docs/architecture.md`](./docs/architecture.md)
 - Specifications: [`docs/specs/`](./docs/specs/)
 - ADRs: [`docs/adr/`](./docs/adr/)
+- Portfolio plan: [`docs/portfolio/`](./docs/portfolio/)
 - Security boundary: [`SECURITY.md`](./SECURITY.md)
 - MCP server metadata: [`server.json`](./server.json)
 - Rust engine workspace: [`crates/`](./crates/)
