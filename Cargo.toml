@@ -1,5 +1,8 @@
 [workspace]
-members = ["crates/architecture-reader-core"]
+members = [
+  "crates/architecture-reader-core",
+  "crates/architecture-reader-cli",
+]
 resolver = "2"
 
 [workspace.package]

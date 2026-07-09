@@ -9,8 +9,8 @@ describe('README discovery surfaces', () => {
 
     expect(readme).toContain('Did it trace the right boundary?');
     expect(readme).toContain('## Why not grep or a dashboard?');
-    expect(readme).toContain('Draft scaffold');
-    expect(readme).toContain('not shipped yet');
+    expect(readme).toContain('Beta 0.1');
+    expect(readme).toContain('Rust core');
     expect(readme).toMatch(/Star the repo|Star this repo/);
     expect(readme).toContain('Not listed yet');
     expect(readme).toContain('registry.modelcontextprotocol.io');
@@ -29,7 +29,9 @@ describe('README discovery surfaces', () => {
   it('ships draft MCP metadata and design SSOT links', () => {
     const server = JSON.parse(readText('server.json'));
 
-    expect(server.status).toBe('draft');
+    expect(server.status).toBe('beta');
+    expect(existsSync('fixtures/sample-repo/package.json')).toBe(true);
+    expect(existsSync('crates/architecture-reader-cli/Cargo.toml')).toBe(true);
     expect(server.tools).toContain('architecture_index');
     expect(server.tools).toContain('architecture_evidence');
     expect(existsSync('docs/specs/2026-07-09-tool-contract.md')).toBe(true);

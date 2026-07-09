@@ -1,4 +1,5 @@
 target/
+.architecture-reader/
 node_modules/
 dist/
 .DS_Store

@@ -31,11 +31,23 @@ jobs:
       - name: Validate Cargo workspace
         run: cargo metadata --format-version 1
 
+      - name: Install workspace dependencies
+        run: bun install
+
+      - name: Build Rust engine
+        run: cargo build --release
+
       - name: Run Rust tests
         run: cargo test
 
+      - name: Run MCP adapter tests
+        run: bun test
+
       - name: Public surface audit
         run: bun run test:public-surface
+
+      - name: Public benchmark proof
+        run: bun run benchmark:public-proof
 
       - name: Check whitespace errors
         run: git diff --check HEAD

@@ -12,7 +12,7 @@ dashboard screenshots or keyword grep.
 [![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
 
-**Draft scaffold** · **Local-first design** · **7 typed MCP tools** · **Evidence envelope** · **1 Rust contract test**
+**Beta 0.1** · **Rust core + Bun MCP adapter** · **7 typed MCP tools** · **Evidence envelope** · **5 tests**
 
 [⭐ Star this repo](https://github.com/SylphxAI/architecture-reader-mcp) if agents should answer architecture questions with proof, not graphviz guesses.
 · [Quick start](#quick-start) · [Planned contract](#planned-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)
@@ -44,9 +44,10 @@ repo is shaped, what depends on what, and which files back each claim.**
 
 ## Current delivery state
 
-This repository is a **draft scaffold and design package**. Tool handlers, public
-npm packages, MCP Registry publication, benchmarks, and production verification are
-**not shipped yet**. See [PROJECT.md](./PROJECT.md) and the [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
+**Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
+adapter. Manifest/import/docs extraction works on local fixtures; route/schema
+extractors and npm publish are still in progress. See
+[roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
 ## Why not grep or a dashboard?
 
@@ -62,14 +63,16 @@ Generic code search stays in [CodeRAG](https://github.com/SylphxAI/coderag). AST
 substrate integration is planned through Synth — see
 [integration ADR](./docs/adr/ADR-DRAFT-synth-coderag-integration.md).
 
-## Planned contract
+## See it work
 
-**Install path (not published yet).** The first release will ship a Bun MCP adapter
-over a Rust graph core:
+**Build the Rust engine, then run the MCP adapter locally:**
 
 ```bash
-# planned — not on npm yet
-claude mcp add architecture-reader -- npx @sylphx/architecture-reader-mcp --root=/absolute/path/to/repo
+git clone https://github.com/SylphxAI/architecture-reader-mcp.git
+cd architecture-reader-mcp
+bun install
+cargo build --release
+ARCHITECTURE_READER_CLI=$PWD/target/release/architecture-reader-cli bun run packages/mcp-server/src/index.ts
 ```
 
 Index once, then ask architecture questions:
@@ -196,21 +199,31 @@ architecture-reader-mcp/
 
 ## Next implementation slice
 
-1. Rust graph model serialization tests.
-2. Bun MCP adapter with tool schemas and stubbed handlers.
-3. Deterministic repository scanner for manifests, workspaces, docs, and import edges.
-4. Synth-backed AST extractor adapter.
-5. Golden-fixture tests against small TypeScript and Rust repositories.
+1. Synth-backed AST extractor adapter.
+2. Route/schema/workflow extractors.
+3. Incremental index refresh and public benchmark gate in CI.
+4. npm publish + MCP Registry metadata.
 
 ## Development
 
 ```bash
+bun install
 bun run validate
-cargo metadata --format-version 1
+cargo build --release
 cargo test
-bun test test/readmeDiscovery.test.ts
-git diff --check
+bun test
+bun run benchmark:public-proof
 ```
+
+## Benchmark proof
+
+Reproduce locally:
+
+```bash
+bun run benchmark:public-proof
+```
+
+Fixture: `fixtures/sample-repo` (auth middleware + ADR + package manifest).
 
 ## Help this reach more builders
 

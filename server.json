@@ -1,8 +1,8 @@
 {
   "name": "@sylphx/architecture-reader-mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "MCP server for agent-native repository architecture evidence graphs and search.",
-  "status": "draft",
+  "status": "beta",
   "transport": {
     "stdio": true,
     "http": false

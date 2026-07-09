@@ -11,8 +11,11 @@
   "scripts": {
     "validate:json": "python3 -m json.tool .doctrine/project.json >/dev/null && python3 -m json.tool project.manifest.json >/dev/null",
     "validate": "bun run validate:json",
-    "test": "bun test",
-    "test:public-surface": "bun test test/readmeDiscovery.test.ts"
+    "build:rust": "cargo build --release",
+    "build": "bun run build:rust",
+    "test": "cargo test && bun test",
+    "test:public-surface": "bun test test/readmeDiscovery.test.ts",
+    "benchmark:public-proof": "bun run build:rust && bun run scripts/benchmark-public-proof.ts"
   },
   "repository": {
     "type": "git",
