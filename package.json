@@ -17,14 +17,19 @@
     "test:public-surface": "bun test test/readmeDiscovery.test.ts",
     "doctor": "bun run packages/mcp-server/src/doctor.ts",
     "benchmark:public-proof": "bun run build:rust && bun run scripts/benchmark-public-proof.ts",
-    "benchmark:release-gate": "bun run build:rust && bun run scripts/release-gate.ts"
+    "benchmark:release-gate": "bun run build:rust && bun run scripts/release-gate.ts",
+    "sync:server-json": "bun scripts/sync-server-json.ts",
+    "version-packages": "changeset version && bun run sync:server-json",
+    "release": "bun test && changeset publish"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/SylphxAI/architecture-reader-mcp.git"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
     "@sylphx/synth-js": "^0.2.0"
   }
 }

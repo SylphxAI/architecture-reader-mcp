@@ -26,18 +26,22 @@ describe('README discovery surfaces', () => {
     expect(readme).not.toContain('ADR-0002');
   });
 
-  it('ships draft MCP metadata and design SSOT links', () => {
+  it('ships MCP Registry metadata and publish workflow scaffolding', () => {
     const server = JSON.parse(readText('server.json'));
+    const pkg = JSON.parse(readText('packages/mcp-server/package.json'));
 
-    expect(server.status).toBe('beta');
+    expect(server.name).toBe('io.github.SylphxAI/architecture-reader-mcp');
+    expect(server.packages[0]?.identifier).toBe('@sylphx/architecture-reader-mcp');
+    expect(pkg.publishConfig?.access).toBe('public');
     expect(existsSync('fixtures/sample-repo/package.json')).toBe(true);
     expect(existsSync('crates/architecture-reader-cli/Cargo.toml')).toBe(true);
-    expect(server.tools).toContain('architecture_index');
-    expect(server.tools).toContain('architecture_evidence');
     expect(existsSync('docs/specs/2026-07-09-tool-contract.md')).toBe(true);
     expect(existsSync('docs/portfolio/roadmaps/architecture-reader-mcp.md')).toBe(true);
     expect(existsSync('docs/portfolio/roadmaps/gpt-review.md')).toBe(true);
     expect(existsSync('.github/workflows/ci.yml')).toBe(true);
+    expect(existsSync('.github/workflows/release.yml')).toBe(true);
+    expect(existsSync('.github/workflows/publish-mcp-registry.yml')).toBe(true);
+    expect(existsSync('.changeset/config.json')).toBe(true);
   });
 
   it('marks sunset MCP repos as archived in the portfolio plan', () => {

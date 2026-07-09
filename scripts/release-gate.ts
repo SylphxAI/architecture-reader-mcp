@@ -187,6 +187,48 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     { directImpactCount: directImpact.length }
   );
 
+  addCheck(
+    checks,
+    'publish:changeset_config',
+    fileExists('.changeset/config.json'),
+    'Changesets config is present for npm publish workflow'
+  );
+
+  addCheck(
+    checks,
+    'publish:release_workflow',
+    fileExists('.github/workflows/release.yml') &&
+      fileExists('.github/workflows/publish-mcp-registry.yml'),
+    'Release and MCP Registry publish workflows are present'
+  );
+
+  const server = existsSync(path.join(repoRoot, 'server.json'))
+    ? (JSON.parse(readFileSync(path.join(repoRoot, 'server.json'), 'utf8')) as {
+        packages?: Array<{ identifier?: string }>;
+      })
+    : {};
+  addCheck(
+    checks,
+    'publish:registry_metadata',
+    server.packages?.[0]?.identifier === '@sylphx/architecture-reader-mcp',
+    'server.json documents the publishable npm package identifier'
+  );
+
+  const hybridAdr = readFileSync(
+    path.join(repoRoot, 'docs/adr/ADR-DRAFT-hybrid-rust-core-bun-mcp-adapter.md'),
+    'utf8',
+  );
+  const toolAdr = readFileSync(
+    path.join(repoRoot, 'docs/adr/ADR-DRAFT-agent-native-tool-surface.md'),
+    'utf8',
+  );
+  addCheck(
+    checks,
+    'adr:core_promoted',
+    hybridAdr.includes('## Status\n\nAccepted') && toolAdr.includes('## Status\n\nAccepted'),
+    'Core hybrid-runtime and agent-native tool ADRs are promoted to Accepted'
+  );
+
   const passed = checks.filter((check) => check.status === 'passed').length;
   const failed = checks.length - passed;
 
