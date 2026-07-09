@@ -1,19 +1,23 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { execSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { invokeEngine } from '../src/engine.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-const fixtureRoot = join(repoRoot, 'fixtures/sample-repo');
+const fixtureTemplate = join(repoRoot, 'fixtures/sample-repo');
 
 describe('shipped path matrix (Rust core, no legacy flags)', () => {
+  let fixtureRoot: string;
   let fakeNodeEnv: NodeJS.ProcessEnv;
   let nodeInvokeLog: string;
 
   beforeAll(() => {
+    fixtureRoot = mkdtempSync(join(os.tmpdir(), 'architecture-reader-matrix-fixture-'));
+    cpSync(fixtureTemplate, fixtureRoot, { recursive: true });
+
     execSync('cargo build --release -p architecture-reader-cli', {
       cwd: repoRoot,
       stdio: 'pipe',
