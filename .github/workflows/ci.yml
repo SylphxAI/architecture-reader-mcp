@@ -11,8 +11,8 @@ permissions:
 
 jobs:
   validate:
-    name: validate scaffold
-    runs-on: [self-hosted, sylphx, linux, standard]
+    name: validate release gate
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,8 +31,26 @@ jobs:
       - name: Validate Cargo workspace
         run: cargo metadata --format-version 1
 
+      - name: Install workspace dependencies
+        run: bun install
+
+      - name: Build Rust engine
+        run: bun run build:rust
+
       - name: Run Rust tests
         run: cargo test
+
+      - name: Run MCP adapter tests
+        run: bun test
+
+      - name: Public surface audit
+        run: bun run test:public-surface
+
+      - name: Public benchmark proof
+        run: bun run benchmark:public-proof
+
+      - name: Release gate
+        run: bun run benchmark:release-gate
 
       - name: Check whitespace errors
         run: git diff --check HEAD

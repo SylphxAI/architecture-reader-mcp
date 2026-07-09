@@ -1,0 +1,127 @@
+{
+  "profile": "architecture_reader_release_gate",
+  "generated_at": "2026-07-09T15:54:21.142Z",
+  "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
+  "status": "passed",
+  "summary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "checks": [
+    {
+      "id": "rust:graph_core",
+      "status": "passed",
+      "message": "Rust architecture-reader-core graph engine is present"
+    },
+    {
+      "id": "fixtures:sample_repo",
+      "status": "passed",
+      "message": "Golden sample-repo fixture is checked in"
+    },
+    {
+      "id": "spec:indexing_pipeline",
+      "status": "passed",
+      "message": "Indexing pipeline spec documents incremental refresh behavior"
+    },
+    {
+      "id": "doctor:fixture_repo",
+      "status": "passed",
+      "message": "doctor reports the golden fixture repository is available",
+      "evidence": {
+        "doctorStatus": "ready"
+      }
+    },
+    {
+      "id": "boundary:architecture_index",
+      "status": "passed",
+      "message": "architecture_index returns a populated graph envelope from the Rust CLI",
+      "evidence": {
+        "nodeCount": 24,
+        "edgeCount": 18
+      }
+    },
+    {
+      "id": "boundary:architecture_search",
+      "status": "passed",
+      "message": "architecture_search returns stable evidence locators for the fixture repo",
+      "evidence": {
+        "matchCount": 5
+      }
+    },
+    {
+      "id": "boundary:incremental_cache_hit",
+      "status": "passed",
+      "message": "architecture_index mode=auto reuses the persisted index when file hashes are unchanged",
+      "evidence": {
+        "refreshMode": "cache_hit"
+      }
+    },
+    {
+      "id": "boundary:architecture_trace",
+      "status": "passed",
+      "message": "architecture_trace returns a non-empty path between routes and auth modules in the fixture repo",
+      "evidence": {
+        "pathLength": 2
+      }
+    },
+    {
+      "id": "boundary:architecture_symbol_call_trace",
+      "status": "passed",
+      "message": "architecture_trace follows symbol call edges between authMiddleware and validateToken",
+      "evidence": {
+        "pathLength": 2
+      }
+    },
+    {
+      "id": "boundary:python_adapter",
+      "status": "passed",
+      "message": "Python files are indexed with import edges in the architecture graph",
+      "evidence": {
+        "hasPythonModule": true,
+        "hasPythonImport": true
+      }
+    },
+    {
+      "id": "boundary:architecture_impact",
+      "status": "passed",
+      "message": "architecture_impact reports direct impact nodes for changed fixture paths",
+      "evidence": {
+        "directImpactCount": 4
+      }
+    },
+    {
+      "id": "mcp:rust_adapter_default",
+      "status": "passed",
+      "message": "Default npm bin launches the Rust rmcp MCP server; TypeScript adapter is opt-in only"
+    },
+    {
+      "id": "boundary:rust_cli_engine",
+      "status": "passed",
+      "message": "Shipped-path matrix test proves all seven primary tools route through Rust core without legacy runtime",
+      "evidence": {
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "publish:changeset_config",
+      "status": "passed",
+      "message": "Changesets config is present for npm publish workflow"
+    },
+    {
+      "id": "publish:release_workflow",
+      "status": "passed",
+      "message": "Release and MCP Registry publish workflows are present"
+    },
+    {
+      "id": "publish:registry_metadata",
+      "status": "passed",
+      "message": "server.json documents the publishable npm package identifier"
+    },
+    {
+      "id": "spec:runtime_and_tool_surface",
+      "status": "passed",
+      "message": "Rust-first runtime note and agent-native tool spec document the shipped stack and tool surface"
+    }
+  ]
+}
