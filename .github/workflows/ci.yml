@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate scaffold
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate JSON manifests
+        run: bun run validate
+
+      - name: Validate Cargo workspace
+        run: cargo metadata --format-version 1
+
+      - name: Run Rust tests
+        run: cargo test
+
+      - name: Check whitespace errors
+        run: git diff --check HEAD

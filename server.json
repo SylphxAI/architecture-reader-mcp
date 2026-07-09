@@ -1,0 +1,20 @@
+{
+  "name": "@sylphx/architecture-reader-mcp",
+  "version": "0.0.0",
+  "description": "MCP server for agent-native repository architecture evidence graphs and search.",
+  "status": "draft",
+  "transport": {
+    "stdio": true,
+    "http": false
+  },
+  "tools": [
+    "architecture_index",
+    "architecture_status",
+    "architecture_overview",
+    "architecture_search",
+    "architecture_trace",
+    "architecture_impact",
+    "architecture_evidence"
+  ],
+  "entrypoint": "packages/mcp-server/src/index.ts"
+}

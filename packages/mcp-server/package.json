@@ -1,0 +1,13 @@
+{
+  "name": "@sylphx/architecture-reader-mcp",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "TypeScript/Bun MCP adapter for Architecture Reader.",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

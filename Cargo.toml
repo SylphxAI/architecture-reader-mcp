@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/architecture-reader-core"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "UNLICENSED"
+repository = "https://github.com/SylphxAI/architecture-reader-mcp"
