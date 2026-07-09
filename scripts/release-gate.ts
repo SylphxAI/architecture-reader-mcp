@@ -119,6 +119,36 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     { refreshMode: (auto.answer as { refreshMode?: string } | undefined)?.refreshMode }
   );
 
+  const trace = invokeEngine('architecture_trace', {
+    root: fixtureRoot,
+    from: 'src/server/routes.ts',
+    to: '../auth/middleware.js',
+    relation: 'imports',
+    maxDepth: 6,
+  });
+  const tracePath = (trace.answer as { path?: unknown[] } | undefined)?.path ?? [];
+  addCheck(
+    checks,
+    'boundary:architecture_trace',
+    trace.status === 'ok' && tracePath.length > 0,
+    'architecture_trace returns a non-empty path between routes and auth modules in the fixture repo',
+    { pathLength: tracePath.length }
+  );
+
+  const impact = invokeEngine('architecture_impact', {
+    root: fixtureRoot,
+    changedPaths: ['src/server/routes.ts'],
+  });
+  const directImpact =
+    (impact.answer as { directImpact?: unknown[] } | undefined)?.directImpact ?? [];
+  addCheck(
+    checks,
+    'boundary:architecture_impact',
+    impact.status === 'ok' && directImpact.length > 0,
+    'architecture_impact reports direct impact nodes for changed fixture paths',
+    { directImpactCount: directImpact.length }
+  );
+
   const passed = checks.filter((check) => check.status === 'passed').length;
   const failed = checks.length - passed;
 

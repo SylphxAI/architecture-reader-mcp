@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-09T04:33:11.631Z",
+  "generated_at": "2026-07-09T04:39:58.453Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 7,
-    "passed": 7,
+    "total": 9,
+    "passed": 9,
     "failed": 0
   },
   "checks": [
@@ -55,6 +55,22 @@
       "message": "architecture_index mode=auto reuses the persisted index when file hashes are unchanged",
       "evidence": {
         "refreshMode": "cache_hit"
+      }
+    },
+    {
+      "id": "boundary:architecture_trace",
+      "status": "passed",
+      "message": "architecture_trace returns a non-empty path between routes and auth modules in the fixture repo",
+      "evidence": {
+        "pathLength": 2
+      }
+    },
+    {
+      "id": "boundary:architecture_impact",
+      "status": "passed",
+      "message": "architecture_impact reports direct impact nodes for changed fixture paths",
+      "evidence": {
+        "directImpactCount": 4
       }
     }
   ]
