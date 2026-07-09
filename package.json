@@ -10,7 +10,9 @@
   ],
   "scripts": {
     "validate:json": "python3 -m json.tool .doctrine/project.json >/dev/null && python3 -m json.tool project.manifest.json >/dev/null",
-    "validate": "bun run validate:json"
+    "validate": "bun run validate:json",
+    "test": "bun test",
+    "test:public-surface": "bun test test/readmeDiscovery.test.ts"
   },
   "repository": {
     "type": "git",
