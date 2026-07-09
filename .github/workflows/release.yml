@@ -34,7 +34,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build Rust engine
-        run: bun run build:rust
+        run: cargo clean -p architecture-reader-core -p architecture-reader-cli -p architecture-reader-mcp-server && bun run build:rust
 
       - name: Run tests
         run: cargo test -p architecture-reader-core -- --test-threads=1 && bun test
