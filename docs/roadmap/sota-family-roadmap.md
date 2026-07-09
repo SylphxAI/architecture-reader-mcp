@@ -1,7 +1,7 @@
 # SOTA Family Roadmap
 
-Status: adoption plan  
-Owner: Architecture Reader MCP  
+Status: adoption plan
+Owner: Architecture Reader MCP
 Scope: repo-local future plan and its role in the SylphxAI MCP family
 Decision record: `docs/adr/ADR-2-mcp-family-sota-roadmap.md`
 

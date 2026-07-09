@@ -1,7 +1,7 @@
 # ADR-2: Adopt Architecture Reader MCP Family SOTA Roadmap
 
-Date: 2026-07-09  
-Status: Proposed in PR #2  
+Date: 2026-07-09
+Status: Proposed in PR #2
 Slug: mcp-family-sota-roadmap
 
 ## Context
