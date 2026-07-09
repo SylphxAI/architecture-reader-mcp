@@ -12,9 +12,9 @@ governance facts live in [`.doctrine/project.json`](./.doctrine/project.json).
 
 ## Lifecycle And Layer
 
-- Lifecycle: `draft`
+- Lifecycle: `beta`
 - Layer: `application`
-- Delivery state: local scaffold and design documents only
+- Delivery state: Beta 0.1 — Rust evidence-graph engine and Bun MCP adapter ship locally with release-gate proof; npm publish remains open
 
 ## Goals
 
@@ -61,8 +61,9 @@ remain owned by their source repositories.
 
 ## Delivery Proof
 
-This scaffold has a baseline CI workflow but no release workflow, package
-publication, or production deployment yet. Current proof is limited to local
-validation, remote repository readback, and future CI runs on GitHub. Shipped
-proof must later include protected-branch CI, merge policy, package release, MCP
-install/readback, and integration tests against representative repositories.
+Beta 0.1 ships a runnable Rust core (`architecture-reader-core`), stdio CLI,
+and thin Bun MCP adapter with seven `architecture_*` tools. Local proof includes
+`cargo test`, `bun test`, and `bun run benchmark:release-gate` on the fixture
+repository (routes, schemas, symbol call tracing, Python adapter, incremental
+index). Remaining adoption gaps: npm publish workflow, MCP Registry listing, and
+protected-branch release automation.

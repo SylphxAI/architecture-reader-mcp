@@ -3,7 +3,7 @@
   "name": "architecture-reader-mcp",
   "displayName": "Architecture Reader MCP",
   "description": "Agent-native MCP server for repository architecture evidence graphs and architecture search.",
-  "lifecycle": "draft",
+  "lifecycle": "beta",
   "layer": "application",
   "owners": [
     "SylphxAI"
@@ -36,5 +36,5 @@
     "Visualization-first dashboard",
     "Media reader extraction"
   ],
-  "deliveryState": "local-scaffold-only"
+  "deliveryState": "beta-0.1-local-shipped"
 }

@@ -1,7 +1,7 @@
 # Security
 
-Architecture Reader MCP is currently a draft local-first MCP repository. It is
-not released or deployed.
+Architecture Reader MCP is a local-first Beta 0.1 MCP package. It is not published
+to npm or listed in public MCP directories yet.
 
 ## Reporting
 
@@ -11,11 +11,10 @@ security reports.
 
 ## Current Security Boundary
 
-- The scaffold does not implement network transport beyond planned stdio MCP
-  metadata.
-- The scaffold does not store credentials.
-- Future indexing code must not make network calls during repository analysis
-  unless the user explicitly configures that behavior.
+- The MCP adapter uses stdio transport only; it does not expose HTTP endpoints.
+- The engine does not store credentials.
+- Indexing does not make network calls during repository analysis unless the
+  caller explicitly configures remote behavior.
 - Future tool responses must not expose file contents beyond the repository root
   being indexed.
 

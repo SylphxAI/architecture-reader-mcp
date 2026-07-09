@@ -15,7 +15,7 @@ dashboard screenshots or keyword grep.
 **Beta 0.1** · **Rust core + Bun MCP adapter** · **7 typed MCP tools** · **Evidence envelope** · **5 tests**
 
 [⭐ Star this repo](https://github.com/SylphxAI/architecture-reader-mcp) if agents should answer architecture questions with proof, not graphviz guesses.
-· [Quick start](#quick-start) · [Planned contract](#planned-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)
+· [Quick start](#quick-start) · [Tool contract](#tool-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)
 
 Complements generic code search in [CodeRAG](https://github.com/SylphxAI/coderag) — it does
 not replace it. Reader portfolio media tools live in
@@ -45,8 +45,9 @@ repo is shaped, what depends on what, and which files back each claim.**
 ## Current delivery state
 
 **Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
-adapter. Manifest/import/docs extraction works on local fixtures; route/schema
-extractors and npm publish are still in progress. See
+adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
+Python indexing, and incremental refresh are implemented with release-gate proof.
+npm publish and MCP Registry listing remain open — see
 [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
 ## Why not grep or a dashboard?
@@ -59,8 +60,8 @@ extractors and npm publish are still in progress. See
 | Generic chunk search | Purpose-built `architecture_*` tools with shared envelope |
 | Ship and pray | Deterministic extraction first; inference explicitly labeled |
 
-Generic code search stays in [CodeRAG](https://github.com/SylphxAI/coderag). AST
-substrate integration is planned through Synth — see
+Generic code search stays in [CodeRAG](https://github.com/SylphxAI/coderag). Synth
+AST extraction is opt-in for TypeScript/JavaScript modules — see
 [integration ADR](./docs/adr/ADR-DRAFT-synth-coderag-integration.md).
 
 ## See it work
@@ -84,7 +85,7 @@ Index once, then ask architecture questions:
 }
 ```
 
-`architecture_search` (planned) returns ranked nodes with evidence, not prose:
+`architecture_search` returns ranked nodes with evidence, not prose:
 
 ```json
 {
@@ -135,7 +136,7 @@ Trace dependency or impact before editing:
 
 ## Why agents will use it
 
-| Need | Planned tool |
+| Need | Tool |
 | --- | --- |
 | Build or refresh the index | `architecture_index` |
 | Check freshness and coverage | `architecture_status` |
@@ -150,7 +151,7 @@ source, freshness, confidence, and known gaps.
 
 ## Quick start
 
-### Clone and validate the scaffold
+### Clone and validate locally
 
 ```bash
 git clone https://github.com/SylphxAI/architecture-reader-mcp.git
@@ -175,13 +176,13 @@ architecture-reader-mcp/
   crates/
     architecture-reader-core/    # Rust architecture graph contracts and engine
   packages/
-    mcp-server/                  # TypeScript/Bun MCP adapter (stub)
+    mcp-server/                  # TypeScript/Bun MCP adapter
   docs/
     adr/                         # Architecture decisions
     specs/                       # Product, graph, indexing, and tool specs
     research/                    # Evidence and category analysis
     portfolio/                   # MCP portfolio ADRs and roadmaps
-  server.json                    # Draft MCP server metadata
+  server.json                    # MCP server metadata
 ```
 
 ## Design documents
@@ -197,12 +198,11 @@ architecture-reader-mcp/
 | Portfolio plan | [docs/portfolio/README.md](./docs/portfolio/README.md) |
 | Roadmap | [docs/portfolio/roadmaps/architecture-reader-mcp.md](./docs/portfolio/roadmaps/architecture-reader-mcp.md) |
 
-## Next implementation slice
+## Tool contract
 
-1. Synth-backed AST extractor adapter.
-2. Route/schema/workflow extractors.
-3. Incremental index refresh and public benchmark gate in CI.
-4. npm publish + MCP Registry metadata.
+All seven `architecture_*` tools share the evidence envelope defined in
+[tool contract spec](./docs/specs/2026-07-09-tool-contract.md). Run
+`bun run benchmark:release-gate` after `cargo build --release` for boundary proof.
 
 ## Development
 
@@ -237,7 +237,7 @@ more agent builders find evidence-backed architecture answers before irreversibl
 
 | Channel | Status |
 | --- | --- |
-| [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Not listed yet — draft scaffold, no publish workflow |
+| [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Not listed yet — Beta 0.1 local ship, no publish workflow |
 | [Glama MCP directory](https://glama.ai/mcp/servers) | Not listed yet |
 | [mcpservers.org submit](https://mcpservers.org/submit) | Not listed yet — free web-form submission |
 | [mcp.so submit](https://mcp.so/submit) | Not listed yet — directory submission |

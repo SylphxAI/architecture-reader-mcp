@@ -3,7 +3,7 @@
   "project": {
     "name": "architecture-reader-mcp",
     "displayName": "Architecture Reader MCP",
-    "lifecycle": "draft",
+    "lifecycle": "beta",
     "layer": "application",
     "doctrine": "https://github.com/SylphxAI/doctrine"
   },
