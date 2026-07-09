@@ -34,11 +34,12 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
       ...process.env,
       ARCHITECTURE_READER_NODE: fakeNode,
       ARCHITECTURE_READER_ALLOW_LEGACY_ENGINE: '',
+      ARCHITECTURE_READER_USE_SYNTH: '',
     };
 
     const index = invokeEngine(
       'architecture_index',
-      { root: fixtureRoot, mode: 'full' },
+      { root: fixtureRoot, mode: 'full', useSynth: false },
       fakeNodeEnv
     );
     expect(index.status).toBe('ok');
