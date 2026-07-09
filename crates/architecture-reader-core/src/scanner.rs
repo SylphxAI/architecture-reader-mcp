@@ -122,12 +122,20 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
             continue;
         }
 
+        if rel_str.ends_with(".json") && (rel_str.contains("/schemas/") || rel_str.ends_with(".schema.json")) {
+            index_json_schema(&mut builder, &rel_str, path);
+            files_indexed += 1;
+            continue;
+        }
+
         if rel_str.ends_with(".ts")
             || rel_str.ends_with(".tsx")
             || rel_str.ends_with(".js")
             || rel_str.ends_with(".mjs")
         {
             index_ts_imports(&mut builder, &rel_str, path);
+            index_ts_routes(&mut builder, &rel_str, path);
+            index_ts_schemas(&mut builder, &rel_str, path);
             files_indexed += 1;
             continue;
         }
@@ -169,6 +177,8 @@ pub fn scan_repository(root: &Path, options: &ScanOptions, git_commit: Option<St
             "manifest@0.1.0".into(),
             "import-graph@0.1.0".into(),
             "docs@0.1.0".into(),
+            "routes@0.1.0".into(),
+            "schema@0.1.0".into(),
         ],
         nodes: builder.nodes,
         edges: builder.edges,
@@ -234,6 +244,103 @@ fn index_ts_imports(builder: &mut GraphBuilder, rel: &str, path: &Path) {
         builder.push_edge("imports", &file_id, &dep_id, &file_ev);
     }
     let _ = path;
+}
+
+fn index_ts_routes(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let route_re =
+        Regex::new(r#"(?m)(?:app|router)\s*\.\s*(get|post|put|delete|patch|head|options|all)\s*\(\s*['"]([^'"]+)['"]"#)
+            .unwrap();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if !builder.nodes.iter().any(|n| n.id == file_id) {
+        let file_ev = builder.push_evidence("ast", rel, "routes@0.1.0", None, None);
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+
+    for cap in route_re.captures_iter(&content) {
+        let method = cap[1].to_uppercase();
+        let route_path = &cap[2];
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let label = format!("{method} {route_path}");
+        let node_id = format!(
+            "node:route:{}:{}:{}",
+            rel.replace('/', ":"),
+            method.to_lowercase(),
+            route_path.replace('/', "_")
+        );
+        if builder.nodes.iter().any(|n| n.id == node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "routes@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "route", &label, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+}
+
+fn index_ts_schemas(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let zod_const_re =
+        Regex::new(r#"(?m)^\s*(?:export\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*Schema)\s*=\s*z\."#).unwrap();
+    let zod_type_re =
+        Regex::new(r#"(?m)^\s*export\s+type\s+([A-Za-z_][A-Za-z0-9_]*Schema)\s*="#).unwrap();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if !builder.nodes.iter().any(|n| n.id == file_id) {
+        let file_ev = builder.push_evidence("ast", rel, "schema@0.1.0", None, None);
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+
+    let mut names = BTreeSet::new();
+    for cap in zod_const_re.captures_iter(&content) {
+        names.insert(cap[1].to_string());
+    }
+    for cap in zod_type_re.captures_iter(&content) {
+        names.insert(cap[1].to_string());
+    }
+    for name in names {
+        let line = content
+            .lines()
+            .position(|line| line.contains(&name))
+            .map(|i| (i + 1) as u32);
+        let node_id = format!("node:schema:ts:{}:{}", rel.replace('/', ":"), name);
+        if builder.nodes.iter().any(|n| n.id == node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "schema@0.1.0", line, line);
+        builder.push_node(&node_id, "schema", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+}
+
+fn index_json_schema(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let label = extract_json_schema_label(&content).unwrap_or_else(|| {
+        rel.rsplit('/').next().unwrap_or(rel).trim_end_matches(".json").to_string()
+    });
+    let line = content
+        .lines()
+        .position(|line| line.contains("\"title\"") || line.contains("\"$id\""))
+        .map(|i| (i + 1) as u32);
+    let ev = builder.push_evidence("schema", rel, "schema@0.1.0", line, line);
+    let node_id = format!("node:schema:json:{}", rel.replace('/', ":"));
+    builder.push_node(&node_id, "schema", &label, Some(rel), &ev);
+    builder.push_edge("documents", "node:repository:root", &node_id, &ev);
+    let _ = path;
+}
+
+fn extract_json_schema_label(content: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(content).ok()?;
+    if let Some(title) = value.get("title").and_then(|v| v.as_str()) {
+        return Some(title.to_string());
+    }
+    if let Some(id) = value.get("$id").and_then(|v| v.as_str()) {
+        return Some(id.to_string());
+    }
+    None
+}
+
+fn line_number_at(content: &str, byte_offset: usize) -> u32 {
+    let prefix = &content[..byte_offset.min(content.len())];
+    prefix.lines().count().max(1) as u32
 }
 
 fn index_rs_imports(builder: &mut GraphBuilder, rel: &str, path: &Path) {
