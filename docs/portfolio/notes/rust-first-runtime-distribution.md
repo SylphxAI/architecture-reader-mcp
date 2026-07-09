@@ -1,6 +1,6 @@
-# ADR Draft: Rust-Native MCP Runtime And Reliable Distribution
+# Portfolio Note: Rust-Native MCP Runtime And Reliable Distribution
 
-Status: proposed  
+Status: planning note
 Date: 2026-07-09  
 Decision owner: SylphxAI
 

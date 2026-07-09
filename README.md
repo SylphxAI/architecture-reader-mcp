@@ -52,7 +52,7 @@ TypeScript can remain a consumer language for generated clients, fixtures, or
 npm wrapper metadata, but the MCP server runtime and product logic should not be
 implemented as a TypeScript adapter.
 
-See [`docs/portfolio/ADR-DRAFT-rust-first-runtime-distribution.md`](./docs/portfolio/ADR-DRAFT-rust-first-runtime-distribution.md).
+See [`docs/portfolio/notes/rust-first-runtime-distribution.md`](./docs/portfolio/notes/rust-first-runtime-distribution.md).
 
 ## Tool Surface
 

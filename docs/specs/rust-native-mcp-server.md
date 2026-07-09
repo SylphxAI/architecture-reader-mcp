@@ -1,10 +1,10 @@
-# ADR-DRAFT: Rust-Native MCP Server
+# Spec: Rust-Native MCP Server
 
 Date: 2026-07-09
 
 ## Status
 
-Proposed
+Planning note
 
 ## Context
 

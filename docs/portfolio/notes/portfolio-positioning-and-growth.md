@@ -1,6 +1,6 @@
-# ADR Draft: Portfolio Positioning And Growth Standard
+# Portfolio Note: Portfolio Positioning And Growth Standard
 
-Status: proposed  
+Status: planning note
 Date: 2026-07-09  
 Decision owner: SylphxAI
 

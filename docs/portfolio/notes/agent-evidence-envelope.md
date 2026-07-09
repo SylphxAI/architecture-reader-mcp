@@ -1,6 +1,6 @@
-# ADR Draft: Shared Agent Evidence Envelope
+# Portfolio Note: Shared Agent Evidence Envelope
 
-Status: proposed  
+Status: planning note
 Date: 2026-07-09  
 Decision owner: SylphxAI
 

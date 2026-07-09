@@ -1,10 +1,10 @@
-# ADR-DRAFT: Product Boundary
+# Spec: Product Boundary
 
 Date: 2026-07-09
 
 ## Status
 
-Proposed
+Planning note
 
 ## Context
 

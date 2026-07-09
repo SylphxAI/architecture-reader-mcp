@@ -1,10 +1,10 @@
-# ADR-DRAFT: Architecture Evidence Graph
+# Spec: Architecture Evidence Graph
 
 Date: 2026-07-09
 
 ## Status
 
-Proposed
+Planning note
 
 ## Context
 

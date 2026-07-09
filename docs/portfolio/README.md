@@ -127,12 +127,12 @@ Every MCP repo should have:
 The suite should look like one product family: consistent names, command names,
 output envelopes, trust warnings, benchmark style, and release quality.
 
-## ADR Index
+## Portfolio Notes
 
-- `ADR-DRAFT-rust-first-runtime-distribution.md`
-- `ADR-DRAFT-wasm-plugin-sandbox.md`
-- `ADR-DRAFT-agent-evidence-envelope.md`
-- `ADR-DRAFT-portfolio-positioning-and-growth.md`
+- `notes/rust-first-runtime-distribution.md`
+- `notes/wasm-plugin-sandbox.md`
+- `notes/agent-evidence-envelope.md`
+- `notes/portfolio-positioning-and-growth.md`
 
 ## Roadmap Index
 
