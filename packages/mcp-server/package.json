@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/architecture-reader-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
   "type": "module",
   "description": "Agent-native architecture evidence graph MCP with Rust indexing, trace, impact, and search.",
