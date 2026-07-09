@@ -1,0 +1,41 @@
+{
+  "name": "@sylphx/architecture-reader-mcp",
+  "version": "0.1.0",
+  "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
+  "type": "module",
+  "description": "Agent-native architecture evidence graph MCP with Rust indexing, trace, impact, and search.",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "bin": {
+    "architecture-reader-mcp": "../../bin/architecture-reader-mcp"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SylphxAI/architecture-reader-mcp.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/SylphxAI/architecture-reader-mcp#readme",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "bun run typecheck"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7.0.2"
+  }
+}

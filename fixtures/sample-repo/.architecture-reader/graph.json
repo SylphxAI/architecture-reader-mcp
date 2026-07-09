@@ -1,0 +1,593 @@
+{
+  "schema_version": "0.1.0",
+  "repository": {
+    "root": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+    "git_commit": "1e1c20d0454fd16ea5284a32c178c49b88ce2181",
+    "worktree_dirty": true
+  },
+  "extractors": [
+    "manifest@0.1.0",
+    "import-graph@0.1.0",
+    "call-graph@0.1.0",
+    "docs@0.1.0",
+    "routes@0.1.0",
+    "schema@0.1.0",
+    "python@0.1.0"
+  ],
+  "nodes": [
+    {
+      "id": "node:repository:root",
+      "kind": "repository",
+      "label": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+      "path": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+      "evidence_ids": [
+        "ev_01"
+      ]
+    },
+    {
+      "id": "node:schema:json:schemas:login.schema.json",
+      "kind": "schema",
+      "label": "LoginRequest",
+      "path": "schemas/login.schema.json",
+      "evidence_ids": [
+        "ev_02"
+      ]
+    },
+    {
+      "id": "node:schema:json:schemas:user.schema.json",
+      "kind": "schema",
+      "label": "User",
+      "path": "schemas/user.schema.json",
+      "evidence_ids": [
+        "ev_03"
+      ]
+    },
+    {
+      "id": "node:package:sample-auth-service",
+      "kind": "package",
+      "label": "sample-auth-service",
+      "path": "package.json",
+      "evidence_ids": [
+        "ev_04"
+      ]
+    },
+    {
+      "id": "node:module:src:users:store.ts",
+      "kind": "module",
+      "label": "src/users/store.ts",
+      "path": "src/users/store.ts",
+      "evidence_ids": [
+        "ev_05"
+      ]
+    },
+    {
+      "id": "node:symbol:src:users:store.ts:function:loadUser",
+      "kind": "symbol",
+      "label": "loadUser",
+      "path": "src/users/store.ts",
+      "evidence_ids": [
+        "ev_06"
+      ]
+    },
+    {
+      "id": "node:module:src:auth:token.py",
+      "kind": "module",
+      "label": "src/auth/token.py",
+      "path": "src/auth/token.py",
+      "evidence_ids": [
+        "ev_07"
+      ]
+    },
+    {
+      "id": "node:symbol:src:auth:token.py:function:validate_token",
+      "kind": "symbol",
+      "label": "validate_token",
+      "path": "src/auth/token.py",
+      "evidence_ids": [
+        "ev_08"
+      ]
+    },
+    {
+      "id": "node:module:src:auth:token.ts",
+      "kind": "module",
+      "label": "src/auth/token.ts",
+      "path": "src/auth/token.ts",
+      "evidence_ids": [
+        "ev_09"
+      ]
+    },
+    {
+      "id": "node:symbol:src:auth:token.ts:function:validateToken",
+      "kind": "symbol",
+      "label": "validateToken",
+      "path": "src/auth/token.ts",
+      "evidence_ids": [
+        "ev_10"
+      ]
+    },
+    {
+      "id": "node:module:src:auth:middleware.ts",
+      "kind": "module",
+      "label": "src/auth/middleware.ts",
+      "path": "src/auth/middleware.ts",
+      "evidence_ids": [
+        "ev_11"
+      ]
+    },
+    {
+      "id": "node:module:dep:../users/store.js",
+      "kind": "module",
+      "label": "../users/store.js",
+      "path": null,
+      "evidence_ids": [
+        "ev_11"
+      ]
+    },
+    {
+      "id": "node:module:dep:./token.js",
+      "kind": "module",
+      "label": "./token.js",
+      "path": null,
+      "evidence_ids": [
+        "ev_11"
+      ]
+    },
+    {
+      "id": "node:symbol:src:auth:middleware.ts:function:authMiddleware",
+      "kind": "symbol",
+      "label": "authMiddleware",
+      "path": "src/auth/middleware.ts",
+      "evidence_ids": [
+        "ev_12"
+      ]
+    },
+    {
+      "id": "node:module:src:ml:scorer.py",
+      "kind": "module",
+      "label": "src/ml/scorer.py",
+      "path": "src/ml/scorer.py",
+      "evidence_ids": [
+        "ev_15"
+      ]
+    },
+    {
+      "id": "node:module:dep:auth.token",
+      "kind": "module",
+      "label": "auth.token",
+      "path": null,
+      "evidence_ids": [
+        "ev_15"
+      ]
+    },
+    {
+      "id": "node:symbol:src:ml:scorer.py:function:score_user",
+      "kind": "symbol",
+      "label": "score_user",
+      "path": "src/ml/scorer.py",
+      "evidence_ids": [
+        "ev_16"
+      ]
+    },
+    {
+      "id": "node:module:src:server:routes.ts",
+      "kind": "module",
+      "label": "src/server/routes.ts",
+      "path": "src/server/routes.ts",
+      "evidence_ids": [
+        "ev_17"
+      ]
+    },
+    {
+      "id": "node:module:dep:../auth/middleware.js",
+      "kind": "module",
+      "label": "../auth/middleware.js",
+      "path": null,
+      "evidence_ids": [
+        "ev_17"
+      ]
+    },
+    {
+      "id": "node:module:dep:express",
+      "kind": "module",
+      "label": "express",
+      "path": null,
+      "evidence_ids": [
+        "ev_17"
+      ]
+    },
+    {
+      "id": "node:route:src:server:routes.ts:post:_api_auth_login",
+      "kind": "route",
+      "label": "POST /api/auth/login",
+      "path": "src/server/routes.ts",
+      "evidence_ids": [
+        "ev_18"
+      ]
+    },
+    {
+      "id": "node:route:src:server:routes.ts:get:_api_users",
+      "kind": "route",
+      "label": "GET /api/users",
+      "path": "src/server/routes.ts",
+      "evidence_ids": [
+        "ev_19"
+      ]
+    },
+    {
+      "id": "node:route:src:server:routes.ts:get:_health",
+      "kind": "route",
+      "label": "GET /health",
+      "path": "src/server/routes.ts",
+      "evidence_ids": [
+        "ev_20"
+      ]
+    },
+    {
+      "id": "node:adr:docs:adr:0001-auth-boundary.md",
+      "kind": "adr",
+      "label": "0001-auth-boundary.md",
+      "path": "docs/adr/0001-auth-boundary.md",
+      "evidence_ids": [
+        "ev_21"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge:documents:node:repository:root->node:schema:json:schemas:login.schema.json",
+      "kind": "documents",
+      "from": "node:repository:root",
+      "to": "node:schema:json:schemas:login.schema.json",
+      "evidence_ids": [
+        "ev_02"
+      ]
+    },
+    {
+      "id": "edge:documents:node:repository:root->node:schema:json:schemas:user.schema.json",
+      "kind": "documents",
+      "from": "node:repository:root",
+      "to": "node:schema:json:schemas:user.schema.json",
+      "evidence_ids": [
+        "ev_03"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:users:store.ts->node:symbol:src:users:store.ts:function:loadUser",
+      "kind": "defines",
+      "from": "node:module:src:users:store.ts",
+      "to": "node:symbol:src:users:store.ts:function:loadUser",
+      "evidence_ids": [
+        "ev_06"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:auth:token.py->node:symbol:src:auth:token.py:function:validate_token",
+      "kind": "defines",
+      "from": "node:module:src:auth:token.py",
+      "to": "node:symbol:src:auth:token.py:function:validate_token",
+      "evidence_ids": [
+        "ev_08"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:auth:token.ts->node:symbol:src:auth:token.ts:function:validateToken",
+      "kind": "defines",
+      "from": "node:module:src:auth:token.ts",
+      "to": "node:symbol:src:auth:token.ts:function:validateToken",
+      "evidence_ids": [
+        "ev_10"
+      ]
+    },
+    {
+      "id": "edge:imports:node:module:src:auth:middleware.ts->node:module:dep:../users/store.js",
+      "kind": "imports",
+      "from": "node:module:src:auth:middleware.ts",
+      "to": "node:module:dep:../users/store.js",
+      "evidence_ids": [
+        "ev_11"
+      ]
+    },
+    {
+      "id": "edge:imports:node:module:src:auth:middleware.ts->node:module:dep:./token.js",
+      "kind": "imports",
+      "from": "node:module:src:auth:middleware.ts",
+      "to": "node:module:dep:./token.js",
+      "evidence_ids": [
+        "ev_11"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:auth:middleware.ts->node:symbol:src:auth:middleware.ts:function:authMiddleware",
+      "kind": "defines",
+      "from": "node:module:src:auth:middleware.ts",
+      "to": "node:symbol:src:auth:middleware.ts:function:authMiddleware",
+      "evidence_ids": [
+        "ev_12"
+      ]
+    },
+    {
+      "id": "edge:calls:node:symbol:src:auth:middleware.ts:function:authMiddleware->node:symbol:src:auth:token.ts:function:validateToken",
+      "kind": "calls",
+      "from": "node:symbol:src:auth:middleware.ts:function:authMiddleware",
+      "to": "node:symbol:src:auth:token.ts:function:validateToken",
+      "evidence_ids": [
+        "ev_13"
+      ]
+    },
+    {
+      "id": "edge:calls:node:symbol:src:auth:middleware.ts:function:authMiddleware->node:symbol:src:users:store.ts:function:loadUser",
+      "kind": "calls",
+      "from": "node:symbol:src:auth:middleware.ts:function:authMiddleware",
+      "to": "node:symbol:src:users:store.ts:function:loadUser",
+      "evidence_ids": [
+        "ev_14"
+      ]
+    },
+    {
+      "id": "edge:imports:node:module:src:ml:scorer.py->node:module:dep:auth.token",
+      "kind": "imports",
+      "from": "node:module:src:ml:scorer.py",
+      "to": "node:module:dep:auth.token",
+      "evidence_ids": [
+        "ev_15"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:ml:scorer.py->node:symbol:src:ml:scorer.py:function:score_user",
+      "kind": "defines",
+      "from": "node:module:src:ml:scorer.py",
+      "to": "node:symbol:src:ml:scorer.py:function:score_user",
+      "evidence_ids": [
+        "ev_16"
+      ]
+    },
+    {
+      "id": "edge:imports:node:module:src:server:routes.ts->node:module:dep:../auth/middleware.js",
+      "kind": "imports",
+      "from": "node:module:src:server:routes.ts",
+      "to": "node:module:dep:../auth/middleware.js",
+      "evidence_ids": [
+        "ev_17"
+      ]
+    },
+    {
+      "id": "edge:imports:node:module:src:server:routes.ts->node:module:dep:express",
+      "kind": "imports",
+      "from": "node:module:src:server:routes.ts",
+      "to": "node:module:dep:express",
+      "evidence_ids": [
+        "ev_17"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:server:routes.ts->node:route:src:server:routes.ts:post:_api_auth_login",
+      "kind": "defines",
+      "from": "node:module:src:server:routes.ts",
+      "to": "node:route:src:server:routes.ts:post:_api_auth_login",
+      "evidence_ids": [
+        "ev_18"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:server:routes.ts->node:route:src:server:routes.ts:get:_api_users",
+      "kind": "defines",
+      "from": "node:module:src:server:routes.ts",
+      "to": "node:route:src:server:routes.ts:get:_api_users",
+      "evidence_ids": [
+        "ev_19"
+      ]
+    },
+    {
+      "id": "edge:defines:node:module:src:server:routes.ts->node:route:src:server:routes.ts:get:_health",
+      "kind": "defines",
+      "from": "node:module:src:server:routes.ts",
+      "to": "node:route:src:server:routes.ts:get:_health",
+      "evidence_ids": [
+        "ev_20"
+      ]
+    },
+    {
+      "id": "edge:documents:node:repository:root->node:adr:docs:adr:0001-auth-boundary.md",
+      "kind": "documents",
+      "from": "node:repository:root",
+      "to": "node:adr:docs:adr:0001-auth-boundary.md",
+      "evidence_ids": [
+        "ev_21"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:workspace-packages",
+      "text": "Repository exposes 1 package manifest(s).",
+      "confidence": "derived",
+      "node_ids": [
+        "node:package:sample-auth-service"
+      ],
+      "edge_ids": [],
+      "evidence_ids": [
+        "ev_22"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev_01",
+      "kind": "manifest",
+      "path": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+      "extractor": "repo-scanner@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_02",
+      "kind": "schema",
+      "path": "schemas/login.schema.json",
+      "startLine": 2,
+      "endLine": 2,
+      "extractor": "schema@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_03",
+      "kind": "schema",
+      "path": "schemas/user.schema.json",
+      "startLine": 3,
+      "endLine": 3,
+      "extractor": "schema@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_04",
+      "kind": "manifest",
+      "path": "package.json",
+      "extractor": "manifest@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_05",
+      "kind": "ast",
+      "path": "src/users/store.ts",
+      "extractor": "import-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_06",
+      "kind": "ast",
+      "path": "src/users/store.ts",
+      "startLine": 2,
+      "endLine": 2,
+      "extractor": "call-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_07",
+      "kind": "ast",
+      "path": "src/auth/token.py",
+      "extractor": "python@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_08",
+      "kind": "ast",
+      "path": "src/auth/token.py",
+      "startLine": 1,
+      "endLine": 1,
+      "extractor": "python@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_09",
+      "kind": "ast",
+      "path": "src/auth/token.ts",
+      "extractor": "import-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_10",
+      "kind": "ast",
+      "path": "src/auth/token.ts",
+      "startLine": 1,
+      "endLine": 1,
+      "extractor": "call-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_11",
+      "kind": "ast",
+      "path": "src/auth/middleware.ts",
+      "extractor": "import-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_12",
+      "kind": "ast",
+      "path": "src/auth/middleware.ts",
+      "startLine": 3,
+      "endLine": 3,
+      "extractor": "call-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_13",
+      "kind": "ast",
+      "path": "src/auth/middleware.ts",
+      "startLine": 7,
+      "endLine": 7,
+      "extractor": "call-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_14",
+      "kind": "ast",
+      "path": "src/auth/middleware.ts",
+      "startLine": 8,
+      "endLine": 8,
+      "extractor": "call-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_15",
+      "kind": "ast",
+      "path": "src/ml/scorer.py",
+      "extractor": "python@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_16",
+      "kind": "ast",
+      "path": "src/ml/scorer.py",
+      "startLine": 2,
+      "endLine": 2,
+      "extractor": "python@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_17",
+      "kind": "ast",
+      "path": "src/server/routes.ts",
+      "extractor": "import-graph@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_18",
+      "kind": "ast",
+      "path": "src/server/routes.ts",
+      "startLine": 6,
+      "endLine": 6,
+      "extractor": "routes@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_19",
+      "kind": "ast",
+      "path": "src/server/routes.ts",
+      "startLine": 7,
+      "endLine": 7,
+      "extractor": "routes@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_20",
+      "kind": "ast",
+      "path": "src/server/routes.ts",
+      "startLine": 8,
+      "endLine": 8,
+      "extractor": "routes@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_21",
+      "kind": "documentation",
+      "path": "docs/adr/0001-auth-boundary.md",
+      "extractor": "docs@0.1.0",
+      "confidence": "deterministic"
+    },
+    {
+      "id": "ev_22",
+      "kind": "derived",
+      "path": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+      "extractor": "repo-scanner@0.1.0",
+      "confidence": "deterministic"
+    }
+  ]
+}

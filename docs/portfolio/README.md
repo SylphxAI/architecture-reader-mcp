@@ -24,38 +24,23 @@ dashboard.
 | --- | --- | --- |
 | Reader | `pdf-reader-mcp`, `image-reader-mcp`, `video-reader-mcp`, `smart-reader-mcp` | Turn files and media into citeable agent evidence. |
 | Code Intelligence | `coderag`, `architecture-reader-mcp` | Let agents retrieve code facts, architectural maps, dependency traces, and impact evidence. |
-| Control | `filesystem-mcp`, `consultant-mcp` | Give agents safe local operations and structured decision review. |
-| Foundations | `ast`, `synth`, `groundatlas`, `codec`, `mcp-server-sdk` | Provide parser contracts, source-truth routing, media primitives, package fixtures, and compatibility surfaces without owning product MCP servers. |
-| Mission Control | `mission-control` | Track work, proof chains, runtime MCP migration, and fleet activity for Sylphx agents. |
-| Curation | `awesome-mcp-servers` | Present a coherent public MCP catalog and distribution doorway. |
-
-Archived projects such as `reader-evidence`, `smart-read-mcp`, `linear-mcp`,
-`rag-server-mcp`, `tools`, `flow`, and `ai-sdk-provider-claude-code` are
-historical, transition, or adjacent AI-tooling surfaces. They should not drive
-new product strategy unless explicitly revived through a new ADR.
-
-Adjacent active application repositories, such as `video`, are not MCP family
-members by name alone. `video` owns AgentVerse application workflows and content
-operations; `video-reader-mcp` owns temporal video evidence reading for agents.
-If an application repo becomes a shared MCP foundation, that boundary must be
-accepted through its own ADR before the portfolio depends on it.
+| Control | `filesystem-mcp` | Give agents safe, bounded local filesystem operations. |
 
 ## Runtime Standard
 
-Rust is the default runtime for new SOTA MCP engines and MCP servers. It should
-own parsing, indexing, graph construction, search, streaming IO, policy
-enforcement, deterministic media/document reading, tool schemas, stdio serving,
-and future streamable HTTP serving.
+Rust is the default core runtime for new SOTA engines. It should own parsing,
+indexing, graph construction, search, streaming IO, policy enforcement, and
+other deterministic high-throughput work.
 
-The target MCP server stack is the official
-[`modelcontextprotocol/rust-sdk`](https://github.com/modelcontextprotocol/rust-sdk)
-`rmcp` crate plus project-owned Rust engine crates. Bun or TypeScript can remain
-for generated clients, tests, npm wrapper metadata, and migration compatibility,
-but they are not the target MCP adapter runtime.
+Bun or TypeScript may remain as a thin MCP adapter when it materially reduces
+protocol risk, package friction, or provider-integration cost. The adapter must
+not become the product core. It should delegate to the Rust engine through a
+stable local command, stdio JSON-RPC, or embedded native binding once the engine
+contract is stable.
 
-Existing TypeScript MCPs should migrate by first freezing tool contracts and
-evidence fixtures, then replacing the server runtime with Rust while preserving
-the same public tool surface and package installation path.
+Long term, high-performance MCPs should converge toward a Rust-native server
+binary when the Rust MCP SDK surface, schema generation, transport support, and
+release process can match the TypeScript adapter without product regression.
 
 ## Install Standard
 
@@ -141,12 +126,23 @@ Every MCP repo should have:
 The suite should look like one product family: consistent names, command names,
 output envelopes, trust warnings, benchmark style, and release quality.
 
-## Portfolio Notes
+## Archived MCP Projects
 
-- `notes/rust-first-runtime-distribution.md`
-- `notes/wasm-plugin-sandbox.md`
-- `notes/agent-evidence-envelope.md`
-- `notes/portfolio-positioning-and-growth.md`
+These repositories are **read-only on GitHub** and are no longer active portfolio
+delivery targets. Keep historical roadmaps for context; do not treat them as
+installable products.
+
+| Repo | Archived | Former category job |
+| --- | --- | --- |
+| [`consultant-mcp`](https://github.com/SylphxAI/consultant-mcp) | 2026-07-09 | Typed consultant panel for high-stakes agent decisions |
+| [`gpt-review`](https://github.com/SylphxAI/gpt-review) | 2026-07-09 | Governed-workflow engine, MCP server, and external GPT review gate |
+
+## ADR Index
+
+- `ADR-DRAFT-rust-first-runtime-distribution.md`
+- `ADR-DRAFT-wasm-plugin-sandbox.md`
+- `ADR-DRAFT-agent-evidence-envelope.md`
+- `ADR-DRAFT-portfolio-positioning-and-growth.md`
 
 ## Roadmap Index
 
@@ -157,14 +153,5 @@ output envelopes, trust warnings, benchmark style, and release quality.
 - `roadmaps/video-reader-mcp.md`
 - `roadmaps/smart-reader-mcp.md`
 - `roadmaps/filesystem-mcp.md`
-- `roadmaps/consultant-mcp.md`
-
-## Foundation And Control References
-
-- `SylphxAI/ast`: `docs/roadmap/mcp-family-ast-foundation.md`
-- `SylphxAI/synth`: `docs/roadmap/mcp-family-ast-foundation.md`
-- `SylphxAI/groundatlas`: `docs/specs/final-product-goal.md`
-- `SylphxAI/codec`: `PROJECT.md`
-- `SylphxAI/mcp-server-sdk`: `docs/roadmap/sota-family-roadmap.md`
-- `SylphxAI/mission-control`: `docs/roadmap/sota-mcp-runtime-roadmap.md`
-- `SylphxAI/awesome-mcp-servers`: `docs/roadmap/sota-family-roadmap.md`
+- `roadmaps/consultant-mcp.md` (archived — historical)
+- `roadmaps/gpt-review.md` (archived — historical)

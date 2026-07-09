@@ -1,90 +1,205 @@
+<div align="center">
+
 # Architecture Reader MCP
 
-Architecture Reader MCP is an agent-native MCP server for understanding project
-architecture from source evidence. It is designed for AI agents that need to
-answer questions like:
+### Your agent mapped the repo. **Did it trace the right boundary?**
 
-- What are the major architecture boundaries in this repository?
-- Which files prove how authentication, billing, routing, deployment, or storage
-  works?
-- What depends on this module, route, schema, workflow, or service?
-- What is the impact radius of this diff?
-- Which architecture claim is deterministic, inferred, stale, or uncertain?
+Agent-native MCP server for **repository architecture evidence graphs** — boundaries,
+dependencies, routes, schemas, and impact radius with file-level provenance, not
+dashboard screenshots or keyword grep.
 
-The product is not visualization-first. It may export graph data for dashboards,
-but its primary interface is a compact, typed, provenance-rich MCP tool surface
-for agents.
+[![npm version](https://img.shields.io/npm/v/@sylphx/architecture-reader-mcp?style=flat-square)](https://www.npmjs.com/package/@sylphx/architecture-reader-mcp)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/SylphxAI/architecture-reader-mcp/ci.yml?style=flat-square&label=CI/CD)](https://github.com/SylphxAI/architecture-reader-mcp/actions/workflows/ci.yml)
+[![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
 
-## Current Delivery State
+**Beta 0.1** · **Rust core + Bun MCP adapter** · **7 typed MCP tools** · **Evidence envelope** · **5 tests**
 
-This repository is a local scaffold and architecture design package. It is not
-published, merged, released, deployed, or production-verified.
+[⭐ Star this repo](https://github.com/SylphxAI/architecture-reader-mcp) if agents should answer architecture questions with proof, not graphviz guesses.
+· [Quick start](#quick-start) · [Tool contract](#tool-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)
 
-## Why This Exists
+Complements generic code search in [CodeRAG](https://github.com/SylphxAI/coderag) — it does
+not replace it. Reader portfolio media tools live in
+[smart-reader-mcp](https://github.com/SylphxAI/smart-reader-mcp).
 
-Adjacent tools cover important slices but leave an agent-specific gap:
+</div>
 
-- CodeRAG answers generic code search over chunks.
-- GroundAtlas answers repository truth-home routing, source maps, freshness, and
-  project manifest questions.
-- Synth provides a universal AST package family across many languages.
-- SylphxAI AST provides ANTLR-backed typed parser contracts and fixtures.
-- Codec provides reusable media codec and conversion primitives for Reader
-  workflows.
-- Visualization-first codebase graph tools optimize for human exploration.
-- Source-code fact systems model code as durable facts.
-- Static analysis systems provide structural query and code property graph
-  patterns.
+---
 
-Architecture Reader MCP claims the stronger agent-native category: fast,
-evidence-backed architecture answers for AI agents, with deterministic
-extraction first and LLM inference explicitly labeled when used. The goal is not
-to imitate visual graph tools; it is to make them less necessary for serious AI
-engineering workflows.
+## The problem
 
-## Recommended Implementation Stack
+Agents onboard, review, and refactor codebases every day. Most paths give you one
+of three bad outcomes:
 
-Use a Rust-native stack:
+1. **grep / ripgrep** — fast, but literal. Finds strings, not boundaries, routes,
+   or ownership.
+2. **Generic code search** — great chunks, weak architecture map. You still guess
+   which module owns auth, billing, or deployment.
+3. **Visualization-first graph UIs** — rich for humans, heavy for agents. Screenshots
+   and pan/zoom do not fit MCP context windows.
 
-- Rust core for the architecture graph engine, index formats, query planning,
-  traversal, ranking, diff/impact computation, and high-volume repository work.
-- Rust MCP server crate using the official
-  [`modelcontextprotocol/rust-sdk`](https://github.com/modelcontextprotocol/rust-sdk)
-  `rmcp` crate for protocol handling, stdio transport, typed tool schemas, and
-  future streamable HTTP support.
+The model still hallucinates structure — confidently.
 
-TypeScript can remain a consumer language for generated clients, fixtures, or
-npm wrapper metadata, but the MCP server runtime and product logic should not be
-implemented as a TypeScript adapter.
+**Architecture Reader MCP is built for the moment your agent needs to prove how the
+repo is shaped, what depends on what, and which files back each claim.**
 
-See [`docs/portfolio/notes/rust-first-runtime-distribution.md`](./docs/portfolio/notes/rust-first-runtime-distribution.md).
+## Current delivery state
 
-## Tool Surface
+**Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
+adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
+Python indexing, and incremental refresh are implemented with release-gate proof.
+First npm publish is workflow-owned via Changesets on `main` — see
+[roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
-Initial MCP tools:
+## Why not grep or a dashboard?
 
-- `architecture_index` - create or refresh the local architecture index.
-- `architecture_status` - report index freshness, git commit, coverage, and
-  known gaps.
-- `architecture_overview` - return the top architecture map for a repository or
-  subpath.
-- `architecture_search` - find components, boundaries, routes, schemas,
-  workflows, decisions, and architecture concepts.
-- `architecture_trace` - trace dependency, call, route, ownership, or evidence
-  paths between nodes.
-- `architecture_impact` - estimate impact radius for changed files or symbols.
-- `architecture_evidence` - fetch exact evidence behind a node, edge, or claim.
+| Typical path | Architecture Reader MCP (target) |
+| --- | --- |
+| Keyword hits over files | Architecture map: components, boundaries, routes, schemas |
+| "Trust the summary" | Evidence refs: path, line range, extractor, confidence |
+| Human graph explorer | Compact MCP answers with trace + impact tools |
+| Generic chunk search | Purpose-built `architecture_*` tools with shared envelope |
+| Ship and pray | Deterministic extraction first; inference explicitly labeled |
 
-Every answer must include provenance: file path, optional line range, extraction
-source, freshness, confidence, and uncertainty.
+Generic code search stays in [CodeRAG](https://github.com/SylphxAI/coderag). Synth
+AST extraction is opt-in for TypeScript/JavaScript modules — see
+[integration spec](./docs/specs/synth-coderag-integration.md).
 
-## Repository Layout
+## See it work
+
+**Build the Rust engine, then run the MCP adapter locally:**
+
+```bash
+git clone https://github.com/SylphxAI/architecture-reader-mcp.git
+cd architecture-reader-mcp
+bun install
+cargo build --release
+ARCHITECTURE_READER_CLI=$PWD/target/release/architecture-reader-cli bun run packages/mcp-server/src/index.ts
+```
+
+Index once, then ask architecture questions:
+
+```json
+{
+  "root": "/absolute/path/to/repo",
+  "mode": "auto"
+}
+```
+
+`architecture_search` returns ranked nodes with evidence, not prose:
+
+```json
+{
+  "status": "ok",
+  "repository": {
+    "root": "/abs/path",
+    "indexedCommit": "abc123",
+    "currentCommit": "abc123",
+    "freshness": "fresh"
+  },
+  "answer": {
+    "matches": [
+      {
+        "id": "cmp_auth",
+        "kind": "boundary",
+        "label": "Authentication",
+        "score": 0.94
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "id": "ev_01",
+      "kind": "ast",
+      "path": "src/auth/middleware.ts",
+      "startLine": 10,
+      "endLine": 42,
+      "extractor": "synth-typescript@0.3.x",
+      "confidence": "deterministic"
+    }
+  ],
+  "gaps": [],
+  "metrics": { "elapsedMs": 12, "nodeCount": 430, "edgeCount": 910 }
+}
+```
+
+Abbreviated shape — full envelope in [tool contract spec](./docs/specs/2026-07-09-tool-contract.md).
+
+Trace dependency or impact before editing:
+
+```json
+{
+  "from": "src/auth/middleware.ts",
+  "to": "src/billing/webhook.ts",
+  "relation": "depends_on"
+}
+```
+
+## Why agents will use it
+
+| Need | Tool |
+| --- | --- |
+| Build or refresh the index | `architecture_index` |
+| Check freshness and coverage | `architecture_status` |
+| Top-level repo map | `architecture_overview` |
+| Find boundaries, routes, schemas | `architecture_search` |
+| Follow dependency or call paths | `architecture_trace` |
+| Estimate diff blast radius | `architecture_impact` |
+| Fetch proof behind a claim | `architecture_evidence` |
+
+Every answer shares one evidence envelope: path, optional line range, extraction
+source, freshness, confidence, and known gaps.
+
+## Quick start
+
+### Claude Code
+
+```bash
+claude mcp add architecture-reader -- npx @sylphx/architecture-reader-mcp
+```
+
+### Claude Desktop / any MCP host
+
+```json
+{
+  "mcpServers": {
+    "architecture-reader": {
+      "command": "npx",
+      "args": ["-y", "@sylphx/architecture-reader-mcp"]
+    }
+  }
+}
+```
+
+Set the host working directory to the repository you want indexed.
+
+### Clone and validate locally
+
+```bash
+git clone https://github.com/SylphxAI/architecture-reader-mcp.git
+cd architecture-reader-mcp
+bun install
+bun run build:rust
+bun run validate
+cargo test
+bun test test/readmeDiscovery.test.ts
+```
+
+### Implementation stack
+
+- **Rust core** — graph engine, index formats, query planning, traversal, impact.
+- **TypeScript/Bun MCP adapter** — protocol ergonomics and Sylphx MCP conventions.
+
+See [rust-first runtime note](./docs/portfolio/notes/rust-first-runtime-distribution.md).
+
+## Repository layout
 
 ```text
 architecture-reader-mcp/
   crates/
     architecture-reader-core/    # Rust architecture graph contracts and engine
-    architecture-reader-mcp/     # Rust MCP server using rmcp
+  packages/
+    mcp-server/                  # TypeScript/Bun MCP adapter
   docs/
     adr/                         # Architecture decisions
     specs/                       # Product, graph, indexing, and tool specs
@@ -93,34 +208,74 @@ architecture-reader-mcp/
   server.json                    # MCP server metadata
 ```
 
-## Design Documents
+## Design documents
 
-- [Architecture](./docs/architecture.md)
-- [Product Spec](./docs/specs/2026-07-09-product-spec.md)
-- [Tool Contract](./docs/specs/2026-07-09-tool-contract.md)
-- [Evidence Graph Spec](./docs/specs/2026-07-09-evidence-graph.md)
-- [Indexing Pipeline Spec](./docs/specs/2026-07-09-indexing-pipeline.md)
-- [Category And Internal Research](./docs/research/2026-07-09-category-and-internal-analysis.md)
-- [MCP Portfolio Plan](./docs/portfolio/README.md)
-- [SOTA Family Roadmap](./docs/roadmap/sota-family-roadmap.md)
+| Topic | Link |
+| --- | --- |
+| Architecture overview | [docs/architecture.md](./docs/architecture.md) |
+| Product spec | [docs/specs/2026-07-09-product-spec.md](./docs/specs/2026-07-09-product-spec.md) |
+| Tool contract | [docs/specs/2026-07-09-tool-contract.md](./docs/specs/2026-07-09-tool-contract.md) |
+| Evidence graph | [docs/specs/2026-07-09-evidence-graph.md](./docs/specs/2026-07-09-evidence-graph.md) |
+| Indexing pipeline | [docs/specs/2026-07-09-indexing-pipeline.md](./docs/specs/2026-07-09-indexing-pipeline.md) |
+| Category research | [docs/research/2026-07-09-category-and-internal-analysis.md](./docs/research/2026-07-09-category-and-internal-analysis.md) |
+| Portfolio plan | [docs/portfolio/README.md](./docs/portfolio/README.md) |
+| Roadmap | [docs/portfolio/roadmaps/architecture-reader-mcp.md](./docs/portfolio/roadmaps/architecture-reader-mcp.md) |
+
+## Tool contract
+
+All seven `architecture_*` tools share the evidence envelope defined in
+[tool contract spec](./docs/specs/2026-07-09-tool-contract.md). Run
+`bun run benchmark:release-gate` after `cargo build --release` for boundary proof.
 
 ## Development
 
-This scaffold intentionally contains minimal code. The next implementation slice
-should add:
+```bash
+bun install
+bun run validate
+cargo build --release
+cargo test
+bun test
+bun run benchmark:public-proof
+```
 
-1. Rust graph model serialization tests.
-2. Rust MCP server tool schemas and stubbed `rmcp` handlers.
-3. Deterministic repository scanner for manifests, workspaces, docs, and import
-   edges.
-4. Parser-substrate extractor adapter with Synth and AST fixture support.
-5. Golden-fixture tests against small TypeScript and Rust repositories.
+## Security model
 
-Local validation for this scaffold:
+- **Repository scope** — all tools operate relative to the configured project root; absolute paths are rejected.
+- **Evidence envelope** — every answer includes path, line range, extractor route, freshness, and explicit coverage gaps.
+- **Deterministic first** — regex and manifest extractors are labeled; Synth AST is opt-in via `ARCHITECTURE_READER_USE_SYNTH=1`.
+- **Local-first** — indexing and queries run on your machine; no document upload to Sylphx cloud by default.
+
+## Benchmark proof
+
+Reproduce locally:
 
 ```bash
-python3 -m json.tool .doctrine/project.json
-python3 -m json.tool project.manifest.json
-cargo metadata --format-version 1
-git diff --check
+bun run build:rust
+bun run benchmark:public-proof
+bun run benchmark:release-gate
 ```
+
+Fixture: `fixtures/sample-repo` (auth middleware + ADR + package manifest). Example requests: [`examples/`](examples/).
+
+## Help this reach more builders
+
+If your agent has ever refactored the wrong module because it guessed the architecture,
+this project is for you.
+
+**[⭐ Star the repo](https://github.com/SylphxAI/architecture-reader-mcp)** — it helps
+more agent builders find evidence-backed architecture answers before irreversible edits.
+
+### Discovery (in progress)
+
+| Channel | Status |
+| --- | --- |
+| [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Not listed yet — Beta 0.1 local ship, no publish workflow |
+| [Glama MCP directory](https://glama.ai/mcp/servers) | Not listed yet |
+| [mcpservers.org submit](https://mcpservers.org/submit) | Not listed yet — free web-form submission |
+| [mcp.so submit](https://mcp.so/submit) | Not listed yet — directory submission |
+
+Know another MCP directory? [Open an issue](https://github.com/SylphxAI/architecture-reader-mcp/issues/new) with the link.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
