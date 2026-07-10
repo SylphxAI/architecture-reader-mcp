@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 3,
+  "repo": "SylphxAI/architecture-reader-mcp",
+  "repoLedgerPath": "docs/specs/migration-ledger.json",
+  "lockedAt": "2026-07-10T08:30:00Z",
+  "programSpec": {
+    "id": "rust-first-fleet-migration",
+    "controlPlaneRepo": "SylphxAI/rust-first-fleet-control-plane",
+    "programSpecPath": "PROGRAM-SPEC.json",
+    "completionStandard": "COMPLETION-STANDARD.md",
+    "parityStandard": "PARITY-VERIFICATION-STANDARD.md"
+  },
+  "adrRefs": [
+    {
+      "path": "docs/adr/ADR-PROPOSED-fleet-architecture-reader-mcp-rust-north-star.md",
+      "status": "proposed",
+      "note": "North Star ADR on disk \u2014 pending ADR PR; ADR number will equal introducing PR number per Doctrine"
+    }
+  ],
+  "reauditRef": "rej-010",
+  "verificationRef": "verification/architecture-reader-cycle64-architecture-search-rust-impl.json",
+  "inventorySource": [
+    "mcp-tools",
+    "manual"
+  ],
+  "inScopeBoundary": {
+    "includeGlobs": [
+      "packages/mcp-server/**",
+      "crates/architecture-reader-core/**",
+      "crates/architecture-reader-cli/**",
+      "crates/architecture-reader-mcp-server/**",
+      "bin/**",
+      "fixtures/**"
+    ],
+    "excludeGlobs": [
+      "node_modules/**",
+      "docs/**"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "transport/web-mcp-http",
+      "domain": "transport",
+      "weight": 5,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior authority_rust lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "rustSurface": "crates/architecture-reader-mcp-server/src/http_transport.rs (rmcp StreamableHttpService)",
+      "parityTest": "packages/mcp-server/test/httpTransport.matrix.test.ts; packages/mcp-server/test/integration/http-transport.test.ts; cargo test -p architecture-reader-mcp-server",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle",
+      "prodProbe": "benchmark:release-gate \u2192 mcp:rust_web_http_transport; mcp:http_transport_parity",
+      "prUrl": "https://github.com/SylphxAI/architecture-reader-mcp/pull/24",
+      "notes": "Rust rmcp streamable HTTP on /mcp + /mcp/health; npm bin routes MCP_TRANSPORT=http to Rust. rej-010: SHA-bound differential harness at scripts/run-architecture-reader-differential.sh. authority_rust NOT claimed until differential_green + prod smoke."
+    },
+    {
+      "id": "transport/stdio-rust-rmcp",
+      "domain": "transport",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "rustSurface": "crates/*-mcp-server/src/main.rs (rmcp::transport::stdio())",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle",
+      "prodProbe": "benchmark:release-gate \u2192 mcp:golden_parity",
+      "notes": "Default npm bin launches Rust rmcp stdio server; golden MCP tool parity proven on fixture repo. rej-010 differential covers transport/server contract slice."
+    },
+    {
+      "id": "transport/stdio-ts-adapter",
+      "domain": "transport",
+      "weight": 4,
+      "state": "ts_only",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/main.rs (rmcp::transport::stdio())",
+      "parityTest": "scripts/check-no-ts-stdio-mcp.sh; scripts/check-ts-adapter-deletion-ready.sh; packages/mcp-server/test/check-no-ts-stdio-mcp.test.ts; packages/mcp-server/test/tsAdapterDeletion.matrix.test.ts",
+      "notes": "S3 complete on disk: deleted packages/mcp-server/src/index.ts + bin TS opt-in; check-no-ts-stdio-mcp gate blocks reintroduction. Post-merge flip gate: scripts/check-ts-adapter-deletion-ready.sh + probes/SylphxAI__architecture-reader-mcp-s3-ts-deleted.md. ts_deleted NOT claimed \u2014 pending PR merge + release-gate transcript per rej-001."
+    },
+    {
+      "id": "tool/architecture_index",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle",
+      "prodProbe": "benchmark:release-gate \u2192 mcp:golden_parity"
+    },
+    {
+      "id": "tool/architecture_status",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    },
+    {
+      "id": "tool/architecture_overview",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    },
+    {
+      "id": "tool/architecture_search",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    },
+    {
+      "id": "tool/architecture_trace",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    },
+    {
+      "id": "tool/architecture_impact",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    },
+    {
+      "id": "tool/architecture_evidence",
+      "domain": "mcp-tools",
+      "weight": 4,
+      "state": "rust_impl",
+      "proof": {
+        "status": "missing",
+        "verificationRef": "scripts/run-architecture-reader-differential.sh",
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+      },
+      "promotionHold": {
+        "active": true,
+        "reason": "rej-010: differential harness landed \u2014 awaiting differential_green at bound SHAs; NO auto-promotion",
+        "rejectionRef": "rej-010",
+        "since": "2026-07-10T21:30:00Z"
+      },
+      "tsSurface": "packages/mcp-server/src/tools.ts",
+      "rustSurface": "crates/architecture-reader-mcp-server/src/lib.rs",
+      "parityTest": "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+      "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#architecture_reader_mcp_differential_matches_ts_oracle"
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "ts_only": 1,
+    "contracted": 0,
+    "rust_impl": 9,
+    "parity_proven": 0,
+    "authority_rust": 0,
+    "ts_deleted": 0,
+    "proof_missing": 9,
+    "completion_progress": 0.0,
+    "authority_progress": 0.0,
+    "verified_authority_progress": 0.0,
+    "weighted_progress": 0.675,
+    "cycle49_delta": {
+      "rust_impl_verified": 1,
+      "slice": "transport.web-mcp-http",
+      "verificationRef": "verification/architecture-reader-cycle49-http-transport-rust-impl.json",
+      "notes": "rej-010 rust_impl ONLY \u2014 cycle49 highest-value unimplemented slice: transport.web-mcp-http bounded differential (httpProbe + transport contract)"
+    },
+    "cycle50_delta": {
+      "rust_impl_verified": 1,
+      "slice": "tool.architecture_index",
+      "verificationRef": "verification/architecture-reader-cycle50-architecture-index-rust-impl.json",
+      "notes": "rej-010 rust_impl ONLY \u2014 cycle50 next highest-value slice: tool.architecture_index bounded differential (1 golden tool case)"
+    },
+    "cycle62_delta": {
+      "rust_impl_verified": 1,
+      "slice": "tool.architecture_status",
+      "verificationRef": "verification/architecture-reader-cycle62-architecture-status-rust-impl.json",
+      "notes": "rej-010 rust_impl ONLY \u2014 cycle62 next bounded slice: tool.architecture_status differential harness (1 golden tool case)"
+    },
+    "cycle63_delta": {
+      "rust_impl_verified": 1,
+      "slice": "tool.architecture_overview",
+      "verificationRef": "verification/architecture-reader-cycle63-architecture-overview-rust-impl.json",
+      "notes": "rej-010 rust_impl ONLY \u2014 cycle63 harness metadata: tool.architecture_overview differential harness (1 golden tool case)"
+    },
+    "cycle64_delta": {
+      "rust_impl_verified": 1,
+      "slice": "tool.architecture_search",
+      "verificationRef": "verification/architecture-reader-cycle64-architecture-search-rust-impl.json",
+      "notes": "rej-010 rust_impl ONLY \u2014 cycle64 harness metadata: tool.architecture_search bounded differential (3 cases); ts_only=1 transport deferred"
+    }
+  },
+  "postMergeGate": {
+    "dependsOnPr": "https://github.com/SylphxAI/architecture-reader-mcp/pull/24",
+    "stackedBranch": "chore/rust-first-s3-stdio-ts-adapter-deleted",
+    "parentBranch": "chore/rust-first-s0-parity-proven",
+    "probeDoc": "rust-first-fleet-control-plane/probes/SylphxAI__architecture-reader-mcp-s3-ts-deleted.md",
+    "deletionReadyScript": "scripts/check-ts-adapter-deletion-ready.sh",
+    "retirementGateScript": "scripts/check-no-ts-stdio-mcp.sh",
+    "prodSmokeScript": "bun run benchmark:release-gate",
+    "verificationArtifact": "benchmark-artifacts/architecture_reader_release_gate.json",
+    "capabilitiesAfterMerge": [
+      "transport/stdio-ts-adapter"
+    ]
+  },
+  "slices": {
+    "S1": {
+      "status": "shipped",
+      "evidence": [
+        "crates/architecture-reader-mcp-server/tests/golden_parity.rs",
+        "packages/mcp-server/test/shippedPath.matrix.test.ts",
+        "packages/mcp-server/test/integration/http-transport.test.ts",
+        "scripts/run-architecture-reader-differential.sh",
+        "scripts/differential/architecture-reader-mcp-oracle.ts"
+      ],
+      "notes": "tool/* + transport/web-mcp-http rust_impl on disk. rej-010 differential harness landed for architecture_* golden corpus + HTTP probes."
+    },
+    "S2": {
+      "status": "shipped",
+      "evidence": [
+        "crates/architecture-reader-mcp-server/src/http_transport.rs",
+        "packages/mcp-server/test/httpTransport.matrix.test.ts",
+        "packages/mcp-server/test/integration/http-transport.test.ts",
+        "bin/architecture-reader-mcp",
+        "scripts/run-architecture-reader-differential.sh"
+      ],
+      "notes": "transport/web-mcp-http rust_impl on disk; HTTP bin path is Rust-only. rej-010 differential harness landed for HTTP transport contract + live probes."
+    },
+    "S3": {
+      "status": "complete_on_disk",
+      "evidence": [
+        "scripts/check-no-ts-stdio-mcp.sh",
+        "scripts/check-ts-adapter-deletion-ready.sh",
+        "packages/mcp-server/test/check-no-ts-stdio-mcp.test.ts",
+        "packages/mcp-server/test/tsAdapterDeletion.matrix.test.ts",
+        "bin/architecture-reader-mcp",
+        "packages/mcp-server/src/tools.ts"
+      ],
+      "notes": "transport/stdio-ts-adapter deletion on disk: TS stdio MCP entrypoint removed; Rust rmcp is sole MCP transport. Ledger ts_deleted flip pending PR merge."
+    },
+    "S4": {
+      "status": "shipped",
+      "evidence": [
+        "scripts/differential/fixtures/architecture-reader-mcp-corpus.json",
+        "scripts/differential/architecture-reader-mcp-oracle.ts",
+        "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs",
+        "scripts/run-architecture-reader-differential.sh",
+        "docs/specs/architecture-reader-mcp-parity-slice.json",
+        "packages/mcp-server/test/differentialHarness.matrix.test.ts"
+      ],
+      "notes": "cycle37 rej-010: architecture_* analyze tools (index/status/overview/search/trace/impact/evidence) rust_impl + differential harness verified on disk. proof.status missing until differential_green."
+    }
+  },
+  "cycle37": {
+    "boundedSlice": "tool.architecture_*|transport.web-mcp-http",
+    "status": "harness_landed_disk",
+    "evidenceRef": "/tmp/grok-goal-729a939ec6e2/implementer/cycle37-rust-impl/mcp-batch.json"
+  },
+  "cycle39": {
+    "boundedSlice": "tool.architecture_*|transport.web-mcp-http|transport.stdio-rust-rmcp",
+    "status": "harness_landed_disk",
+    "evidenceRef": "/tmp/grok-goal-729a939ec6e2/implementer/cycle39-mcp-wave2.json",
+    "deliverables": [
+      "docs/specs/architecture-reader-mcp-parity-slice.json",
+      "packages/mcp-server/test/differentialHarness.matrix.test.ts",
+      "scripts/run-architecture-reader-differential.sh",
+      "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs"
+    ],
+    "notes": "cycle39 rej-010: S4 differential harness + matrix gate re-verified on disk. rust_impl only \u2014 proof.status missing until differential_green at bound SHAs."
+  },
+  "promotionHold": {
+    "active": true,
+    "reason": "rej-010 promotion freeze \u2014 0 capabilities with differential_green or canary_green proof",
+    "rejectionRef": "rej-010",
+    "since": "2026-07-10T21:30:00Z"
+  },
+  "cycle45": {
+    "boundedSlice": "tool.architecture_*|transport.web-mcp-http|transport.stdio-rust-rmcp",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "evidenceRef": "/tmp/grok-goal-729a939ec6e2/implementer/cycle45-mcp-reader-batch.json",
+    "deliverables": [
+      "docs/specs/architecture-reader-mcp-parity-slice.json",
+      "packages/mcp-server/test/differentialHarness.matrix.test.ts",
+      "scripts/run-architecture-reader-differential.sh",
+      "scripts/differential/architecture-reader-mcp-oracle.ts",
+      "scripts/differential/fixtures/architecture-reader-mcp-corpus.json",
+      "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs"
+    ],
+    "harnessPath": "scripts/run-architecture-reader-differential.sh",
+    "notes": "cycle45 rej-010: architecture_* tools + HTTP/stdio transport rust_impl differential harness re-verified on disk. proof.status missing until differential_green at bound SHAs \u2014 NO promotion."
+  },
+  "cycle49Slice": "transport.web-mcp-http \u2014 bounded --slice entrypoint; bash scripts/run-architecture-reader-differential.sh --slice transport.web-mcp-http",
+  "cycle50Slice": "tool.architecture_index \u2014 bounded --slice entrypoint; bash scripts/run-architecture-reader-differential.sh --slice tool.architecture_index",
+  "cycle62Slice": "tool.architecture_status \u2014 bounded --slice entrypoint; bash scripts/run-architecture-reader-differential.sh --slice tool.architecture_status; proof.status missing; authority_rust blocked per rej-010",
+  "cycle49": {
+    "boundedSlice": "transport.web-mcp-http",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "verificationRef": "verification/architecture-reader-cycle49-http-transport-rust-impl.json",
+    "deliverables": [
+      "scripts/run-architecture-reader-differential.sh",
+      "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs",
+      "scripts/differential/architecture-reader-mcp-oracle.ts",
+      "scripts/differential/fixtures/architecture-reader-mcp-corpus.json",
+      "docs/specs/architecture-reader-mcp-parity-slice.json",
+      "packages/mcp-server/test/differentialHarness.matrix.test.ts",
+      "crates/architecture-reader-mcp-server/src/http_transport.rs"
+    ],
+    "harnessPath": "scripts/run-architecture-reader-differential.sh --slice transport.web-mcp-http",
+    "caseCounts": {
+      "httpProbe": 8,
+      "transportContractHttp": 2
+    },
+    "notes": "cycle49 rej-010: transport.web-mcp-http bounded differential harness on-disk verify. rust_impl ONLY \u2014 proof.status missing until differential_green at bound SHAs."
+  },
+  "cycle50": {
+    "boundedSlice": "tool.architecture_index",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "verificationRef": "verification/architecture-reader-cycle50-architecture-index-rust-impl.json",
+    "harnessPath": "scripts/run-architecture-reader-differential.sh --slice tool.architecture_index",
+    "deliverables": [
+      "scripts/run-architecture-reader-differential.sh",
+      "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs",
+      "scripts/differential/architecture-reader-mcp-oracle.ts",
+      "scripts/differential/fixtures/architecture-reader-mcp-corpus.json",
+      "docs/specs/architecture-reader-mcp-parity-slice.json",
+      "packages/mcp-server/test/differentialHarness.matrix.test.ts"
+    ],
+    "caseCounts": {
+      "architectureIndexTool": 1
+    },
+    "notes": "cycle50 rej-010: tool.architecture_index bounded differential harness on-disk verify. rust_impl ONLY \u2014 proof.status missing until differential_green at bound SHAs."
+  },
+  "cycle62": {
+    "boundedSlice": "tool.architecture_status",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "verificationRef": "verification/architecture-reader-cycle62-architecture-status-rust-impl.json",
+    "harnessPath": "scripts/run-architecture-reader-differential.sh --slice tool.architecture_status",
+    "deliverables": [
+      "scripts/run-architecture-reader-differential.sh",
+      "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs",
+      "scripts/differential/architecture-reader-mcp-oracle.ts",
+      "scripts/differential/fixtures/architecture-reader-mcp-corpus.json"
+    ],
+    "caseCounts": {
+      "architectureStatusTool": 1
+    },
+    "notes": "cycle62 rej-010: tool.architecture_status bounded differential harness on-disk verify. rust_impl ONLY \u2014 proof.status missing until differential_green at bound SHAs."
+  },
+  "cycle63Slice": "tool.architecture_overview \u2014 bounded --slice entrypoint; bash scripts/run-architecture-reader-differential.sh --slice tool.architecture_overview",
+  "cycle64Slice": "tool.architecture_search \u2014 bounded --slice entrypoint; bash scripts/run-architecture-reader-differential.sh --slice tool.architecture_search; proof.status missing; authority_rust blocked per rej-010",
+  "cycle63": {
+    "boundedSlice": "tool.architecture_overview",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "verificationRef": "verification/architecture-reader-cycle63-architecture-overview-rust-impl.json",
+    "harnessPath": "scripts/run-architecture-reader-differential.sh --slice tool.architecture_overview",
+    "caseCounts": {
+      "architectureOverviewTool": 1
+    },
+    "notes": "cycle63 rej-010: tool.architecture_overview bounded differential harness on-disk verify. rust_impl ONLY \u2014 proof.status missing until differential_green at bound SHAs."
+  },
+  "cycle64": {
+    "boundedSlice": "tool.architecture_search",
+    "status": "rust_impl_on_disk_verified",
+    "reauditRef": "rej-010",
+    "verificationRef": "verification/architecture-reader-cycle64-architecture-search-rust-impl.json",
+    "harnessPath": "scripts/run-architecture-reader-differential.sh --slice tool.architecture_search",
+    "caseCounts": {
+      "architectureSearch": 3
+    },
+    "notes": "cycle64 rej-010: tool.architecture_search bounded differential harness on-disk verify. rust_impl ONLY \u2014 proof.status missing until differential_green at bound SHAs."
+  }
+}
