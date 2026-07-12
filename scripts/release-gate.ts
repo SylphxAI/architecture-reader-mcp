@@ -227,6 +227,30 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
         }
   );
 
+  const goldenParityProbe = spawnSync(
+    'cargo',
+    ['test', '-p', 'architecture-reader-mcp-server', '--test', 'golden_parity'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 300_000,
+    }
+  );
+  addCheck(
+    checks,
+    'mcp:golden_parity',
+    fileExists('crates/architecture-reader-mcp-server/tests/golden_parity.rs') &&
+      goldenParityProbe.status === 0,
+    'Golden parity test proves rmcp cli_bridge envelopes match direct architecture-reader-cli on fixture repo',
+    goldenParityProbe.status === 0
+      ? { exitCode: 0 }
+      : {
+          exitCode: goldenParityProbe.status,
+          stderr: goldenParityProbe.stderr?.slice(-2000),
+          stdout: goldenParityProbe.stdout?.slice(-2000),
+        }
+  );
+
   addCheck(
     checks,
     'publish:changeset_config',
