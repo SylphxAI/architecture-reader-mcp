@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "slice": "architecture-reader-mcp.pure-residual|pure-residual",
   "status": "differential_green",
-  "verifiedAt": "2026-07-13T01:25:50Z",
-  "lastComparedMainSha": "695e0b344a122c05a251dac2fb747fa409b4c80f",
-  "mergeGroupSha": "695e0b344a122c05a251dac2fb747fa409b4c80f",
-  "rustCandidateSha": "695e0b344a122c05a251dac2fb747fa409b4c80f",
+  "verifiedAt": "2026-07-13T01:51:40Z",
+  "lastComparedMainSha": "a361fb6435738624d73b73fade9457cf50313b63",
+  "mergeGroupSha": "a361fb6435738624d73b73fade9457cf50313b63",
+  "rustCandidateSha": "a361fb6435738624d73b73fade9457cf50313b63",
   "behaviorSpecHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
   "fixtureCorpusHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
   "caseCount": 10,
@@ -27,7 +27,6 @@
     "architecture_evidence"
   ],
   "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains",
-  "tipSha": "84d8f7d6050f8a3d7c6d06f14daa6b2d2f2fcd86",
-  "wave": "",
-  "note": "BW6 pure residual unit deepen + tip rebind"
+  "wave": "BW7",
+  "rebindingNote": "BW7 pure residual unit deepen tip rebind; pure-residual differential still green; no effect/parity/authority claim"
 }
