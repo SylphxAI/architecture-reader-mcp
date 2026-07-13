@@ -887,3 +887,162 @@ pub fn index_dir(root: &Path) -> PathBuf {
 pub fn graph_path(root: &Path) -> PathBuf {
     index_dir(root).join("graph.json")
 }
+
+
+#[cfg(test)]
+mod pure_residual_tests {
+    //! Pure residual deepen (BW4): string/graph helpers without repo effect I/O.
+    //! Not graph-effect parity, not authority_rust.
+
+    use super::*;
+    use crate::types::{
+        ArchitectureGraph, Confidence, EvidenceRef, GraphEdge, GraphNode,
+        RepositorySnapshot, GRAPH_SCHEMA_VERSION,
+    };
+    use std::collections::HashSet;
+
+    fn empty_graph(root: &str) -> ArchitectureGraph {
+        ArchitectureGraph {
+            schema_version: GRAPH_SCHEMA_VERSION.to_string(),
+            repository: RepositorySnapshot {
+                root: root.to_string(),
+                git_commit: None,
+                worktree_dirty: false,
+            },
+            extractors: vec!["call-graph@0.1.0".into()],
+            nodes: vec![],
+            edges: vec![],
+            claims: vec![],
+            evidence: vec![],
+        }
+    }
+
+    fn node(id: &str, path: Option<&str>) -> GraphNode {
+        GraphNode {
+            id: id.to_string(),
+            kind: "module".into(),
+            label: id.to_string(),
+            path: path.map(str::to_string),
+            evidence_ids: vec![],
+        }
+    }
+
+    #[test]
+    fn extract_json_schema_label_prefers_title_then_id() {
+        assert_eq!(
+            extract_json_schema_label(r#"{"title":"User","$id":"https://x/user"}"#).as_deref(),
+            Some("User")
+        );
+        assert_eq!(
+            extract_json_schema_label(r#"{"$id":"https://x/user"}"#).as_deref(),
+            Some("https://x/user")
+        );
+        assert_eq!(extract_json_schema_label(r#"{"type":"object"}"#), None);
+        assert_eq!(extract_json_schema_label("not-json"), None);
+    }
+
+    #[test]
+    fn line_number_at_is_one_indexed_by_newlines() {
+        // Implementation counts `lines()` on the exclusive prefix. A trailing
+        // newline in the prefix does not add an empty line (Rust `lines()`),
+        // so offset at the first char of line N often reports N-1 until the
+        // char is included — lock that contract for pure residual deepen.
+        let content = "a\nb\nc";
+        assert_eq!(line_number_at(content, 0), 1);
+        assert_eq!(line_number_at(content, 2), 1); // prefix "a\n" → 1 line
+        assert_eq!(line_number_at(content, 3), 2); // prefix "a\nb" → 2 lines
+        assert_eq!(line_number_at(content, content.len()), 3);
+        assert_eq!(line_number_at("", 0), 1);
+    }
+
+    #[test]
+    fn ts_import_local_map_named_default_and_python_from() {
+        let content = r#"
+import { foo as bar, baz } from './lib';
+import Default from "./default.js";
+from pkg.mod import Alpha, Beta as B
+"#;
+        let map = ts_import_local_map(content);
+        // "foo as bar" — local token is first segment before " as "
+        assert_eq!(map.get("foo").map(String::as_str), Some("./lib"));
+        assert_eq!(map.get("baz").map(String::as_str), Some("./lib"));
+        assert_eq!(map.get("Default").map(String::as_str), Some("./default.js"));
+        assert_eq!(map.get("Alpha").map(String::as_str), Some("pkg.mod"));
+        assert_eq!(map.get("Beta").map(String::as_str), Some("pkg.mod"));
+    }
+
+    #[test]
+    fn ts_symbol_spans_export_async_and_plain_functions() {
+        let content = "export async function run() {}\nfunction helper() {}\nexport class X {}\n";
+        let spans = ts_symbol_spans(content);
+        let names: Vec<&str> = spans.iter().map(|(n, _, _)| n.as_str()).collect();
+        assert!(names.contains(&"run"), "{names:?}");
+        assert!(names.contains(&"helper"), "{names:?}");
+        assert_eq!(spans.iter().find(|(n, _, _)| n == "run").map(|(_, s, _)| *s), Some(1));
+    }
+
+    #[test]
+    fn pure_residual_graph_merge_and_prune() {
+        let mut base = empty_graph("/repo");
+        base.nodes.push(node("n:a", Some("src/a.ts")));
+        base.nodes.push(node("n:b", Some("src/b.ts")));
+        base.edges.push(GraphEdge {
+            id: "e:1".into(),
+            kind: "imports".into(),
+            from: "n:a".into(),
+            to: "n:b".into(),
+            evidence_ids: vec![],
+        });
+        base.evidence.push(EvidenceRef {
+            id: "ev:a".into(),
+            kind: "ast".into(),
+            path: "src/a.ts".into(),
+            start_line: Some(1),
+            end_line: Some(1),
+            extractor: "call-graph@0.1.0".into(),
+            confidence: Confidence::Deterministic,
+        });
+
+        let mut delta = empty_graph("/repo");
+        delta.nodes.push(node("n:c", Some("src/c.ts")));
+        delta.nodes.push(node("n:a", Some("src/a.ts"))); // duplicate id ignored
+        delta.extractors.push("synth-js@0.1.0".into());
+
+        let merged = merge_graphs(base.clone(), delta);
+        assert_eq!(merged.nodes.len(), 3);
+        assert!(merged.nodes.iter().any(|n| n.id == "n:c"));
+        assert!(merged.extractors.iter().any(|e| e == "synth-js@0.1.0"));
+
+        let mut paths = HashSet::new();
+        paths.insert("src/a.ts".into());
+        let pruned = prune_graph_for_paths(merged, &paths);
+        assert!(!pruned.nodes.iter().any(|n| n.id == "n:a"));
+        assert!(!pruned.edges.iter().any(|e| e.from == "n:a" || e.to == "n:a"));
+        assert!(!pruned.evidence.iter().any(|e| e.path == "src/a.ts"));
+        assert!(pruned.nodes.iter().any(|n| n.id == "n:b"));
+        assert!(pruned.nodes.iter().any(|n| n.id == "n:c"));
+    }
+
+    #[test]
+    fn graph_digest_is_stable_for_identical_graphs() {
+        let g1 = empty_graph("/repo");
+        let g2 = empty_graph("/repo");
+        let d1 = graph_digest(&g1);
+        let d2 = graph_digest(&g2);
+        assert_eq!(d1, d2);
+        assert_eq!(d1.len(), 64);
+        let mut g3 = empty_graph("/repo");
+        g3.nodes.push(node("n:x", Some("x.ts")));
+        assert_ne!(graph_digest(&g3), d1);
+    }
+
+    #[test]
+    fn index_ts_symbols_defines_exported_functions() {
+        let mut builder = GraphBuilder::default();
+        let content = "export function authMiddleware() {\n  return true;\n}\n";
+        index_ts_symbols(&mut builder, "src/auth.ts", content);
+        assert!(builder.nodes.iter().any(|n| n.label == "authMiddleware" && n.kind == "symbol"));
+        assert!(builder.edges.iter().any(|e| e.kind == "defines"));
+    }
+}
+
