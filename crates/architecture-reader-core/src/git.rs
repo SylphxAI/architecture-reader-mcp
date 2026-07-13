@@ -48,3 +48,37 @@ pub fn freshness(
         _ => Freshness::Unknown,
     }
 }
+
+#[cfg(test)]
+mod pure_residual_tests {
+    use super::*;
+    use crate::types::Freshness;
+
+    #[test]
+    fn freshness_matrix_covers_dirty_fresh_stale_unknown() {
+        assert_eq!(
+            freshness(Some("aaa"), Some("aaa"), true),
+            Freshness::Dirty
+        );
+        assert_eq!(
+            freshness(Some("aaa"), Some("aaa"), false),
+            Freshness::Fresh
+        );
+        assert_eq!(
+            freshness(Some("aaa"), Some("bbb"), false),
+            Freshness::Stale
+        );
+        assert_eq!(
+            freshness(None, Some("aaa"), false),
+            Freshness::Unknown
+        );
+        assert_eq!(
+            freshness(Some("aaa"), None, false),
+            Freshness::Unknown
+        );
+        assert_eq!(
+            freshness(None, None, false),
+            Freshness::Unknown
+        );
+    }
+}

@@ -891,7 +891,7 @@ pub fn graph_path(root: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod pure_residual_tests {
-    //! Pure residual deepen (BW4): string/graph helpers without repo effect I/O.
+    //! Pure residual deepen (BW4/BW5): string/graph helpers without repo effect I/O.
     //! Not graph-effect parity, not authority_rust.
 
     use super::*;
@@ -1043,6 +1043,71 @@ from pkg.mod import Alpha, Beta as B
         index_ts_symbols(&mut builder, "src/auth.ts", content);
         assert!(builder.nodes.iter().any(|n| n.label == "authMiddleware" && n.kind == "symbol"));
         assert!(builder.edges.iter().any(|e| e.kind == "defines"));
+    }
+
+    #[test]
+    fn normalize_relative_module_path_resolves_dot_and_js() {
+        assert_eq!(
+            normalize_relative_module_path("src/auth/middleware.ts", "./token.js").as_deref(),
+            Some("src/auth/token.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/auth/middleware.ts", "../users/store").as_deref(),
+            Some("src/users/store.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/a.ts", "pkg/no-rel"),
+            None
+        );
+        assert_eq!(normalize_posix_path("a/./b/../c//d"), "a/c/d");
+        assert_eq!(normalize_posix_path("../x"), "x");
+    }
+
+    #[test]
+    fn extract_json_and_toml_name_helpers() {
+        assert_eq!(
+            extract_json_name(r#"{"name":"demo-pkg","version":"1"}"#).as_deref(),
+            Some("demo-pkg")
+        );
+        assert_eq!(extract_json_name(r#"{"version":"1"}"#), None);
+        assert_eq!(extract_json_name("not-json"), None);
+        assert_eq!(
+            extract_toml_name("[package]\nname = \"fs-core\"\nversion = \"0.1.0\"\n").as_deref(),
+            Some("fs-core")
+        );
+        assert_eq!(extract_toml_name("version = \"1\""), None);
+    }
+
+    #[test]
+    fn resolve_ts_call_target_local_and_dep() {
+        let mut builder = GraphBuilder::default();
+        let ev = builder.push_evidence("ast", "src/a.ts", "call-graph@0.1.0", Some(1), Some(1));
+        builder.push_node(
+            "node:symbol:src:a.ts:function:localFn",
+            "symbol",
+            "localFn",
+            Some("src/a.ts"),
+            &ev,
+        );
+        builder.push_node(
+            "node:module:dep:lodash",
+            "module",
+            "lodash",
+            None,
+            &ev,
+        );
+        let mut map = std::collections::HashMap::new();
+        map.insert("get".into(), "lodash".into());
+        map.insert("localFn".into(), "./noop".into());
+        assert_eq!(
+            resolve_ts_call_target(&builder, "src/a.ts", &map, "localFn").as_deref(),
+            Some("node:symbol:src:a.ts:function:localFn")
+        );
+        assert_eq!(
+            resolve_ts_call_target(&builder, "src/a.ts", &map, "get").as_deref(),
+            Some("node:module:dep:lodash")
+        );
+        assert_eq!(resolve_ts_call_target(&builder, "src/a.ts", &map, "missing"), None);
     }
 }
 
