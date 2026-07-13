@@ -26,5 +26,8 @@
     "architecture_impact",
     "architecture_evidence"
   ],
-  "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains"
+  "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains",
+  "tipSha": "84d8f7d6050f8a3d7c6d06f14daa6b2d2f2fcd86",
+  "wave": "",
+  "note": "BW6 pure residual unit deepen + tip rebind"
 }
