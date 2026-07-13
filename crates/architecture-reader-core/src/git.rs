@@ -93,4 +93,14 @@ mod pure_residual_tests {
             Freshness::Dirty
         );
     }
+
+    #[test]
+    fn bw7_freshness_unknown_when_indexed_missing_even_if_current_present() {
+        // Matrix lock: None indexed + Some current + clean => Unknown (not Fresh/Stale).
+        assert_eq!(freshness(None, Some("deadbeef"), false), Freshness::Unknown);
+        // dirty still wins over that branch
+        assert_eq!(freshness(None, Some("deadbeef"), true), Freshness::Dirty);
+        // Some indexed + None current + clean => Unknown
+        assert_eq!(freshness(Some("deadbeef"), None, false), Freshness::Unknown);
+    }
 }

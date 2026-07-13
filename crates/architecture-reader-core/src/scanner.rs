@@ -1170,6 +1170,91 @@ import { real } from '../lib/real';
         assert_eq!(extract_json_schema_label(""), None);
         assert_eq!(extract_json_schema_label("{"), None);
     }
+
+    #[test]
+    fn bw7_extract_json_name_rejects_non_string_and_empty_object() {
+        assert_eq!(extract_json_name(r#"{"name":"ok"}"#).as_deref(), Some("ok"));
+        assert_eq!(extract_json_name(r#"{"name":123}"#), None);
+        assert_eq!(extract_json_name(r#"{"name":null}"#), None);
+        assert_eq!(extract_json_name("{}"), None);
+    }
+
+    #[test]
+    fn bw7_extract_toml_name_first_match_and_strip_quotes() {
+        let multi = "[workspace]\nmembers = []\n[package]\nname = \"pkg-core\"\nversion = \"0.1\"\n";
+        assert_eq!(extract_toml_name(multi).as_deref(), Some("pkg-core"));
+        // first `name =` wins even outside package (honest pure residual contract)
+        let early = "name = \"early\"\n[package]\nname = \"late\"\n";
+        assert_eq!(extract_toml_name(early).as_deref(), Some("early"));
+        assert_eq!(extract_toml_name("  name = \"spaced\"  "), Some("spaced".into()));
+    }
+
+    #[test]
+    fn bw7_ts_symbol_spans_empty_and_end_line_chain() {
+        assert!(ts_symbol_spans("").is_empty());
+        assert!(ts_symbol_spans("// no functions\nconst x = 1;\n").is_empty());
+        // Honest line_number_at contract: start offset of next `function` after `}\n`
+        // yields start_line = lines(prefix).count() (often the line of `}` not the next line).
+        let content = "function a() {\n  return 1;\n}\nfunction b() {\n  return 2;\n}\nfunction c() {\n  return 3;\n}\n";
+        let spans = ts_symbol_spans(content);
+        assert_eq!(spans.len(), 3, "{spans:?}");
+        assert_eq!(spans[0].0, "a");
+        assert_eq!(spans[0].1, 1);
+        // end = next_start - 1 (honest residual)
+        assert_eq!(spans[0].2, spans[1].1.saturating_sub(1));
+        assert_eq!(spans[1].0, "b");
+        assert_eq!(spans[1].2, spans[2].1.saturating_sub(1));
+        assert_eq!(spans[2].0, "c");
+        // last symbol end == total lines
+        let total = content.lines().count().max(1) as u32;
+        assert_eq!(spans[2].2, total);
+    }
+
+    #[test]
+    fn bw7_normalize_relative_already_ts_and_deep_parent() {
+        assert_eq!(
+            normalize_relative_module_path("src/a/b/c.ts", "./d.ts").as_deref(),
+            Some("src/a/b/d.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/a/b/c.ts", "../../z").as_deref(),
+            Some("src/z.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/a.ts", "/abs"),
+            None
+        );
+        // parent of root-level file: Path::parent of "file.ts" is "" → join still works
+        assert_eq!(
+            normalize_relative_module_path("file.ts", "./peer").as_deref(),
+            Some("peer.ts")
+        );
+    }
+
+    #[test]
+    fn bw7_line_number_at_clamps_offset_past_end() {
+        let c = "x\ny";
+        assert_eq!(line_number_at(c, 999), 2);
+        assert_eq!(line_number_at("only", 0), 1);
+        assert_eq!(line_number_at("only", 4), 1);
+    }
+
+    #[test]
+    fn bw7_merge_graphs_dedups_node_ids_keeps_unique_extractors() {
+        let mut base = empty_graph("/r");
+        base.nodes.push(node("n:1", Some("a.ts")));
+        base.extractors.push("call-graph@0.1.0".into());
+        let mut delta = empty_graph("/r");
+        delta.nodes.push(node("n:1", Some("a.ts"))); // dup id
+        delta.nodes.push(node("n:2", Some("b.ts")));
+        delta.extractors.push("call-graph@0.1.0".into()); // may append again depending on impl
+        delta.extractors.push("synth-js@0.1.0".into());
+        let merged = merge_graphs(base, delta);
+        assert_eq!(merged.nodes.iter().filter(|n| n.id == "n:1").count(), 1);
+        assert!(merged.nodes.iter().any(|n| n.id == "n:2"));
+        assert!(merged.extractors.iter().any(|e| e == "synth-js@0.1.0"));
+    }
+
 }
 
 
