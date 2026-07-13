@@ -103,4 +103,17 @@ mod pure_residual_tests {
         // Some indexed + None current + clean => Unknown
         assert_eq!(freshness(Some("deadbeef"), None, false), Freshness::Unknown);
     }
+
+
+    #[test]
+    fn bw8_freshness_stale_and_dirty_precedence_matrix() {
+        assert_eq!(freshness(Some("a"), Some("a"), true), Freshness::Dirty);
+        assert_eq!(freshness(Some("a"), Some("b"), true), Freshness::Dirty);
+        assert_eq!(freshness(None, Some("b"), true), Freshness::Dirty);
+        assert_eq!(freshness(Some("a"), Some("b"), false), Freshness::Stale);
+        assert_eq!(freshness(Some("same"), Some("same"), false), Freshness::Fresh);
+        assert_eq!(freshness(None, None, false), Freshness::Unknown);
+        assert_eq!(freshness(Some("x"), None, false), Freshness::Unknown);
+        assert_eq!(freshness(None, Some("x"), false), Freshness::Unknown);
+    }
 }

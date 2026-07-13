@@ -1255,6 +1255,93 @@ import { real } from '../lib/real';
         assert!(merged.extractors.iter().any(|e| e == "synth-js@0.1.0"));
     }
 
+
+    #[test]
+    fn bw8_extract_json_schema_label_id_only_and_non_object() {
+        assert_eq!(
+            extract_json_schema_label(r#"{"$id":"https://example.com/s"}"#).as_deref(),
+            Some("https://example.com/s")
+        );
+        assert_eq!(
+            extract_json_schema_label(r#"{"title":"T","$id":"id"}"#).as_deref(),
+            Some("T")
+        );
+        assert_eq!(extract_json_schema_label("[]"), None);
+        assert_eq!(extract_json_schema_label("null"), None);
+        assert_eq!(extract_json_schema_label(r#"{"title":1}"#), None);
+    }
+
+    #[test]
+    fn bw8_ts_import_local_map_as_alias_and_multi_named() {
+        let content = r#"
+import { foo as bar, baz as qux } from './lib';
+import * as ns from './star';
+import Def from '../def';
+"#;
+        let map = ts_import_local_map(content);
+        assert_eq!(map.get("foo").map(String::as_str), Some("./lib"));
+        assert_eq!(map.get("baz").map(String::as_str), Some("./lib"));
+        assert_eq!(map.get("Def").map(String::as_str), Some("../def"));
+        assert!(!map.contains_key("ns"));
+    }
+
+    #[test]
+    fn bw8_normalize_posix_pops_past_root_and_dots() {
+        assert_eq!(normalize_posix_path("../../x"), "x");
+        assert_eq!(normalize_posix_path("././"), "");
+        assert_eq!(normalize_posix_path("a/../../b"), "b");
+        assert_eq!(normalize_posix_path("/abs/./c"), "abs/c");
+        assert_eq!(
+            normalize_relative_module_path("src/a.ts", "./b/../c.js").as_deref(),
+            Some("src/c.ts")
+        );
+    }
+
+    #[test]
+    fn bw8_resolve_ts_call_target_relative_dep_fallback() {
+        let mut builder = GraphBuilder::default();
+        let ev = builder.push_evidence("ast", "src/a.ts", "call-graph@0.1.0", Some(1), Some(1));
+        builder.push_node("node:module:dep:./helpers", "module", "./helpers", None, &ev);
+        let mut map = std::collections::HashMap::new();
+        map.insert("helper".into(), "./helpers".into());
+        assert_eq!(
+            resolve_ts_call_target(&builder, "src/a.ts", &map, "helper").as_deref(),
+            Some("node:module:dep:./helpers")
+        );
+        assert_eq!(
+            resolve_ts_call_target(&builder, "src/a.ts", &map, "missing"),
+            None
+        );
+    }
+
+    #[test]
+    fn bw8_graph_digest_changes_when_node_label_changes() {
+        let mut g1 = empty_graph("/repo");
+        g1.nodes.push(node("n:1", Some("a.ts")));
+        let mut g2 = empty_graph("/repo");
+        let mut n = node("n:1", Some("a.ts"));
+        n.label = "changed".into();
+        g2.nodes.push(n);
+        assert_ne!(graph_digest(&g1), graph_digest(&g2));
+        assert_eq!(graph_digest(&g1), graph_digest(&g1));
+        assert_eq!(graph_digest(&empty_graph("/r")).len(), 64);
+    }
+
+    #[test]
+    fn bw8_line_number_at_empty_and_mid_line() {
+        assert_eq!(line_number_at("", 0), 1);
+        assert_eq!(line_number_at("abc", 1), 1);
+        assert_eq!(line_number_at("a\n\nb", 2), 1);
+        assert_eq!(line_number_at("a\n\nb", 3), 2);
+    }
+
+    #[test]
+    fn bw8_extract_toml_name_unquoted_and_inline_ws() {
+        assert_eq!(
+            extract_toml_name("name = unquoted\n").as_deref(),
+            Some("unquoted")
+        );
+        assert_eq!(extract_toml_name("# name = \"no\"\nversion = \"1\""), None);
+        assert_eq!(extract_toml_name("xname = \"x\""), None);
+    }
 }
-
-
