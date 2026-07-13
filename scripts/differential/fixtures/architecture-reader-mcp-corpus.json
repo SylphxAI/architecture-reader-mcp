@@ -1,0 +1,38 @@
+{
+  "corpusVersion": 1,
+  "toolRouteCases": [
+    { "id": "route-architecture-index", "tool": "architecture_index", "expect": "RustCore" },
+    { "id": "route-architecture-status", "tool": "architecture_status", "expect": "RustCore" },
+    { "id": "route-architecture-overview", "tool": "architecture_overview", "expect": "RustCore" },
+    { "id": "route-architecture-search", "tool": "architecture_search", "expect": "RustCore" },
+    { "id": "route-architecture-trace", "tool": "architecture_trace", "expect": "RustCore" },
+    { "id": "route-architecture-impact", "tool": "architecture_impact", "expect": "RustCore" },
+    { "id": "route-architecture-evidence", "tool": "architecture_evidence", "expect": "RustCore" },
+    { "id": "route-unknown-legacy", "tool": "not_a_tool", "expect": null }
+  ],
+  "serverContract": {
+    "name": "architecture-reader-mcp",
+    "version": "0.1.0",
+    "tools": [
+      "architecture_index",
+      "architecture_status",
+      "architecture_overview",
+      "architecture_search",
+      "architecture_trace",
+      "architecture_impact",
+      "architecture_evidence"
+    ]
+  },
+  "allowList": {
+    "tools": [
+      "architecture_index",
+      "architecture_status",
+      "architecture_overview",
+      "architecture_search",
+      "architecture_trace",
+      "architecture_impact",
+      "architecture_evidence"
+    ],
+    "note": "fail-closed public MCP surface; pure residual only — no graph-effect index oracle, no HTTP transport claimed"
+  }
+}

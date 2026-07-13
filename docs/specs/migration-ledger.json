@@ -283,6 +283,24 @@
       "slice": "tool.architecture_search",
       "verificationRef": "verification/architecture-reader-cycle64-architecture-search-rust-impl.json",
       "notes": "rej-010 rust_impl ONLY \u2014 cycle64 harness metadata: tool.architecture_search bounded differential (3 cases); ts_only=1 transport deferred"
+    },
+    "bw2_readers_tick": {
+      "pure_residual_differential": {
+        "at": "2026-07-13T00:48:30Z",
+        "branch": "offline/mega-bulk-bw2-architecture-reader",
+        "status": "differential_green",
+        "scope": "tool-route-contract + server-contract + allow-list only",
+        "caseCount": 10,
+        "harness": "scripts/run-architecture-reader-differential.sh",
+        "explicitNonClaims": [
+          "graph effect parity",
+          "parity_proven",
+          "authority_rust",
+          "ts_deleted",
+          "HTTP"
+        ],
+        "authority_rust": false
+      }
     }
   },
   "postMergeGate": {

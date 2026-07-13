@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "slice": "architecture-reader-mcp.pure-residual|pure-residual",
+  "status": "differential_green",
+  "verifiedAt": "2026-07-13T00:48:25Z",
+  "lastComparedMainSha": "25a1eb5f7cd00742c5ef7d236e3f592e4c384d57",
+  "mergeGroupSha": "25a1eb5f7cd00742c5ef7d236e3f592e4c384d57",
+  "rustCandidateSha": "25a1eb5f7cd00742c5ef7d236e3f592e4c384d57",
+  "behaviorSpecHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
+  "fixtureCorpusHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
+  "caseCount": 10,
+  "harness": "scripts/run-architecture-reader-differential.sh",
+  "differentialTest": "crates/architecture-reader-mcp-server/tests/architecture_reader_mcp_differential.rs#pure_residual_differential_matches_ts_oracle",
+  "boundedSlices": {
+    "tool-route-contract": "pure_residual_differential_matches_ts_oracle",
+    "server-contract": "pure_residual_differential_matches_ts_oracle",
+    "allow-list": "pure_residual_differential_matches_ts_oracle"
+  },
+  "oracle": "scripts/differential/architecture-reader-mcp-oracle.ts",
+  "allowList": [
+    "architecture_index",
+    "architecture_status",
+    "architecture_overview",
+    "architecture_search",
+    "architecture_trace",
+    "architecture_impact",
+    "architecture_evidence"
+  ],
+  "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains"
+}
