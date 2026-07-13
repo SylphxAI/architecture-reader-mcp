@@ -116,4 +116,13 @@ mod pure_residual_tests {
         assert_eq!(freshness(Some("x"), None, false), Freshness::Unknown);
         assert_eq!(freshness(None, Some("x"), false), Freshness::Unknown);
     }
+
+
+    #[test]
+    fn bulk_freshness_same_commit_clean_is_fresh() {
+        assert_eq!(freshness(Some("abc"), Some("abc"), false), Freshness::Fresh);
+        assert_eq!(freshness(Some("abc"), Some("abc"), true), Freshness::Dirty);
+        assert_eq!(freshness(Some("abc"), Some("def"), true), Freshness::Dirty);
+        assert_eq!(freshness(Some("abc"), None, false), Freshness::Unknown);
+    }
 }
