@@ -81,4 +81,16 @@ mod pure_residual_tests {
             Freshness::Unknown
         );
     }
+    #[test]
+    fn freshness_dirty_wins_over_commit_mismatch() {
+        // Dirty short-circuits regardless of commit equality.
+        assert_eq!(
+            freshness(Some("aaa"), Some("bbb"), true),
+            Freshness::Dirty
+        );
+        assert_eq!(
+            freshness(None, None, true),
+            Freshness::Dirty
+        );
+    }
 }

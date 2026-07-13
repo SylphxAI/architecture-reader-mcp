@@ -900,6 +900,7 @@ mod pure_residual_tests {
         RepositorySnapshot, GRAPH_SCHEMA_VERSION,
     };
     use std::collections::HashSet;
+    use std::path::{Path, PathBuf};
 
     fn empty_graph(root: &str) -> ArchitectureGraph {
         ArchitectureGraph {
@@ -1109,5 +1110,66 @@ from pkg.mod import Alpha, Beta as B
         );
         assert_eq!(resolve_ts_call_target(&builder, "src/a.ts", &map, "missing"), None);
     }
+
+    #[test]
+    fn normalize_relative_module_path_js_to_ts_and_posix_edges() {
+        // Contract lock (honest):
+        // - `.js`/`.mjs` stem rewrite then ensure `.ts`
+        // - `.tsx` preserved
+        // - other extensions (e.g. `.mts`) get `.ts` appended (current pure residual)
+        assert_eq!(
+            normalize_relative_module_path("src/app/page.tsx", "./hooks/useX.js").as_deref(),
+            Some("src/app/hooks/useX.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/app/page.tsx", "./hooks/useX.tsx").as_deref(),
+            Some("src/app/hooks/useX.tsx")
+        );
+        assert_eq!(
+            normalize_relative_module_path("packages/a/src/index.mts", "./util.mts").as_deref(),
+            Some("packages/a/src/util.mts.ts")
+        );
+        assert_eq!(
+            normalize_relative_module_path("src/a.ts", "./nested/index.mjs").as_deref(),
+            Some("src/nested/index.ts")
+        );
+        assert_eq!(normalize_posix_path(""), "");
+        assert_eq!(normalize_posix_path("."), "");
+        assert_eq!(normalize_posix_path("foo//bar/./baz/../qux"), "foo/bar/qux");
+    }
+
+    #[test]
+    fn index_dir_and_graph_path_are_under_dot_architecture_reader() {
+        let root = Path::new("/tmp/demo-repo");
+        assert_eq!(index_dir(root), PathBuf::from("/tmp/demo-repo/.architecture-reader"));
+        assert_eq!(
+            graph_path(root),
+            PathBuf::from("/tmp/demo-repo/.architecture-reader/graph.json")
+        );
+    }
+
+    #[test]
+    fn ts_import_local_map_ignores_side_effect_imports() {
+        let content = r#"
+import './polyfill';
+import type { X } from './types';
+import { real } from '../lib/real';
+"#;
+        let map = ts_import_local_map(content);
+        // side-effect only import has no local binding in map
+        assert!(!map.values().any(|v| v == "./polyfill"));
+        assert_eq!(map.get("real").map(String::as_str), Some("../lib/real"));
+    }
+
+    #[test]
+    fn extract_json_schema_label_trims_and_title_wins() {
+        assert_eq!(
+            extract_json_schema_label(r#"{"title":"  T  ","$id":"id"}"#).as_deref(),
+            Some("  T  ")
+        );
+        assert_eq!(extract_json_schema_label(""), None);
+        assert_eq!(extract_json_schema_label("{"), None);
+    }
 }
+
 
