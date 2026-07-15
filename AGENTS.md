@@ -1,19 +1,16 @@
-# Architecture Reader MCP Agent Instructions
+# architecture-reader-mcp — local agent notes only
 
-This repository follows the SylphxAI Doctrine as the upstream operating
-authority: https://github.com/SylphxAI/doctrine
+Doctrine and fleet delivery law live in the **host always-on constitution**
+(`~/.grok/AGENTS.md` / Doctrine template). This file must **not** restate,
+weaken, or fork that law (including PR-vs-direct-trunk delivery).
 
-## Local Boundary
+Local truth: `PROJECT.md`, `.doctrine/project.json` when present.
 
-Architecture Reader MCP owns the agent-facing architecture evidence graph,
-architecture search tool contracts, indexing/query engine contracts, and MCP
-adapter for repository architecture understanding.
+## Boundary hazards
 
-It does not own generic code search, AST parser package internals, media reader
-behavior, visualization dashboards, enterprise doctrine, or deployment
-infrastructure owned by other repositories.
+- Never commit secrets, tokens, `.env` files, or credentials.
 
-## Required Local SSOT
+## Local commands
 
 - `PROJECT.md` is the human-readable project boundary.
 - `.doctrine/project.json` is the Sylphx governance adapter.
@@ -21,15 +18,10 @@ infrastructure owned by other repositories.
 - `docs/architecture.md` is the durable architecture overview.
 - `docs/specs/` owns product and protocol specifications.
 - `docs/adr/` owns durable architectural decisions.
+- Prefer the **narrowest** affected check before full workspace runs.
+- Report layers honestly: local diff · trunk FF · deploy · prod proof (do not collapse).
 
-Do not duplicate facts across these files. Link to the owning SSOT instead.
+## Validation notes
 
-## Delivery Standard
-
-Do not claim this project is shipped, published, released, or production-ready
-from local files alone. Completion evidence requires the normal repository path:
-branch, CI, merge, release, registry/server readback, and production verification
-as applicable.
-
-For design-only changes, valid evidence is a clean git status, readable docs,
-schema/JSON validation, and explicit acknowledgement that no release occurred.
+- Prefer the **narrowest** affected check before full workspace runs.
+- Report layers honestly: local diff · trunk FF · deploy · prod proof (do not collapse).
