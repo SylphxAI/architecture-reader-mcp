@@ -12,12 +12,16 @@
     "architecture-reader-mcp": "../../bin/architecture-reader-mcp"
   },
   "files": [
-    "src/",
+    "src/doctor.ts",
+    "src/engine.ts",
+    "src/tools.ts",
     "README.md",
     "LICENSE"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/tools.ts",
+    "./doctor": "./src/doctor.ts",
+    "./tools": "./src/tools.ts"
   },
   "repository": {
     "type": "git",

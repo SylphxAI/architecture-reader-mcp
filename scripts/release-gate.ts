@@ -194,8 +194,10 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     'mcp:rust_adapter_default',
     binWrapper.includes('architecture-reader-mcp-server') &&
       binWrapper.includes('resolve_rust_bin') &&
-      binWrapper.includes('use_ts_transport'),
-    'Default npm bin launches the Rust rmcp MCP server; TypeScript adapter is opt-in only'
+      !binWrapper.includes('use_ts_transport') &&
+      !binWrapper.includes('exec bun') &&
+      !binWrapper.includes('packages/mcp-server/src/index.ts'),
+    'Default npm bin launches the Rust rmcp MCP server exclusively; TypeScript stdio adapter retired'
   );
 
   const matrixProbe = spawnSync(

@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "slice": "architecture-reader-mcp.pure-residual|pure-residual",
   "status": "differential_green",
-  "verifiedAt": "2026-07-13T02:06:02Z",
-  "lastComparedMainSha": "65d3892c09ef1c4602c66fbaceaf3bd2271855ae",
-  "mergeGroupSha": "65d3892c09ef1c4602c66fbaceaf3bd2271855ae",
-  "rustCandidateSha": "65d3892c09ef1c4602c66fbaceaf3bd2271855ae",
+  "verifiedAt": "2026-07-15T04:26:01Z",
+  "lastComparedMainSha": "09c6eb02660fd23e31f69750105fbda1b5167e8d",
+  "mergeGroupSha": "09c6eb02660fd23e31f69750105fbda1b5167e8d",
+  "rustCandidateSha": "09c6eb02660fd23e31f69750105fbda1b5167e8d",
   "behaviorSpecHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
   "fixtureCorpusHash": "7d9d8db86d2e74f99d09ba23562776f94f385473d0f8427d7e5699212f233a4f",
   "caseCount": 10,
@@ -26,7 +26,5 @@
     "architecture_impact",
     "architecture_evidence"
   ],
-  "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains",
-  "wave": "BW8",
-  "rebindingNote": "BW8 pure residual unit deepen tip rebind; pure-residual differential still green; no effect/parity/authority claim"
+  "promotionPolicy": "NO_PROMOTIONS \u2014 pure residual differential_green only; NOT graph effect parity; NOT authority_rust; NOT HTTP; NOT ts_deleted; rej-010 hold remains"
 }
