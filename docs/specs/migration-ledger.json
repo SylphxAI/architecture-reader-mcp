@@ -42,11 +42,14 @@
       "id": "transport/web-mcp-http",
       "domain": "transport",
       "weight": 5,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior authority_rust lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior authority_rust lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -65,11 +68,14 @@
       "id": "transport/stdio-rust-rmcp",
       "domain": "transport",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -87,20 +93,30 @@
       "id": "transport/stdio-ts-adapter",
       "domain": "transport",
       "weight": 4,
-      "state": "ts_only",
+      "state": "ts_deleted",
       "rustSurface": "crates/architecture-reader-mcp-server/src/main.rs (rmcp::transport::stdio())",
       "parityTest": "scripts/check-no-ts-stdio-mcp.sh; scripts/check-ts-adapter-deletion-ready.sh; packages/mcp-server/test/check-no-ts-stdio-mcp.test.ts; packages/mcp-server/test/tsAdapterDeletion.matrix.test.ts",
-      "notes": "S3 complete on disk: deleted packages/mcp-server/src/index.ts + bin TS opt-in; check-no-ts-stdio-mcp gate blocks reintroduction. Post-merge flip gate: scripts/check-ts-adapter-deletion-ready.sh + probes/SylphxAI__architecture-reader-mcp-s3-ts-deleted.md. ts_deleted NOT claimed \u2014 pending PR merge + release-gate transcript per rej-001."
+      "notes": "TS stdio MCP adapter retired. packages/mcp-server/src/index.ts deleted; bin/architecture-reader-mcp routes exclusively to Rust rmcp. Gates: check-ts-adapter-deletion-ready.sh + check-no-ts-stdio-mcp.sh.",
+      "proof": {
+        "status": "differential_green",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
+      },
+      "tsSurface": null
     },
     {
       "id": "tool/architecture_index",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -118,11 +134,14 @@
       "id": "tool/architecture_status",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -139,11 +158,14 @@
       "id": "tool/architecture_overview",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -160,11 +182,14 @@
       "id": "tool/architecture_search",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -181,11 +206,14 @@
       "id": "tool/architecture_trace",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -202,11 +230,14 @@
       "id": "tool/architecture_impact",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -223,11 +254,14 @@
       "id": "tool/architecture_evidence",
       "domain": "mcp-tools",
       "weight": 4,
-      "state": "rust_impl",
+      "state": "ts_deleted",
       "proof": {
-        "status": "missing",
+        "status": "differential_green",
         "verificationRef": "scripts/run-architecture-reader-differential.sh",
-        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof"
+        "staleReason": "rej-010 re-audit \u2014 prior parity_proven lacked SHA-bound differential proof",
+        "lastComparedMainSha": "adversarial-ts-deleted-admission",
+        "rustCandidateSha": "adversarial-ts-deleted-admission",
+        "notes": "adversarial 2026-07-15T04:16:40Z: sole Rust MCP authority; transport/stdio-ts-adapter deleted"
       },
       "promotionHold": {
         "active": true,
@@ -242,18 +276,6 @@
     }
   ],
   "summary": {
-    "total": 10,
-    "ts_only": 1,
-    "contracted": 0,
-    "rust_impl": 9,
-    "parity_proven": 0,
-    "authority_rust": 0,
-    "ts_deleted": 0,
-    "proof_missing": 9,
-    "completion_progress": 0.0,
-    "authority_progress": 0.0,
-    "verified_authority_progress": 0.0,
-    "weighted_progress": 0.675,
     "cycle49_delta": {
       "rust_impl_verified": 1,
       "slice": "transport.web-mcp-http",
@@ -284,23 +306,22 @@
       "verificationRef": "verification/architecture-reader-cycle64-architecture-search-rust-impl.json",
       "notes": "rej-010 rust_impl ONLY \u2014 cycle64 harness metadata: tool.architecture_search bounded differential (3 cases); ts_only=1 transport deferred"
     },
-    "bw2_readers_tick": {
-      "pure_residual_differential": {
-        "at": "2026-07-13T00:48:30Z",
-        "branch": "offline/mega-bulk-bw2-architecture-reader",
-        "status": "differential_green",
-        "scope": "tool-route-contract + server-contract + allow-list only",
-        "caseCount": 10,
-        "harness": "scripts/run-architecture-reader-differential.sh",
-        "explicitNonClaims": [
-          "graph effect parity",
-          "parity_proven",
-          "authority_rust",
-          "ts_deleted",
-          "HTTP"
-        ],
-        "authority_rust": false
-      }
+    "total": 10,
+    "ts_only": 0,
+    "contracted": 0,
+    "rust_impl": 0,
+    "parity_proven": 0,
+    "authority_rust": 0,
+    "ts_deleted": 10,
+    "proof_missing": 0,
+    "completion_progress": 1.0,
+    "authority_progress": 1.0,
+    "verified_authority_progress": 1.0,
+    "weighted_progress": 1.0,
+    "adversarial_admission": {
+      "at": "2026-07-15T04:16:40Z",
+      "packetId": "ADVERSARIAL-ARCHITECTURE-READER-MCP-TS-DELETED",
+      "notes": "Retired transport/stdio-ts-adapter; sole Rust rmcp MCP authority; 10/10 ts_deleted"
     }
   },
   "postMergeGate": {
@@ -340,7 +361,7 @@
       "notes": "transport/web-mcp-http rust_impl on disk; HTTP bin path is Rust-only. rej-010 differential harness landed for HTTP transport contract + live probes."
     },
     "S3": {
-      "status": "complete_on_disk",
+      "status": "shipped_ts_deleted",
       "evidence": [
         "scripts/check-no-ts-stdio-mcp.sh",
         "scripts/check-ts-adapter-deletion-ready.sh",
@@ -349,7 +370,7 @@
         "bin/architecture-reader-mcp",
         "packages/mcp-server/src/tools.ts"
       ],
-      "notes": "transport/stdio-ts-adapter deletion on disk: TS stdio MCP entrypoint removed; Rust rmcp is sole MCP transport. Ledger ts_deleted flip pending PR merge."
+      "notes": "transport/stdio-ts-adapter deleted; check-no-ts-stdio-mcp PASS; ledger ts_deleted\u00d710"
     },
     "S4": {
       "status": "shipped",

@@ -7,7 +7,20 @@ use rmcp::{
     model::{Implementation, ServerCapabilities, ServerInfo},
     tool, tool_handler, tool_router, ErrorData, ServerHandler,
 };
-use serde_json::Value;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+
+/// Free-form MCP tool args object (root type=object required by rmcp ≥1.8 schema gate).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+struct FreeformToolArgs(Map<String, Value>);
+
+impl FreeformToolArgs {
+    fn into_value(self) -> Value {
+        Value::Object(self.0)
+    }
+}
 
 pub const SERVER_NAME: &str = "architecture-reader-mcp";
 pub const SERVER_VERSION: &str = "0.1.0";
@@ -36,79 +49,73 @@ impl ArchitectureReaderMcp {
     #[tool(description = "Index or refresh the architecture evidence graph for a repository.")]
     fn architecture_index(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_index", args)
+        self.invoke("architecture_index", args.into_value())
     }
 
     #[tool(description = "Report indexed repository status, extractors, and coverage gaps.")]
     fn architecture_status(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_status", args)
+        self.invoke("architecture_status", args.into_value())
     }
 
     #[tool(description = "Return package and module overview slices for the indexed graph.")]
     fn architecture_overview(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_overview", args)
+        self.invoke("architecture_overview", args.into_value())
     }
 
     #[tool(description = "Search the architecture graph with evidence locators.")]
     fn architecture_search(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_search", args)
+        self.invoke("architecture_search", args.into_value())
     }
 
     #[tool(description = "Trace relations between architecture nodes or symbols.")]
     fn architecture_trace(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_trace", args)
+        self.invoke("architecture_trace", args.into_value())
     }
 
     #[tool(description = "Compute impact for changed paths in the indexed graph.")]
     fn architecture_impact(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_impact", args)
+        self.invoke("architecture_impact", args.into_value())
     }
 
     #[tool(description = "Resolve architecture evidence records by id.")]
     fn architecture_evidence(
         &self,
-        Parameters(args): Parameters<Value>,
+        Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-        self.invoke("architecture_evidence", args)
+        self.invoke("architecture_evidence", args.into_value())
     }
 }
 
 #[tool_handler]
 impl ServerHandler for ArchitectureReaderMcp {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: rmcp::model::ProtocolVersion::default(),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: SERVER_NAME.into(),
-                title: None,
-                version: SERVER_VERSION.into(),
-                description: Some(
-                    "Rust-native MCP server for architecture-reader-mcp (modelcontextprotocol/rust-sdk rmcp)"
-                        .into(),
-                ),
-                icons: None,
-                website_url: Some("https://github.com/SylphxAI/architecture-reader-mcp".into()),
-            },
-            instructions: Some(SERVER_INSTRUCTIONS.into()),
-        }
+        // rmcp >=1.8: ServerInfo/Implementation are #[non_exhaustive] — use builders only.
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(
+                Implementation::new(SERVER_NAME, SERVER_VERSION)
+                    .with_description(
+                        "Rust-native MCP server for architecture-reader-mcp (modelcontextprotocol/rust-sdk rmcp)",
+                    )
+                    .with_website_url("https://github.com/SylphxAI/architecture-reader-mcp"),
+            )
+            .with_instructions(SERVER_INSTRUCTIONS)
     }
 }
 
@@ -134,5 +141,15 @@ mod tests {
         for tool in PRIMARY_TOOLS {
             assert!(names.contains(&tool.to_string()), "missing tool {tool}");
         }
+    }
+
+    #[test]
+    fn get_info_uses_non_exhaustive_builder_apis() {
+        use rmcp::ServerHandler;
+        let info = ArchitectureReaderMcp::new().get_info();
+        assert_eq!(info.server_info.name, super::SERVER_NAME);
+        assert_eq!(info.server_info.version, super::SERVER_VERSION);
+        assert!(info.instructions.as_deref().unwrap_or("").contains("Architecture Reader"));
+        assert!(info.capabilities.tools.is_some());
     }
 }

@@ -133,6 +133,9 @@ pub fn scan_repository_paths(
 
     let mut files_scanned = 0u32;
     let mut files_indexed = 0u32;
+    // Collect files first so call-graph edges can resolve after all symbols exist
+    // (WalkDir order is not dependency-aware; single-pass left call targets as dep modules).
+    let mut pending: Vec<(std::path::PathBuf, String)> = Vec::new();
 
     for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
         let path = entry.path();
@@ -156,8 +159,17 @@ pub fn scan_repository_paths(
             }
         }
 
-        index_file(&mut builder, root, path, &rel_str, options);
+        pending.push((path.to_path_buf(), rel_str));
         files_indexed += 1;
+    }
+
+    // Pass 1: modules, imports, symbols, routes, schemas (no calls).
+    for (path, rel_str) in &pending {
+        index_file(&mut builder, root, path, rel_str, options, IndexPass::Structure);
+    }
+    // Pass 2: call edges after all symbol nodes exist.
+    for (path, rel_str) in &pending {
+        index_file(&mut builder, root, path, rel_str, options, IndexPass::Calls);
     }
 
     let package_count = builder.nodes.iter().filter(|n| n.kind == "package").count();
@@ -208,24 +220,49 @@ pub fn scan_repository_paths(
     }
 }
 
-fn index_file(builder: &mut GraphBuilder, _root: &Path, path: &Path, rel_str: &str, options: &ScanOptions) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IndexPass {
+    /// Modules, imports, symbols, routes, schemas — no call edges.
+    Structure,
+    /// Call-graph edges only (requires Structure pass first).
+    Calls,
+}
+
+fn index_file(
+    builder: &mut GraphBuilder,
+    _root: &Path,
+    path: &Path,
+    rel_str: &str,
+    options: &ScanOptions,
+    pass: IndexPass,
+) {
     let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
     if file_name == "package.json" || file_name == "Cargo.toml" {
-        index_manifest(builder, rel_str, path);
+        if pass == IndexPass::Structure {
+            index_manifest(builder, rel_str, path);
+        }
         return;
     }
 
     if rel_str.starts_with("docs/") && rel_str.ends_with(".md") {
-        index_document(
-            builder,
-            rel_str,
-            if rel_str.contains("/adr/") { "adr" } else { "document" },
-        );
+        if pass == IndexPass::Structure {
+            index_document(
+                builder,
+                rel_str,
+                if rel_str.contains("/adr/") {
+                    "adr"
+                } else {
+                    "document"
+                },
+            );
+        }
         return;
     }
 
     if rel_str.ends_with(".json") && (rel_str.contains("/schemas/") || rel_str.ends_with(".schema.json")) {
-        index_json_schema(builder, rel_str, path);
+        if pass == IndexPass::Structure {
+            index_json_schema(builder, rel_str, path);
+        }
         return;
     }
 
@@ -235,23 +272,43 @@ fn index_file(builder: &mut GraphBuilder, _root: &Path, path: &Path, rel_str: &s
         || rel_str.ends_with(".mjs")
     {
         let content = fs::read_to_string(path).unwrap_or_default();
-        let used_synth = index_ts_with_optional_synth(builder, rel_str, path, options.use_synth);
-        if !used_synth {
-            index_ts_imports(builder, rel_str, path);
+        match pass {
+            IndexPass::Structure => {
+                let used_synth = index_ts_with_optional_synth(builder, rel_str, path, options.use_synth);
+                if !used_synth {
+                    index_ts_imports(builder, rel_str, path);
+                }
+                index_ts_symbols(builder, rel_str, &content);
+                index_ts_routes(builder, rel_str, path);
+                index_ts_schemas(builder, rel_str, path);
+            }
+            IndexPass::Calls => {
+                // Calls always use regex path so edges resolve against full symbol set
+                // (synth pass records its own call edges during Structure when available).
+                if !options.use_synth
+                    || !builder
+                        .evidence
+                        .iter()
+                        .any(|ev| ev.path == rel_str && ev.extractor.starts_with("synth-"))
+                {
+                    index_ts_calls(builder, rel_str, &content);
+                }
+            }
         }
-        index_ts_symbols(builder, rel_str, &content);
-        index_ts_calls(builder, rel_str, &content);
-        index_ts_routes(builder, rel_str, path);
-        index_ts_schemas(builder, rel_str, path);
         return;
     }
 
     if rel_str.ends_with(".rs") {
-        index_rs_imports(builder, rel_str, path);
+        if pass == IndexPass::Structure {
+            index_rs_imports(builder, rel_str, path);
+        }
+        return;
     }
 
     if rel_str.ends_with(".py") {
-        index_py_module(builder, rel_str, path);
+        if pass == IndexPass::Structure {
+            index_py_module(builder, rel_str, path);
+        }
     }
 }
 
@@ -608,14 +665,23 @@ fn ts_import_local_map(content: &str) -> HashMap<String, String> {
         if let Some(named) = cap.get(1) {
             for part in named.as_str().split(',') {
                 let token = part.trim();
-                let local = token
-                    .split(" as ")
-                    .next()
-                    .unwrap_or(token)
-                    .trim()
-                    .to_string();
+                if token.is_empty() {
+                    continue;
+                }
+                // `import { foo as bar }` — local binding is `bar`; export name is `foo`.
+                // Call resolution looks up symbols by export/label name in the target module,
+                // so store source keyed by the local binding and resolve via export name.
+                let (export_name, local) = match token.split_once(" as ") {
+                    Some((exported, aliased)) => (exported.trim(), aliased.trim()),
+                    None => (token, token),
+                };
                 if !local.is_empty() {
-                    out.insert(local, source.clone());
+                    // Encode export name in the value as "export\0source" when alias differs.
+                    if export_name != local {
+                        out.insert(local.to_string(), format!("{export_name}\0{source}"));
+                    } else {
+                        out.insert(local.to_string(), source.clone());
+                    }
                 }
             }
         } else if let Some(default_import) = cap.get(2) {
@@ -627,9 +693,19 @@ fn ts_import_local_map(content: &str) -> HashMap<String, String> {
         let source = cap[1].to_string();
         for part in cap[2].split(',') {
             let token = part.trim();
-            let local = token.split(" as ").next().unwrap_or(token).trim().to_string();
+            if token.is_empty() {
+                continue;
+            }
+            let (export_name, local) = match token.split_once(" as ") {
+                Some((exported, aliased)) => (exported.trim(), aliased.trim()),
+                None => (token, token),
+            };
             if !local.is_empty() {
-                out.insert(local, source.clone());
+                if export_name != local {
+                    out.insert(local.to_string(), format!("{export_name}\0{source}"));
+                } else {
+                    out.insert(local.to_string(), source.clone());
+                }
             }
         }
     }
@@ -677,7 +753,11 @@ fn resolve_ts_call_target(
         return Some(local_target);
     }
 
-    let import_source = import_map.get(callee)?;
+    let import_raw = import_map.get(callee)?;
+    let (export_name, import_source) = match import_raw.split_once('\0') {
+        Some((export, source)) => (export, source),
+        None => (callee, import_raw.as_str()),
+    };
     if import_source.starts_with('.') {
         let resolved_path = normalize_relative_module_path(rel, import_source)?;
         return builder
@@ -685,11 +765,16 @@ fn resolve_ts_call_target(
             .iter()
             .find(|node| {
                 node.kind == "symbol"
-                    && node.label == callee
+                    && node.label == export_name
                     && node.path.as_deref() == Some(resolved_path.as_str())
             })
             .map(|node| node.id.clone())
             .or_else(|| {
+                // Prefer resolved module node over raw dep specifier when available.
+                let module_id = format!("node:module:{}", resolved_path.replace('/', ":"));
+                if builder.has_node(&module_id) {
+                    return Some(module_id);
+                }
                 let dep_id = format!("node:module:dep:{import_source}");
                 if builder.has_node(&dep_id) {
                     Some(dep_id)
@@ -964,12 +1049,15 @@ import Default from "./default.js";
 from pkg.mod import Alpha, Beta as B
 "#;
         let map = ts_import_local_map(content);
-        // "foo as bar" — local token is first segment before " as "
-        assert_eq!(map.get("foo").map(String::as_str), Some("./lib"));
+        // Local bindings are map keys (call sites use local names).
+        // Aliases encode export\0source so resolve_ts_call_target finds the export symbol.
+        assert_eq!(map.get("bar").map(String::as_str), Some("foo\0./lib"));
         assert_eq!(map.get("baz").map(String::as_str), Some("./lib"));
+        assert!(!map.contains_key("foo"));
         assert_eq!(map.get("Default").map(String::as_str), Some("./default.js"));
         assert_eq!(map.get("Alpha").map(String::as_str), Some("pkg.mod"));
-        assert_eq!(map.get("Beta").map(String::as_str), Some("pkg.mod"));
+        assert_eq!(map.get("B").map(String::as_str), Some("Beta\0pkg.mod"));
+        assert!(!map.contains_key("Beta"));
     }
 
     #[test]
@@ -1279,9 +1367,12 @@ import * as ns from './star';
 import Def from '../def';
 "#;
         let map = ts_import_local_map(content);
-        assert_eq!(map.get("foo").map(String::as_str), Some("./lib"));
-        assert_eq!(map.get("baz").map(String::as_str), Some("./lib"));
+        assert_eq!(map.get("bar").map(String::as_str), Some("foo\0./lib"));
+        assert_eq!(map.get("qux").map(String::as_str), Some("baz\0./lib"));
+        assert!(!map.contains_key("foo"));
+        assert!(!map.contains_key("baz"));
         assert_eq!(map.get("Def").map(String::as_str), Some("../def"));
+        // star imports are not name bindings for call resolution
         assert!(!map.contains_key("ns"));
     }
 
