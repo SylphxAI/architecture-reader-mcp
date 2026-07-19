@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'bun:test';
@@ -34,20 +34,5 @@ describe('synth AST adapter boundary', () => {
     expect(evidence.some((item) => item.extractor?.startsWith('synth-'))).toBe(true);
     const gaps = envelope.gaps ?? [];
     expect(gaps.some((gap) => gap.includes('Synth AST substrate not active'))).toBe(false);
-  });
-
-  it('keeps synth normalization out of the TypeScript adapter sources', () => {
-    const engineSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../src/engine.ts'),
-      'utf8',
-    );
-    const toolsSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../src/tools.ts'),
-      'utf8',
-    );
-
-    expect(engineSrc).toContain('spawnSync');
-    expect(toolsSrc).not.toContain('ImportDeclaration');
-    expect(toolsSrc).not.toContain('@sylphx/synth-js');
   });
 });

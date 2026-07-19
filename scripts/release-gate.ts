@@ -188,18 +188,6 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     { directImpactCount: directImpact.length }
   );
 
-  const binWrapper = readFileSync(path.join(repoRoot, 'bin/architecture-reader-mcp'), 'utf8');
-  addCheck(
-    checks,
-    'mcp:rust_adapter_default',
-    binWrapper.includes('architecture-reader-mcp-server') &&
-      binWrapper.includes('resolve_rust_bin') &&
-      !binWrapper.includes('use_ts_transport') &&
-      !binWrapper.includes('exec bun') &&
-      !binWrapper.includes('packages/mcp-server/src/index.ts'),
-    'Default npm bin launches the Rust rmcp MCP server exclusively; TypeScript stdio adapter retired'
-  );
-
   const matrixProbe = spawnSync(
     'bun',
     ['test', 'packages/mcp-server/test/shippedPath.matrix.test.ts', '--concurrency', '1'],

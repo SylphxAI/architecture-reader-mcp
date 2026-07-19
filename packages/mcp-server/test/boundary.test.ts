@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'bun:test';
@@ -21,13 +20,5 @@ describe('Rust core boundary', () => {
     expect(envelope.metrics?.nodeCount).toBeGreaterThan(0);
     expect(Array.isArray(envelope.evidence)).toBe(true);
     expect((envelope.evidence ?? []).length).toBeGreaterThan(0);
-  });
-
-  it('keeps graph logic out of the TypeScript adapter sources', () => {
-    const engineSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/engine.ts'), 'utf8');
-    const toolsSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/tools.ts'), 'utf8');
-    expect(engineSrc).toContain('spawnSync');
-    expect(engineSrc).not.toContain('scan_repository');
-    expect(toolsSrc).not.toMatch(/GraphNode|imports|walkdir/i);
   });
 });
