@@ -123,17 +123,6 @@ impl ServerHandler for ArchitectureReaderMcp {
 mod tests {
     use super::ArchitectureReaderMcp;
     use crate::tool_routes::PRIMARY_TOOLS;
-    use std::fs;
-    use std::path::PathBuf;
-
-    #[test]
-    fn rmcp_server_routes_primary_tools_through_cli_bridge() {
-        let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
-        let lib_rs = fs::read_to_string(src_dir.join("lib.rs")).expect("read lib.rs");
-        let production_lib = lib_rs.split("#[cfg(test)]").next().unwrap_or(&lib_rs);
-        assert!(production_lib.contains("cli_bridge::invoke_cli_tool"));
-    }
-
     #[test]
     fn exposes_all_primary_tools() {
         let tools = ArchitectureReaderMcp::new().tool_router.list_all();

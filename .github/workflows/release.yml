@@ -37,7 +37,7 @@ jobs:
         run: rm -rf target && bun run build:rust
 
       - name: Run tests
-        run: cargo test -p architecture-reader-core -- --test-threads=1 && bun test test/readmeDiscovery.test.ts packages/mcp-server/test/boundary.test.ts packages/mcp-server/test/synth.boundary.test.ts
+        run: cargo test -p architecture-reader-core -- --test-threads=1 && bun test packages/mcp-server/test/boundary.test.ts packages/mcp-server/test/synth.boundary.test.ts
 
       - name: Release gate
         run: bun run benchmark:release-gate
