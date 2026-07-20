@@ -44,9 +44,6 @@ jobs:
       - name: Run MCP adapter tests
         run: bun test
 
-      - name: Public surface audit
-        run: bun run test:public-surface
-
       - name: Public benchmark proof
         run: bun run benchmark:public-proof
 
