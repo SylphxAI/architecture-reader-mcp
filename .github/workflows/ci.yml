@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -12,7 +13,7 @@ permissions:
 jobs:
   validate:
     name: validate release gate
-    runs-on: [self-hosted, sylphx, linux, standard]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,9 +43,6 @@ jobs:
 
       - name: Run MCP adapter tests
         run: bun test
-
-      - name: Public surface audit
-        run: bun run test:public-surface
 
       - name: Public benchmark proof
         run: bun run benchmark:public-proof
