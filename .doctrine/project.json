@@ -1,44 +1,27 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": 1,
   "project": {
-    "name": "architecture-reader-mcp",
-    "displayName": "Architecture Reader MCP",
-    "lifecycle": "draft",
-    "layer": "application",
-    "doctrine": "https://github.com/SylphxAI/doctrine"
-  },
-  "boundary": {
-    "owns": [
-      "architecture evidence graph schema",
-      "architecture indexing pipeline",
-      "architecture query planner",
-      "agent-native MCP tool surface",
-      "architecture answer contracts"
+    "repo": "SylphxAI/architecture-reader-mcp",
+    "name": "Spine (Architecture Reader MCP)",
+    "lifecycle": "active",
+    "layer": "tooling",
+    "policyPool": "sylphx-skills",
+    "summary": "Local architecture engine for agents: index, search, path, trace, impact with file:line evidence. Deterministic alternative to LLM multi-agent graph products.",
+    "goals": [
+      "Local architecture index and query tools",
+      "file:line evidence resolution",
+      "SDK/CLI/MCP without required LLM pipeline"
     ],
-    "doesNotOwn": [
-      "generic code search owned by CodeRAG",
-      "AST parser package internals owned by Synth or SylphxAI/ast",
-      "media reader extraction owned by Reader MCP repositories",
-      "visualization dashboard product",
-      "Sylphx doctrine or shared platform CI"
+    "nonGoals": [
+      "Required multi-agent LLM understanding pipeline",
+      "Central hub for all MCP products"
+    ],
+    "links": [
+      {
+        "type": "github",
+        "url": "https://github.com/SylphxAI/architecture-reader-mcp",
+        "title": "Repo"
+      }
     ]
-  },
-  "ssot": {
-    "humanBoundary": "PROJECT.md",
-    "machineManifest": "project.manifest.json",
-      "architecture": "docs/architecture.md",
-      "specifications": "docs/specs",
-      "decisions": "docs/adr",
-      "security": "SECURITY.md",
-      "ci": ".github/workflows/ci.yml"
-  },
-  "validation": {
-    "local": [
-      "json validation for .doctrine/project.json and project.manifest.json",
-      "cargo metadata for Rust workspace",
-      "cargo test for Rust crates",
-      "git diff --check"
-    ],
-    "releaseRequiredForDone": true
   }
 }
