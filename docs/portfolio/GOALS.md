@@ -57,7 +57,8 @@ tests**, clear tools, and citeable results.
 
 - [x] Product spec v0 (`docs/portfolio/specs/lookout-product-spec-v0.md`)
 - [x] Public scaffold repo [SylphxAI/lookout](https://github.com/SylphxAI/lookout) (SDK/CLI/core stubs)
-- [ ] Phase 1 engine: search/fetch/extract/cache implementation
+- [x] Phase 1 engine: web_search/fetch/extract/cache + SSRF + local cache + MCP/CLI/SDK + tests
+- [ ] Optional heavy browser profile; multi-engine quality bar vs wigolo
 
 
 - New product specified vs wigolo  
@@ -68,9 +69,10 @@ tests**, clear tools, and citeable results.
 
 ### G5 — Iris, Cue, Prism
 
-- Iris/Cue meet media evidence bar (local, light, fast, citeable)  
+- [x] Iris/Cue SDK façades (`@sylphx/*-reader-mcp/sdk`)
+- [ ] Iris/Cue meet full media evidence bar (perf/release gates)
 - Prism routes only; suite push after children qualify  
-- Full surfaces and tests  
+- Full surfaces and tests for all three  
 
 ### G6 — Distribution & proof
 

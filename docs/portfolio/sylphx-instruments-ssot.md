@@ -179,7 +179,7 @@ Citra, Iris, Cue, Prism, Spine, Lookout (planned).
   aligned with family, optional heavy profile later.
 - **Core tools:** `web_search`, `web_fetch`, `web_extract`, `web_cache`.  
   Advanced: crawl, similar, diff/watch, research (avoid Day-1 mega `agent` tool).
-- **Status:** Scaffold repo [SylphxAI/lookout](https://github.com/SylphxAI/lookout) created; Phase 1 engine pending.
+- **Status:** [SylphxAI/lookout](https://github.com/SylphxAI/lookout) Phase 1 engine live (light search/fetch/extract/cache; SSRF; MCP/CLI/SDK).
 
 ## 9. Portfolio topology
 
