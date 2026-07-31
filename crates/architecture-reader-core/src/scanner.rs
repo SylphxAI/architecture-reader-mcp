@@ -233,6 +233,7 @@ pub fn scan_repository_paths(
         "make@0.1.0".into(),
         "codeowners@0.1.0".into(),
         "openapi@0.1.0".into(),
+        "terraform@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -326,6 +327,12 @@ fn index_file(
     if rel_str.ends_with(".proto") {
         if pass == IndexPass::Structure {
             index_proto_module(builder, rel_str, path);
+        }
+        return;
+    }
+    if rel_str.ends_with(".tf") || rel_str.ends_with(".tf.json") {
+        if pass == IndexPass::Structure {
+            index_terraform_module(builder, rel_str, path);
         }
         return;
     }
@@ -1574,6 +1581,42 @@ fn index_openapi_spec(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let _ = path;
 }
 
+
+fn index_terraform_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "terraform@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // resource "aws_s3_bucket" "logs" {
+    let res_re = Regex::new(
+        r#"(?m)^\s*(resource|data|module)\s+"([^"]+)"\s+"([^"]+)"\s*\{"#,
+    )
+    .unwrap();
+    for cap in res_re.captures_iter(&content) {
+        let kind = cap[1].to_string();
+        let type_name = cap[2].to_string();
+        let name = cap[3].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let label = format!("{kind}.{type_name}.{name}");
+        let node_id = format!(
+            "node:symbol:{}:{}:{}:{}",
+            rel.replace('/', ":"),
+            kind,
+            type_name.replace('/', ":"),
+            name
+        );
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "terraform@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &label, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
 pub fn prune_graph_for_paths(mut graph: ArchitectureGraph, paths: &HashSet<String>) -> ArchitectureGraph {
     if paths.is_empty() {
         return graph;
@@ -1692,6 +1735,70 @@ fn index_manifest(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let ev = builder.push_evidence("manifest", rel, "manifest@0.1.0", None, None);
     let node_id = format!("node:package:{label}");
     builder.push_node(&node_id, "package", &label, Some(rel), &ev);
+    // Cargo workspace members become package nodes linked from the root Cargo.toml
+    if rel.ends_with("Cargo.toml") {
+        let mut in_workspace = false;
+        let mut in_members = false;
+        for (i, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('[') {
+                in_workspace = trimmed == "[workspace]";
+                in_members = false;
+                continue;
+            }
+            if in_workspace && trimmed.starts_with("members") {
+                in_members = true;
+                // members = ["a", "b"] single line
+                if let Some(start) = trimmed.find('[') {
+                    if let Some(end) = trimmed.rfind(']') {
+                        let inner = &trimmed[start + 1..end];
+                        for part in inner.split(',') {
+                            let m = part.trim().trim_matches(|c| c == '"' || c == '\'');
+                            if m.is_empty() {
+                                continue;
+                            }
+                            let mid = format!("node:package:cargo-member:{m}");
+                            if !builder.has_node(&mid) {
+                                let mev = builder.push_evidence(
+                                    "manifest",
+                                    rel,
+                                    "manifest@0.1.0",
+                                    Some((i + 1) as u32),
+                                    Some((i + 1) as u32),
+                                );
+                                builder.push_node(&mid, "package", m, Some(m), &mev);
+                                builder.push_edge("depends_on", &node_id, &mid, &mev);
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            if in_members {
+                if trimmed.starts_with(']') {
+                    in_members = false;
+                    continue;
+                }
+                let m = trimmed.trim_matches(|c| c == '"' || c == '\'' || c == ',');
+                if m.is_empty() || m.starts_with('#') {
+                    continue;
+                }
+                let mid = format!("node:package:cargo-member:{m}");
+                if builder.has_node(&mid) {
+                    continue;
+                }
+                let mev = builder.push_evidence(
+                    "manifest",
+                    rel,
+                    "manifest@0.1.0",
+                    Some((i + 1) as u32),
+                    Some((i + 1) as u32),
+                );
+                builder.push_node(&mid, "package", m, Some(m), &mev);
+                builder.push_edge("depends_on", &node_id, &mid, &mev);
+            }
+        }
+    }
     if rel.ends_with("package.json") {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(scripts) = v.get("scripts").and_then(|s| s.as_object()) {
@@ -3519,6 +3626,42 @@ paths:
         assert!(builder.nodes.iter().any(|n| n.label == "POST /v1/tokens" || n.id.contains("op:POST")));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn terraform_extracts_resources() {
+        let content = r#"
+resource "aws_s3_bucket" "logs" {
+  bucket = "demo"
+}
+data "aws_ami" "ubuntu" {
+  most_recent = true
+}
+"#;
+        let tmp = tempfile_path("main.tf", content);
+        let mut builder = GraphBuilder::default();
+        index_terraform_module(&mut builder, "infra/main.tf", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label.contains("aws_s3_bucket.logs")));
+        assert!(builder.nodes.iter().any(|n| n.label.contains("aws_ami.ubuntu")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn cargo_workspace_members_become_packages() {
+        let content = r#"
+[workspace]
+members = [
+  "crates/core",
+  "crates/cli",
+]
+"#;
+        let tmp = tempfile_path("Cargo.toml", content);
+        let mut builder = GraphBuilder::default();
+        index_manifest(&mut builder, "Cargo.toml", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label == "crates/core" || n.id.contains("crates/core")));
+        assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 
