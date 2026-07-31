@@ -41,6 +41,7 @@ not replace it. Reader portfolio media tools live in
 | Rust | modules, `use`/`mod`, functions, local calls | `rust@0.1.0` |
 | Go | package, imports, functions, local calls | `go@0.1.0` |
 | Java | package, imports, classes, methods, local calls | `java@0.1.0` |
+| C# | namespace, usings, types, methods, local calls | `csharp@0.1.0` |
 | Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.
@@ -76,7 +77,7 @@ repo is shaped, what depends on what, and which files back each claim.**
 
 **Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
 adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
-TypeScript/Python/Rust/Go/Java indexing, path/impact with git-diff, and incremental refresh are implemented with release-gate proof.
+TypeScript/Python/Rust/Go/Java/C# indexing, path/impact with git-diff, and incremental refresh are implemented with release-gate proof.
 First npm publish is workflow-owned via Changesets on `main` — see
 [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 

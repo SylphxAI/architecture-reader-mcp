@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-09T21:53:52.513Z",
+  "generated_at": "2026-07-31T17:16:18.281Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 18,
-    "passed": 18,
+    "total": 22,
+    "passed": 22,
     "failed": 0
   },
   "checks": [
@@ -37,8 +37,8 @@
       "status": "passed",
       "message": "architecture_index returns a populated graph envelope from the Rust CLI",
       "evidence": {
-        "nodeCount": 24,
-        "edgeCount": 18
+        "nodeCount": 50,
+        "edgeCount": 50
       }
     },
     {
@@ -87,18 +87,53 @@
       "status": "passed",
       "message": "architecture_impact reports direct impact nodes for changed fixture paths",
       "evidence": {
-        "directImpactCount": 4
+        "directImpactCount": 2
       }
     },
     {
-      "id": "mcp:rust_adapter_default",
+      "id": "boundary:architecture_impact_reverse",
       "status": "passed",
-      "message": "Default npm bin launches the Rust rmcp MCP server; TypeScript adapter is opt-in only"
+      "message": "architecture_impact reports reverse (incoming) or outgoing blast-radius edges",
+      "evidence": {
+        "incoming": 2,
+        "outgoing": 1,
+        "maxDepth": 2
+      }
+    },
+    {
+      "id": "boundary:architecture_path",
+      "status": "passed",
+      "message": "architecture_path returns hop provenance envelope (empty path allowed with gaps)",
+      "evidence": {
+        "hopCount": 0,
+        "status": "ok"
+      }
+    },
+    {
+      "id": "surface:agent_skill",
+      "status": "passed",
+      "message": "Graphify-class agent skill surface is present at skills/spine/SKILL.md"
+    },
+    {
+      "id": "brand:server_json_title_spine",
+      "status": "passed",
+      "message": "server.json marketplace title is Spine"
+    },
+    {
+      "id": "boundary:multi_language_modules",
+      "status": "passed",
+      "message": "Fixture indexes Rust, Go, Java, and Python modules",
+      "evidence": {
+        "hasRust": true,
+        "hasGo": true,
+        "hasJava": true,
+        "hasPythonModule": true
+      }
     },
     {
       "id": "boundary:rust_cli_engine",
       "status": "passed",
-      "message": "Shipped-path matrix test proves all seven primary tools route through Rust core without legacy runtime",
+      "message": "Shipped-path matrix test proves all eight primary tools route through Rust core without legacy runtime",
       "evidence": {
         "exitCode": 0
       }

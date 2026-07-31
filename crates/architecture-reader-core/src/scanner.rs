@@ -203,6 +203,7 @@ pub fn scan_repository_paths(
         "rust@0.1.0".into(),
         "go@0.1.0".into(),
         "java@0.1.0".into(),
+        "csharp@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -329,6 +330,14 @@ fn index_file(
         return;
     }
 
+    if rel_str.ends_with(".cs") {
+        match pass {
+            IndexPass::Structure => index_cs_module(builder, rel_str, path, IndexPass::Structure),
+            IndexPass::Calls => index_cs_module(builder, rel_str, path, IndexPass::Calls),
+        }
+        return;
+    }
+
     if rel_str.ends_with(".py") {
         if pass == IndexPass::Structure {
             index_py_module(builder, rel_str, path);
@@ -444,6 +453,118 @@ fn index_java_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: I
                     continue;
                 }
                 let ev = builder.push_evidence("ast", rel, "java@0.1.0", Some(line_number), Some(line_number));
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
+    }
+    let _ = path;
+}
+
+
+fn index_cs_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: IndexPass) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if pass == IndexPass::Structure {
+        let file_ev = builder.push_evidence("ast", rel, "csharp@0.1.0", None, None);
+        if !builder.has_node(&file_id) {
+            builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+        }
+        // using Namespace;
+        let using_re = Regex::new(r#"(?m)^\s*using\s+([A-Za-z_][\w.]*)\s*;"#).unwrap();
+        for cap in using_re.captures_iter(&content) {
+            let dep = cap[1].to_string();
+            let dep_id = format!("node:module:dep:{dep}");
+            if !builder.has_node(&dep_id) {
+                builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+            }
+            builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        }
+        // namespace X
+        if let Some(cap) = Regex::new(r#"(?m)^\s*namespace\s+([A-Za-z_][\w.]*)"#)
+            .unwrap()
+            .captures(&content)
+        {
+            let ns = cap[1].to_string();
+            let ns_id = format!("node:package:cs:{ns}");
+            if !builder.has_node(&ns_id) {
+                let nev = builder.push_evidence("ast", rel, "csharp@0.1.0", Some(1), Some(1));
+                builder.push_node(&ns_id, "package", &ns, Some(rel), &nev);
+            }
+            builder.push_edge("belongs_to", &file_id, &ns_id, &file_ev);
+        }
+        // class/interface/struct/record
+        let type_re = Regex::new(
+            r#"(?m)^\s*(?:public\s+|internal\s+|private\s+|protected\s+)?(?:static\s+|abstract\s+|sealed\s+|partial\s+)*(class|interface|struct|record|enum)\s+([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .unwrap();
+        for cap in type_re.captures_iter(&content) {
+            let kind = cap[1].to_string();
+            let name = cap[2].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "csharp@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        // methods: public ReturnType Name(
+        let method_re = Regex::new(
+            r#"(?m)^\s*(?:public|private|protected|internal)\s+(?:static\s+|async\s+|virtual\s+|override\s+)*(?:[\w.<>,\[\]\?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\("#,
+        )
+        .unwrap();
+        for cap in method_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            if matches!(name.as_str(), "if" | "for" | "while" | "switch" | "return" | "new" | "class") {
+                continue;
+            }
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "csharp@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        return;
+    }
+    let method_re = Regex::new(
+        r#"(?m)^\s*(?:public|private|protected|internal)\s+(?:static\s+|async\s+|virtual\s+|override\s+)*(?:[\w.<>,\[\]\?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\("#,
+    )
+    .unwrap();
+    let mut symbols = Vec::new();
+    for cap in method_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        symbols.push((name, line, line + 80));
+    }
+    let call_re = Regex::new(r#"\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let keywords = [
+        "if", "for", "while", "switch", "return", "new", "class", "typeof", "nameof", "sizeof",
+        "true", "false", "null", "await", "using", "lock", "fixed", "checked", "unchecked",
+    ];
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || keywords.contains(&callee.as_str()) {
+                    continue;
+                }
+                let target_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), callee);
+                if !builder.has_node(&target_id) {
+                    continue;
+                }
+                let ev = builder.push_evidence("ast", rel, "csharp@0.1.0", Some(line_number), Some(line_number));
                 builder.push_edge("calls", &caller_id, &target_id, &ev);
             }
         }
@@ -2051,6 +2172,35 @@ public class TokenService {
             builder.edges.iter().any(|e| e.kind == "calls"
                 && e.from.contains("issueToken")
                 && e.to.contains("helperSalt")),
+            "edges={:?}",
+            builder.edges
+        );
+    }
+
+
+    #[test]
+    fn cs_extracts_class_and_calls() {
+        let content = r#"
+using System;
+namespace Sample.Auth {
+  public class TokenService {
+    public string IssueToken(string user) {
+      return HelperSalt();
+    }
+    private string HelperSalt() { return "x"; }
+  }
+}
+"#;
+        let mut builder = GraphBuilder::default();
+        let tmp = tempfile_path("TokenService.cs", content);
+        index_cs_module(&mut builder, "src/csharp/TokenService.cs", &tmp, IndexPass::Structure);
+        index_cs_module(&mut builder, "src/csharp/TokenService.cs", &tmp, IndexPass::Calls);
+        assert!(builder.nodes.iter().any(|n| n.label == "TokenService"));
+        assert!(builder.nodes.iter().any(|n| n.id.contains("function:IssueToken")));
+        assert!(
+            builder.edges.iter().any(|e| e.kind == "calls"
+                && e.from.contains("IssueToken")
+                && e.to.contains("HelperSalt")),
             "edges={:?}",
             builder.edges
         );

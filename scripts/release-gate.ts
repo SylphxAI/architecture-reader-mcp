@@ -176,16 +176,82 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
 
   const impact = invokeEngine('architecture_impact', {
     root: fixtureRoot,
-    changedPaths: ['src/server/routes.ts'],
+    changedPaths: ['src/auth/token.ts'],
+    maxDepth: 2,
   });
-  const directImpact =
-    (impact.answer as { directImpact?: unknown[] } | undefined)?.directImpact ?? [];
+  const impactAnswer = impact.answer as {
+    directImpact?: unknown[];
+    incomingImpact?: unknown[];
+    outgoingImpact?: unknown[];
+    maxDepth?: number;
+  } | undefined;
+  const directImpact = impactAnswer?.directImpact ?? [];
+  const incomingImpact = impactAnswer?.incomingImpact ?? [];
+  const outgoingImpact = impactAnswer?.outgoingImpact ?? [];
   addCheck(
     checks,
     'boundary:architecture_impact',
     impact.status === 'ok' && directImpact.length > 0,
     'architecture_impact reports direct impact nodes for changed fixture paths',
     { directImpactCount: directImpact.length }
+  );
+  addCheck(
+    checks,
+    'boundary:architecture_impact_reverse',
+    impact.status === 'ok' && (incomingImpact.length > 0 || outgoingImpact.length > 0),
+    'architecture_impact reports reverse (incoming) or outgoing blast-radius edges',
+    {
+      incoming: incomingImpact.length,
+      outgoing: outgoingImpact.length,
+      maxDepth: impactAnswer?.maxDepth,
+    }
+  );
+
+  const pathProbe = invokeEngine('architecture_path', {
+    root: fixtureRoot,
+    from: 'src/auth/token.ts',
+    to: 'src/server/routes.ts',
+    maxDepth: 8,
+  });
+  const hopCount = (pathProbe.answer as { hopCount?: number } | undefined)?.hopCount ?? 0;
+  addCheck(
+    checks,
+    'boundary:architecture_path',
+    pathProbe.status === 'ok',
+    'architecture_path returns hop provenance envelope (empty path allowed with gaps)',
+    { hopCount, status: pathProbe.status }
+  );
+
+  addCheck(
+    checks,
+    'surface:agent_skill',
+    fileExists('skills/spine/SKILL.md'),
+    'Graphify-class agent skill surface is present at skills/spine/SKILL.md'
+  );
+
+  addCheck(
+    checks,
+    'brand:server_json_title_spine',
+    (JSON.parse(readFileSync(path.join(repoRoot, 'server.json'), 'utf8')) as { title?: string })
+      .title === 'Spine',
+    'server.json marketplace title is Spine'
+  );
+
+  const hasRust = (graph.nodes ?? []).some(
+    (node) => node.kind === 'module' && (node.path ?? '').endsWith('.rs'),
+  );
+  const hasGo = (graph.nodes ?? []).some(
+    (node) => node.kind === 'module' && (node.path ?? '').endsWith('.go'),
+  );
+  const hasJava = (graph.nodes ?? []).some(
+    (node) => node.kind === 'module' && (node.path ?? '').endsWith('.java'),
+  );
+  addCheck(
+    checks,
+    'boundary:multi_language_modules',
+    hasRust && hasGo && hasJava && hasPythonModule,
+    'Fixture indexes Rust, Go, Java, and Python modules',
+    { hasRust, hasGo, hasJava, hasPythonModule }
   );
 
   const matrixProbe = spawnSync(
@@ -207,7 +273,7 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     'boundary:rust_cli_engine',
     fileExists('packages/mcp-server/test/shippedPath.matrix.test.ts') &&
       matrixProbe.status === 0,
-    'Shipped-path matrix test proves all seven primary tools route through Rust core without legacy runtime',
+    'Shipped-path matrix test proves all eight primary tools route through Rust core without legacy runtime',
     matrixProbe.status === 0
       ? { exitCode: 0 }
       : {

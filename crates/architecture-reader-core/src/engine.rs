@@ -858,6 +858,8 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             "go"
         } else if path.ends_with(".java") {
             "java"
+        } else if path.ends_with(".cs") {
+            "csharp"
         } else if path.is_empty() {
             "external"
         } else {
