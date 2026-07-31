@@ -241,6 +241,12 @@ mod tests {
             let nodes = answer["nodes"].as_array().cloned().unwrap_or_default();
             assert!(nodes.len() >= 2);
         }
+    
+        if let Some(hops) = answer.get("hops").and_then(|v| v.as_array()) {
+            if let Some(h) = hops.first() {
+                assert!(h.get("fromNode").is_some(), "hop missing fromNode: {:?}", h);
+            }
+        }
     }
     #[test]
     fn impact_reports_direct_nodes_for_changed_path() {

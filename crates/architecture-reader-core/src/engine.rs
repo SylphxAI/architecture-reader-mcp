@@ -1402,6 +1402,8 @@ fn bfs_path_detailed(
                     json!({
                         "from": edge.from,
                         "to": edge.to,
+                        "fromNode": node_summary(graph, &edge.from),
+                        "toNode": node_summary(graph, &edge.to),
                         "edgeId": edge.id,
                         "edgeKind": edge.kind,
                         "provenance": provenance,
