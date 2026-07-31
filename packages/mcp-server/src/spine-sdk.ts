@@ -63,6 +63,11 @@ export class Spine {
   evidence(ids: string[], input: Record<string, unknown> = {}) {
     return this.call('architecture_evidence', { ids, ...input });
   }
+
+  /** Advanced: focus neighborhood + co-located modules + evidence pack */
+  contextPack(focus: string, input: Record<string, unknown> = {}) {
+    return this.call('architecture_context_pack', { focus, ...input });
+  }
 }
 
 export default Spine;

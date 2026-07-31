@@ -856,6 +856,36 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[test]
+    fn context_pack_returns_focus_neighborhood() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_context_pack",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "focus": "src/auth/token.ts",
+                "maxNeighbors": 8
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("focusNode").is_some(), "{:?}", answer);
+        assert!(answer.get("neighbors").and_then(|v| v.as_array()).is_some(), "{:?}", answer);
+        assert!(answer.get("evidence").is_some(), "{:?}", answer);
+        let empty = engine::handle_tool(
+            "architecture_context_pack",
+            serde_json::json!({ "root": root.to_string_lossy(), "focus": "" }),
+        );
+        assert_eq!(empty.status, "error");
+        assert_eq!(empty.code.as_deref(), Some("INVALID_INPUT"));
+    }
+
+
 
     #[test]
     fn status_reports_relation_kinds() {

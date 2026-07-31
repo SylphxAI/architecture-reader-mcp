@@ -29,6 +29,7 @@ npx @sylphx/architecture-reader-mcp
 | `architecture_trace` | Compact path + **hop provenance** (edge kinds) |
 | `architecture_impact` | Blast radius + **unknownImpact** for unindexed paths |
 | `architecture_evidence` | Resolve evidence ids from prior answers |
+| `architecture_context_pack` *(advanced)* | Focus neighborhood + co-located + evidence pack |
 
 ## Evidence contract
 

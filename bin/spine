@@ -35,6 +35,7 @@ Usage:
   spine impact [ROOT] <path> [<path>...] [--max-depth N]
   spine impact [ROOT] --git-diff [--base REF] [--max-depth N]
   spine evidence [ROOT] <id> [<id>...]
+  spine pack [ROOT] <focus> [--max-neighbors N]
   spine mcp
   spine doctor
   spine help
@@ -53,26 +54,28 @@ cmd="${1:-help}"
 shift || true
 
 repo_root="$(pwd)"
-# optional first arg as root if it is a directory and command needs it
 case "$cmd" in
-  index|status|overview|search|browse|path|trace|impact|evidence)
-    if [[ "${1:-}" == /* || "${1:-}" == .* || -d "${1:-}" ]]; then
-      if [[ -d "${1:-}" ]]; then
-        repo_root="$(cd "$1" && pwd)"
-        shift
-      fi
+  index|status|overview|search|browse|path|trace|impact|evidence|pack)
+    if [[ -n "${1:-}" && -d "${1}" ]]; then
+      repo_root="$(cd "$1" && pwd)"
+      shift
     fi
     ;;
 esac
 
+# Always emit valid JSON via Python (shell-quoted object literals are unsafe).
 invoke() {
   local tool="$1"
   local input_json="$2"
-  printf '%s\n' "{\"tool\":\"$tool\",\"input\":$input_json}" | "$CLI"
+  python3 -c 'import json,sys; print(json.dumps({"tool": sys.argv[1], "input": json.loads(sys.argv[2])}))' \
+    "$tool" "$input_json" | "$CLI"
 }
 
-json_escape() {
-  python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+json_obj() {
+  python3 - "$@" <<'PY'
+import json, sys
+print(json.dumps(json.loads(sys.argv[1])))
+PY
 }
 
 case "$cmd" in
@@ -101,16 +104,25 @@ case "$cmd" in
         *) shift ;;
       esac
     done
-    include_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${includes[@]+"${includes[@]}"})
-    exclude_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${excludes[@]+"${excludes[@]}"})
-    if [[ -n "$max_file_bytes" ]]; then
-      invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json,"maxFileBytes":$max_file_bytes}"
-    else
-      invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json}"
-    fi
+    input=$(python3 - "$repo_root" "$mode" "$max_file_bytes" ${includes[@]+"${includes[@]}"} -- ${excludes[@]+"${excludes[@]}"} <<'PY'
+import json, sys
+root, mode, max_b = sys.argv[1], sys.argv[2], sys.argv[3]
+args = sys.argv[4:]
+if "--" in args:
+    i = args.index("--")
+    includes, excludes = args[:i], args[i+1:]
+else:
+    includes, excludes = args, []
+obj = {"root": root, "mode": mode, "include": includes, "exclude": excludes}
+if max_b:
+    obj["maxFileBytes"] = int(max_b)
+print(json.dumps(obj))
+PY
+)
+    invoke architecture_index "$input"
     ;;
   status)
-    invoke architecture_status "{"root":$(json_escape "$repo_root")}"
+    invoke architecture_status "$(python3 -c 'import json,sys; print(json.dumps({"root": sys.argv[1]}))' "$repo_root")"
     ;;
   overview)
     focus="all"
@@ -122,7 +134,7 @@ case "$cmd" in
         *) shift ;;
       esac
     done
-    invoke architecture_overview "{"root":$(json_escape "$repo_root"),"focus":$(json_escape "$focus"),"depth":$depth}"
+    invoke architecture_overview "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"depth":int(sys.argv[3])}))' "$repo_root" "$focus" "$depth")"
     ;;
   search)
     q="${1:-}"; [[ -n "$q" ]] || { echo "search requires query" >&2; exit 2; }
@@ -138,8 +150,7 @@ case "$cmd" in
         *) shift ;;
       esac
     done
-    types_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})
-    invoke architecture_search "{"root":$(json_escape "$repo_root"),"query":$(json_escape "$q"),"limit":$limit,"includeNeighbors":$neighbors,"types":$types_json}"
+    invoke architecture_search "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"query":sys.argv[2],"limit":int(sys.argv[3]),"includeNeighbors":sys.argv[4]=="true","types":json.loads(sys.argv[5])}))' "$repo_root" "$q" "$limit" "$neighbors" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})")"
     ;;
   browse)
     limit=15
@@ -151,8 +162,7 @@ case "$cmd" in
         *) shift ;;
       esac
     done
-    types_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})
-    invoke architecture_search "{"root":$(json_escape "$repo_root"),"query":"","limit":$limit,"includeNeighbors":true,"types":$types_json}"
+    invoke architecture_search "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"query":"","limit":int(sys.argv[2]),"includeNeighbors":True,"types":json.loads(sys.argv[3])}))' "$repo_root" "$limit" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})")"
     ;;
   path)
     from="${1:-}"; to="${2:-}"
@@ -165,42 +175,49 @@ case "$cmd" in
         *) shift ;;
       esac
     done
-    invoke architecture_path "{\"root\":$(json_escape "$repo_root"),\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to"),\"relation\":$(json_escape "$relation"),\"maxDepth\":8}"
+    invoke architecture_path "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3],"relation":sys.argv[4]}))' "$repo_root" "$from" "$to" "$relation")"
     ;;
   trace)
     from="${1:-}"; to="${2:-}"
     [[ -n "$from" && -n "$to" ]] || { echo "trace requires from to" >&2; exit 2; }
-    invoke architecture_trace "{\"root\":$(json_escape "$repo_root"),\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to"),\"relation\":\"any\",\"maxDepth\":5}"
+    invoke architecture_trace "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3]}))' "$repo_root" "$from" "$to")"
     ;;
   impact)
+    max_depth=2
     use_git=false
     git_base=""
-    max_depth=2
     paths=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
+        --max-depth) max_depth="$2"; shift 2 ;;
         --git-diff) use_git=true; shift ;;
         --base) git_base="$2"; shift 2 ;;
-        --max-depth) max_depth="$2"; shift 2 ;;
         *) paths+=("$1"); shift ;;
       esac
     done
     if [[ "$use_git" == true ]]; then
-      if [[ -n "$git_base" ]]; then
-        invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"useGitDiff\":true,\"gitBase\":$(json_escape "$git_base"),\"maxDepth\":$max_depth}"
-      else
-        invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"useGitDiff\":true,\"maxDepth\":$max_depth}"
-      fi
+      invoke architecture_impact "$(python3 -c 'import json,sys; o={"root":sys.argv[1],"useGitDiff":True,"maxDepth":int(sys.argv[2])}; b=sys.argv[3];
+o.update({"gitBase":b} if b else {}); print(json.dumps(o))' "$repo_root" "$max_depth" "$git_base")"
     else
       [[ ${#paths[@]} -gt 0 ]] || { echo "impact requires paths or --git-diff" >&2; exit 2; }
-      paths_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")
-      invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"changedPaths\":$paths_json,\"maxDepth\":$max_depth}"
+      invoke architecture_impact "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"changedPaths":json.loads(sys.argv[2]),"maxDepth":int(sys.argv[3])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")" "$max_depth")"
     fi
     ;;
   evidence)
     [[ $# -gt 0 ]] || { echo "evidence requires id(s)" >&2; exit 2; }
-    ids=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")
-    invoke architecture_evidence "{\"root\":$(json_escape "$repo_root"),\"ids\":$ids}"
+    invoke architecture_evidence "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"ids":json.loads(sys.argv[2])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")")"
+    ;;
+  pack)
+    focus="${1:-}"; [[ -n "$focus" ]] || { echo "pack requires focus path/label/id" >&2; exit 2; }
+    shift || true
+    maxn=12
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --max-neighbors) maxn="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    invoke architecture_context_pack "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"maxNeighbors":int(sys.argv[3])}))' "$repo_root" "$focus" "$maxn")"
     ;;
   *)
     usage

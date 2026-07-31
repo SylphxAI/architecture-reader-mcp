@@ -15,7 +15,8 @@ pub fn route_for_tool(tool: &str) -> Option<ToolRoute> {
         | "architecture_path"
         | "architecture_trace"
         | "architecture_impact"
-        | "architecture_evidence" => Some(ToolRoute::RustCore),
+        | "architecture_evidence"
+        | "architecture_context_pack" => Some(ToolRoute::RustCore),
         _ => None,
     }
 }
@@ -34,6 +35,9 @@ pub const PRIMARY_TOOLS: [&str; 8] = [
     "architecture_impact",
     "architecture_evidence",
 ];
+
+/// Advanced tools (not required for Phase A surface bar).
+pub const ADVANCED_TOOLS: [&str; 1] = ["architecture_context_pack"];
 
 #[cfg(test)]
 mod tests {

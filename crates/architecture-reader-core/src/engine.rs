@@ -25,6 +25,7 @@ pub fn handle_tool(tool: &str, input: serde_json::Value) -> ToolEnvelope {
         "architecture_trace" => architecture_trace(input),
         "architecture_impact" => architecture_impact(input),
         "architecture_evidence" => architecture_evidence(input),
+        "architecture_context_pack" => architecture_context_pack(input),
         _ => ToolEnvelope::error("UNSUPPORTED_QUERY", &format!("Unknown tool: {tool}"), None),
     };
     let _ = started;
@@ -1268,6 +1269,176 @@ fn architecture_evidence(input: serde_json::Value) -> ToolEnvelope {
         metrics(started, &graph),
     )
 }
+
+/// Advanced: pack a focused neighborhood for agent context windows (Graphify-class).
+/// Does not replace primary tools; composes focus + neighbors + evidence + local fan.
+fn architecture_context_pack(input: serde_json::Value) -> ToolEnvelope {
+    let started = Instant::now();
+    let root = match resolve_root(&input) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let graph = match require_graph(&root) {
+        Ok(g) => g,
+        Err(e) => return e,
+    };
+    let focus = input
+        .get("focus")
+        .or_else(|| input.get("path"))
+        .or_else(|| input.get("id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    if focus.is_empty() {
+        return ToolEnvelope::error(
+            "INVALID_INPUT",
+            "architecture_context_pack requires focus (path, label, or node id)",
+            Some("pass focus as path, label, or node id"),
+        );
+    }
+    let max_neighbors = input
+        .get("maxNeighbors")
+        .or_else(|| input.get("max_neighbors"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(12) as usize;
+    let max_evidence = input
+        .get("maxEvidence")
+        .or_else(|| input.get("max_evidence"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(8) as usize;
+
+    let focus_id = match resolve_node_id(&graph, focus) {
+        Some(id) => id,
+        None => {
+            let suggestions = suggest_nodes(&graph, focus, 8);
+            let mut env = ToolEnvelope::error(
+                "NOT_FOUND",
+                &format!("No node matched focus={focus}"),
+                Some("retry with architecture_search or a path from suggestions"),
+            );
+            env.repository = Some(repository_state(&root, Some(&graph)));
+            env.answer = Some(json!({
+                "focus": focus,
+                "suggestions": suggestions,
+            }));
+            return env;
+        }
+    };
+
+    let focus_node = graph.nodes.iter().find(|n| n.id == focus_id);
+    let mut neighbors = Vec::new();
+    for edge in graph.edges.iter().filter(|e| e.from == focus_id || e.to == focus_id) {
+        let other = if edge.from == focus_id { &edge.to } else { &edge.from };
+        neighbors.push(json!({
+            "edge": edge.kind,
+            "direction": if edge.from == focus_id { "outgoing" } else { "incoming" },
+            "node": node_summary(&graph, other),
+            "evidenceIds": edge.evidence_ids,
+        }));
+        if neighbors.len() >= max_neighbors {
+            break;
+        }
+    }
+
+    let mut evidence = Vec::new();
+    let mut seen = std::collections::HashSet::<String>::new();
+    if let Some(node) = focus_node {
+        for ev_id in &node.evidence_ids {
+            if evidence.len() >= max_evidence {
+                break;
+            }
+            if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
+                if seen.insert(ev.id.clone()) {
+                    evidence.push(ev.clone());
+                }
+            }
+        }
+    }
+    for n in &neighbors {
+        if evidence.len() >= max_evidence {
+            break;
+        }
+        if let Some(ids) = n.get("evidenceIds").and_then(|v| v.as_array()) {
+            for idv in ids {
+                if evidence.len() >= max_evidence {
+                    break;
+                }
+                if let Some(id) = idv.as_str() {
+                    if let Some(ev) = graph.evidence.iter().find(|e| e.id == id) {
+                        if seen.insert(ev.id.clone()) {
+                            evidence.push(ev.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Same-directory modules when focus has a path (local composition without a 2nd tool call).
+    let mut co_located = Vec::new();
+    if let Some(path) = focus_node.and_then(|n| n.path.as_ref()) {
+        let parent = std::path::Path::new(path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if !parent.is_empty() {
+            for n in &graph.nodes {
+                if n.id == focus_id {
+                    continue;
+                }
+                if let Some(ref p) = n.path {
+                    if std::path::Path::new(p)
+                        .parent()
+                        .map(|x| x.to_string_lossy() == parent)
+                        .unwrap_or(false)
+                    {
+                        co_located.push(node_summary(&graph, &n.id));
+                    }
+                }
+                if co_located.len() >= max_neighbors {
+                    break;
+                }
+            }
+        }
+    }
+
+    let repo = repository_state(&root, Some(&graph));
+    let mut warnings = coverage_gaps(
+        &graph,
+        graph
+            .extractors
+            .iter()
+            .any(|extractor| extractor.starts_with("synth-")),
+    );
+    warnings.push(
+        "architecture_context_pack is advanced: prefer primary tools when a single question is enough"
+            .into(),
+    );
+
+    ToolEnvelope::ok(
+        repo,
+        json!({
+            "focus": focus,
+            "focusNode": node_summary(&graph, &focus_id),
+            "neighbors": neighbors,
+            "coLocated": co_located,
+            "evidence": evidence,
+            "localFan": {
+                "topFanIn": top_fan_in_modules(&graph, 5),
+                "topFanOut": top_fan_out_modules(&graph, 5),
+            },
+            "counts": {
+                "neighbors": neighbors.len(),
+                "coLocated": co_located.len(),
+                "evidence": evidence.len(),
+            }
+        }),
+        evidence.clone(),
+        warnings,
+        metrics(started, &graph),
+    )
+}
+
 
 fn coverage_gaps(graph: &ArchitectureGraph, synth_active: bool) -> Vec<String> {
     let mut gaps = Vec::new();

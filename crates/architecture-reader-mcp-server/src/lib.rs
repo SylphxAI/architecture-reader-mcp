@@ -109,6 +109,14 @@ impl ArchitectureReaderMcp {
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
         self.invoke("architecture_evidence", args.into_value())
     }
+
+    #[tool(description = "Advanced: pack focus node neighborhood, co-located modules, and evidence for agent context.")]
+    fn architecture_context_pack(
+        &self,
+        Parameters(args): Parameters<FreeformToolArgs>,
+    ) -> Result<rmcp::model::CallToolResult, ErrorData> {
+        self.invoke("architecture_context_pack", args.into_value())
+    }
 }
 
 #[tool_handler]
