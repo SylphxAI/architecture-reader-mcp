@@ -234,6 +234,7 @@ pub fn scan_repository_paths(
         "codeowners@0.1.0".into(),
         "openapi@0.1.0".into(),
         "terraform@0.1.0".into(),
+        "k8s@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -335,6 +336,19 @@ fn index_file(
             index_terraform_module(builder, rel_str, path);
         }
         return;
+    }
+    // Kubernetes-ish YAML: apiVersion + kind
+    if pass == IndexPass::Structure
+        && (rel_str.ends_with(".yaml") || rel_str.ends_with(".yml"))
+        && !rel_str.starts_with(".github/workflows/")
+        && !file_name_lc.contains("openapi")
+        && !file_name_lc.contains("swagger")
+    {
+        let content_peek = fs::read_to_string(path).unwrap_or_default();
+        if content_peek.contains("apiVersion:") && content_peek.contains("kind:") {
+            index_k8s_manifest(builder, rel_str, path, &content_peek);
+            return;
+        }
     }
     if rel_str.ends_with(".graphql")
         || rel_str.ends_with(".gql")
@@ -1613,6 +1627,60 @@ fn index_terraform_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
         let ev = builder.push_evidence("ast", rel, "terraform@0.1.0", Some(line), Some(line));
         builder.push_node(&node_id, "symbol", &label, Some(rel), &ev);
         builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
+
+fn index_k8s_manifest(builder: &mut GraphBuilder, rel: &str, path: &Path, content: &str) {
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "k8s@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // Multi-doc YAML separated by ---
+    for doc in content.split("---") {
+        let mut kind: Option<String> = None;
+        let mut name: Option<String> = None;
+        let mut kind_line = 1u32;
+        for (i, line) in doc.lines().enumerate() {
+            let line_no = (i + 1) as u32;
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("kind:") {
+                kind = Some(rest.trim().trim_matches('"').to_string());
+                kind_line = line_no;
+            }
+            if trimmed.starts_with("name:") && name.is_none() {
+                // prefer metadata.name — accept first name: after kind in doc
+                if kind.is_some() {
+                    name = Some(
+                        trimmed
+                            .trim_start_matches("name:")
+                            .trim()
+                            .trim_matches('"')
+                            .to_string(),
+                    );
+                }
+            }
+        }
+        if let (Some(k), Some(n)) = (kind, name) {
+            if k.is_empty() || n.is_empty() {
+                continue;
+            }
+            let label = format!("{k}/{n}");
+            let node_id = format!(
+                "node:symbol:{}:{}:{}",
+                rel.replace('/', ":"),
+                k,
+                n.replace('/', ":")
+            );
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "k8s@0.1.0", Some(kind_line), Some(kind_line));
+            builder.push_node(&node_id, "symbol", &label, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
     }
     let _ = path;
 }
@@ -3661,6 +3729,28 @@ members = [
         assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn k8s_extracts_kind_name() {
+        let content = r#"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+"#;
+        let tmp = tempfile_path("deploy.yaml", content);
+        let mut builder = GraphBuilder::default();
+        index_k8s_manifest(&mut builder, "k8s/deploy.yaml", &tmp, content);
+        assert!(builder.nodes.iter().any(|n| n.label == "Deployment/api"));
+        assert!(builder.nodes.iter().any(|n| n.label == "Service/api"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 
