@@ -529,6 +529,7 @@ mod tests {
         let answer = envelope.answer.expect("answer");
         assert!(answer.get("languages").is_some());
         assert!(answer.get("topFanIn").is_some());
+        assert!(answer.get("topFanOut").is_some());
         assert!(answer.get("cycles").is_some());
         assert!(answer["coverage"]["evidence"].as_u64().unwrap_or(0) > 0);
     }

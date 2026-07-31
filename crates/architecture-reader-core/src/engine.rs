@@ -191,6 +191,33 @@ fn top_fan_in_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_json
         .collect()
 }
 
+
+fn top_fan_out_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_json::Value> {
+    use std::collections::HashMap;
+    let mut fan_out: HashMap<&str, u64> = HashMap::new();
+    for e in &graph.edges {
+        if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on") {
+            *fan_out.entry(e.from.as_str()).or_default() += 1;
+        }
+    }
+    let mut ranked: Vec<_> = fan_out.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    ranked
+        .into_iter()
+        .take(limit.max(1))
+        .map(|(id, count)| {
+            let node = graph.nodes.iter().find(|n| n.id == id);
+            json!({
+                "id": id,
+                "fanOut": count,
+                "kind": node.map(|n| n.kind.clone()),
+                "label": node.map(|n| n.label.clone()),
+                "path": node.and_then(|n| n.path.clone()),
+            })
+        })
+        .collect()
+}
+
 fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -390,6 +417,7 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "schemaVersion": graph.schema_version,
             "languages": language_surface_stats(&graph),
             "topFanIn": top_fan_in_modules(&graph, 5),
+            "topFanOut": top_fan_out_modules(&graph, 5),
             "cycles": find_short_cycles(&graph, 5, 5),
             "coverage": {
                 "nodes": graph.nodes.len(),
@@ -503,6 +531,7 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "languages": language_surface_stats(&graph),
             "cycles": find_short_cycles(&graph, 8, 5),
             "topFanIn": top_fan_in_modules(&graph, depth * 4),
+            "topFanOut": top_fan_out_modules(&graph, depth * 4),
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
