@@ -219,6 +219,48 @@ fn top_fan_out_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_jso
 }
 
 
+/// Modules/files with zero inbound structural edges (import/call/depends).
+/// Graphify-class "what is unused / leaf / entry-adjacent" signal for agents.
+fn orphan_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_json::Value> {
+    use std::collections::{HashMap, HashSet};
+    let mut inbound: HashSet<&str> = HashSet::new();
+    let mut outbound: HashMap<&str, u64> = HashMap::new();
+    for e in &graph.edges {
+        if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on") {
+            inbound.insert(e.to.as_str());
+            *outbound.entry(e.from.as_str()).or_default() += 1;
+        }
+    }
+    let mut orphans: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.kind.as_str(), "module" | "file") && n.path.is_some())
+        .filter(|n| !inbound.contains(n.id.as_str()))
+        .map(|n| {
+            let fo = *outbound.get(n.id.as_str()).unwrap_or(&0);
+            (fo, n)
+        })
+        .collect();
+    // Prefer orphans that still import others (likely leaves/utilities) then stable path order.
+    orphans.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
+    orphans
+        .into_iter()
+        .take(limit.max(1))
+        .map(|(fan_out, n)| {
+            json!({
+                "id": n.id,
+                "kind": n.kind,
+                "label": n.label,
+                "path": n.path,
+                "fanIn": 0,
+                "fanOut": fan_out,
+                "note": "no_inbound_imports_calls_depends",
+            })
+        })
+        .collect()
+}
+
+
 fn node_summary(graph: &ArchitectureGraph, id: &str) -> serde_json::Value {
     if let Some(n) = graph.nodes.iter().find(|n| n.id == id) {
         json!({ "id": n.id, "kind": n.kind, "label": n.label, "path": n.path })
@@ -474,6 +516,7 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "languages": language_surface_stats(&graph),
             "topFanIn": top_fan_in_modules(&graph, 5),
             "topFanOut": top_fan_out_modules(&graph, 5),
+            "orphans": orphan_modules(&graph, 8),
             "cycles": find_short_cycles(&graph, 5, 5),
             "defaultExcludes": crate::scanner::default_excludes(),
             "relationKinds": relation_kinds,
@@ -590,6 +633,7 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "cycles": find_short_cycles(&graph, 8, 5),
             "topFanIn": top_fan_in_modules(&graph, depth * 4),
             "topFanOut": top_fan_out_modules(&graph, depth * 4),
+            "orphans": orphan_modules(&graph, depth * 4),
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
@@ -665,6 +709,10 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
             (1.0, "kind_or_weak")
         };
         // Prefer symbols and routes slightly for architecture questions.
+        // Empty browse: skip root repository node noise
+        if query.is_empty() && node.kind == "repository" {
+            continue;
+        }
         let kind_boost = match node.kind.as_str() {
             "symbol" => 0.4,
             "route" => 0.3,
@@ -674,6 +722,15 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
             _ => 0.0,
         };
         let score = base_score + kind_boost;
+        let mut score_explain = vec![
+            match_kind.to_string(),
+            format!("kind={}", node.kind),
+            format!("kindBoost={kind_boost}"),
+        ];
+        if query.is_empty() {
+            let fi = *fan_in.get(node.id.as_str()).unwrap_or(&0);
+            score_explain.push(format!("fanIn={fi}"));
+        }
         scored.push((
             score,
             json!({
@@ -682,11 +739,7 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
                 "label": node.label,
                 "path": node.path,
                 "score": score,
-                "scoreExplain": [
-                    match_kind.to_string(),
-                    format!("kind={}", node.kind),
-                    format!("kindBoost={kind_boost}"),
-                ],
+                "scoreExplain": score_explain,
             }),
         ));
     }

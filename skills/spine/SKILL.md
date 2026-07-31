@@ -11,6 +11,7 @@ npx @sylphx/architecture-reader-mcp
 ./bin/spine doctor
 ./bin/spine index . --mode full --exclude target
 ./bin/spine search auth --neighbors --type symbol
+./bin/spine browse --limit 15
 ./bin/spine overview --focus src/auth/token.ts
 ./bin/spine path src/auth/token.ts src/server/routes.ts
 ./bin/spine impact --git-diff --max-depth 2
@@ -21,8 +22,8 @@ npx @sylphx/architecture-reader-mcp
 | Tool | When |
 | --- | --- |
 | `architecture_index` | First: build/refresh local graph |
-| `architecture_status` | Freshness, languages, topFanIn, cycles |
-| `architecture_overview` | Packages, languages, counts, **cycles**; **`focus=` for neighbors** |
+| `architecture_status` | Freshness, languages, topFanIn/Out, **orphans**, cycles |
+| `architecture_overview` | Packages, languages, counts, **cycles**, **orphans** (zero inbound); **`focus=` for neighbors** |
 | `architecture_search` | Ranked symbol/module/route lookup |
 | `architecture_path` | Shortest path with hop provenance |
 | `architecture_trace` | Compact path + **hop provenance** (edge kinds) |

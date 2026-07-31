@@ -29,6 +29,7 @@ Usage:
   spine status [ROOT]
   spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
   spine search [ROOT] <query> [--limit N] [--neighbors] [--type KIND]
+  spine browse [ROOT] [--limit N] [--type KIND]   # empty-query fan-in browse
   spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
   spine trace [ROOT] <from> <to>
   spine impact [ROOT] <path> [<path>...] [--max-depth N]
@@ -54,7 +55,7 @@ shift || true
 repo_root="$(pwd)"
 # optional first arg as root if it is a directory and command needs it
 case "$cmd" in
-  index|status|overview|search|path|trace|impact|evidence)
+  index|status|overview|search|browse|path|trace|impact|evidence)
     if [[ "${1:-}" == /* || "${1:-}" == .* || -d "${1:-}" ]]; then
       if [[ -d "${1:-}" ]]; then
         repo_root="$(cd "$1" && pwd)"
@@ -139,6 +140,19 @@ case "$cmd" in
     done
     types_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})
     invoke architecture_search "{"root":$(json_escape "$repo_root"),"query":$(json_escape "$q"),"limit":$limit,"includeNeighbors":$neighbors,"types":$types_json}"
+    ;;
+  browse)
+    limit=15
+    types=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --limit) limit="$2"; shift 2 ;;
+        --type|--types) types+=("$2"); shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    types_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})
+    invoke architecture_search "{"root":$(json_escape "$repo_root"),"query":"","limit":$limit,"includeNeighbors":true,"types":$types_json}"
     ;;
   path)
     from="${1:-}"; to="${2:-}"

@@ -750,6 +750,114 @@ mod tests {
     }
 
     #[test]
+    fn search_empty_browse_skips_repository_and_explains_fan_in() {
+        let root = std::env::temp_dir().join(format!(
+            "spine-browse-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("lib.ts"),
+            "export function helper() { return 1 }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("main.ts"),
+            "import { helper } from './lib'\nexport const x = helper()\n",
+        )
+        .unwrap();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({ "root": root.to_string_lossy(), "query": "", "limit": 20 }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let matches = envelope
+            .answer
+            .expect("answer")["matches"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            matches
+                .iter()
+                .all(|m| m.get("kind").and_then(|k| k.as_str()) != Some("repository")),
+            "repository nodes should be excluded from empty browse: {:?}",
+            matches
+        );
+        let any_fan = matches.iter().any(|m| {
+            m.get("scoreExplain")
+                .and_then(|e| e.as_array())
+                .map(|arr| arr.iter().any(|x| x.as_str().unwrap_or("").starts_with("fanIn=")))
+                .unwrap_or(false)
+        });
+        assert!(any_fan, "expected fanIn= in scoreExplain, got {:?}", matches);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn overview_and_status_include_orphans() {
+        let root = std::env::temp_dir().join(format!(
+            "spine-orphans-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("used.ts"), "export const a = 1\n").unwrap();
+        std::fs::write(
+            root.join("entry.ts"),
+            "import { a } from './used'\nexport const b = a\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("lonely.ts"), "export const z = 9\n").unwrap();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let overview = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({ "root": root.to_string_lossy(), "focus": "all", "depth": 2 }),
+        );
+        assert_eq!(overview.status, "ok", "{:?}", overview.message);
+        let overview_answer = overview.answer.expect("answer");
+        let orphans = overview_answer["orphans"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            !orphans.is_empty(),
+            "expected orphans list, got {:?}",
+            overview_answer
+        );
+        let status = engine::handle_tool(
+            "architecture_status",
+            serde_json::json!({ "root": root.to_string_lossy() }),
+        );
+        assert_eq!(status.status, "ok", "{:?}", status.message);
+        let status_answer = status.answer.expect("answer");
+        assert!(
+            status_answer
+                .get("orphans")
+                .and_then(|v| v.as_array())
+                .is_some(),
+            "status missing orphans: {:?}",
+            status_answer
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+
+    #[test]
     fn status_reports_relation_kinds() {
         let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();
