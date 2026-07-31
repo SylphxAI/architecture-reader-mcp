@@ -12,6 +12,8 @@ Audience: implementation agents, maintainers, product owners
 | [roadmaps/citra.md](./roadmaps/citra.md) | PDF / Citra targets |
 | [roadmaps/spine.md](./roadmaps/spine.md) | Architecture / Spine targets |
 | [roadmaps/lookout.md](./roadmaps/lookout.md) | Web / Lookout targets |
+| [specs/spine-product-spec-v0.md](./specs/spine-product-spec-v0.md) | Spine greenfield spec |
+| [specs/lookout-product-spec-v0.md](./specs/lookout-product-spec-v0.md) | Lookout product spec |
 | [roadmaps/iris-cue-prism.md](./roadmaps/iris-cue-prism.md) | Image / Video / Router targets |
 | [notes/portfolio-positioning-and-growth.md](./notes/portfolio-positioning-and-growth.md) | Historical growth packaging note (subordinate to SSOT) |
 

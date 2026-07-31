@@ -1,12 +1,17 @@
 <div align="center">
 
-# Architecture Reader MCP
+# Spine
 
 ### Your agent mapped the repo. **Did it trace the right boundary?**
 
-Agent-native MCP server for **repository architecture evidence graphs** — boundaries,
-dependencies, routes, schemas, and impact radius with file-level provenance, not
-dashboard screenshots or keyword grep.
+**Spine** is the architecture instrument in [Sylphx Instruments](docs/portfolio/sylphx-instruments-ssot.md) —
+a **local-first architecture engine** for agents and apps (SDK · CLI · MCP).
+
+Agent-native **repository architecture evidence graphs** — boundaries,
+dependencies, routes, schemas, and impact radius with file-level provenance — not
+dashboard screenshots, not required LLM multi-agent burns, not keyword grep.
+
+Transitional package/repo: `@sylphx/architecture-reader-mcp` / `architecture-reader-mcp`.
 
 [![npm version](https://img.shields.io/npm/v/@sylphx/architecture-reader-mcp?style=flat-square)](https://www.npmjs.com/package/@sylphx/architecture-reader-mcp)
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/SylphxAI/architecture-reader-mcp/ci.yml?style=flat-square&label=CI/CD)](https://github.com/SylphxAI/architecture-reader-mcp/actions/workflows/ci.yml)
@@ -20,11 +25,22 @@ dashboard screenshots or keyword grep.
 
 Complements generic code search in [CodeRAG](https://github.com/SylphxAI/coderag) — it does
 not replace it. Reader portfolio media tools live in
-[smart-reader-mcp](https://github.com/SylphxAI/smart-reader-mcp).
+[Prism / smart-reader-mcp](https://github.com/SylphxAI/smart-reader-mcp).
 
 </div>
 
 ---
+
+
+## Competitive position
+
+| Product | Spine difference |
+| --- | --- |
+| [Understand-Anything](https://github.com/Egonex-AI/Understand-Anything) | Human dashboard + skill + LLM semantics — Spine prioritizes **deterministic structure** and **agent/SDK query** |
+| [Graphify](https://github.com/Graphify-Labs/graphify) | Excellent local AST graph + CLI — Spine targets the same local honesty **plus first-class MCP/SDK** and architecture/impact workflows |
+| [Serena](https://github.com/oraios/serena) | Symbol **edit** IDE for agents — Spine does **not** own edits |
+
+Targets: [docs/portfolio/roadmaps/spine.md](docs/portfolio/roadmaps/spine.md) · Family SSOT: [docs/portfolio/sylphx-instruments-ssot.md](docs/portfolio/sylphx-instruments-ssot.md)
 
 ## The problem
 

@@ -18,8 +18,8 @@ tests**, clear tools, and citeable results.
 - [x] Naming ADR accepted (`ADR-3-sylphx-instruments-naming.md`)
 - [x] Per-line target roadmaps for Citra, Spine, Lookout, Iris/Cue/Prism
 - [x] Portfolio README points at SSOT
-- [ ] Land SSOT on default branch / visible origin tip (delivery of this change)
-- [ ] Citra/Iris/Cue/Prism READMEs adopt brand heroes (follow-on per repo)
+- [x] Land SSOT on default branch / visible origin tip
+- [x] Citra/Iris/Cue/Prism/Spine READMEs adopt brand heroes (package names still transitional)
 
 ### G1 — Family constitution in force
 
@@ -39,6 +39,9 @@ tests**, clear tools, and citeable results.
 
 ### G3 — Spine (architecture)
 
+- [x] Product spec v0 (`docs/portfolio/specs/spine-product-spec-v0.md`)
+
+
 - Greenfield-capable redesign under Instruments rules  
 - Competitive clarity vs Understand-Anything + Graphify; no Serena-edit ownership  
 - Deterministic structural graph without required LLM  
@@ -46,6 +49,9 @@ tests**, clear tools, and citeable results.
 - SDK + CLI + MCP + golden/perf tests  
 
 ### G4 — Lookout (web)
+
+- [x] Product spec v0 (`docs/portfolio/specs/lookout-product-spec-v0.md`)
+
 
 - New product specified vs wigolo  
 - Light default (no mandatory multi-GB warmup)  
