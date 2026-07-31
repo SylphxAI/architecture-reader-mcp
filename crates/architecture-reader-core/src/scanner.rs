@@ -228,6 +228,7 @@ pub fn scan_repository_paths(
         "workflow@0.1.0".into(),
         "docker@0.1.0".into(),
         "sql@0.1.0".into(),
+        "proto@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -315,6 +316,12 @@ fn index_file(
     if rel_str.ends_with(".sql") {
         if pass == IndexPass::Structure {
             index_sql_module(builder, rel_str, path);
+        }
+        return;
+    }
+    if rel_str.ends_with(".proto") {
+        if pass == IndexPass::Structure {
+            index_proto_module(builder, rel_str, path);
         }
         return;
     }
@@ -1271,6 +1278,64 @@ fn index_sql_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let _ = path;
 }
 
+
+fn index_proto_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "proto@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    if let Some(cap) = Regex::new(r"(?m)^\s*package\s+([A-Za-z_][\w\.]*)\s*;")
+        .unwrap()
+        .captures(&content)
+    {
+        let pkg = cap[1].to_string();
+        let pkg_id = format!("node:package:proto:{pkg}");
+        if !builder.has_node(&pkg_id) {
+            let pev = builder.push_evidence("ast", rel, "proto@0.1.0", Some(1), Some(1));
+            builder.push_node(&pkg_id, "package", &pkg, Some(rel), &pev);
+        }
+        builder.push_edge("belongs_to", &file_id, &pkg_id, &file_ev);
+    }
+    let import_re = Regex::new(r#"(?m)^\s*import\s+(?:public\s+|weak\s+)?["']([^"']+)["']\s*;"#).unwrap();
+    for cap in import_re.captures_iter(&content) {
+        let dep = cap[1].to_string();
+        let dep_id = format!("node:module:proto:{}", dep.replace('/', ":"));
+        if !builder.has_node(&dep_id) {
+            builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+        }
+        builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+    }
+    let type_re = Regex::new(r"(?m)^\s*(service|message|enum)\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    for cap in type_re.captures_iter(&content) {
+        let kind = cap[1].to_string();
+        let name = cap[2].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "proto@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    let rpc_re = Regex::new(r"(?m)^\s*rpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(").unwrap();
+    for cap in rpc_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:rpc:{}", rel.replace('/', ":"), name);
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "proto@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+        builder.push_edge("routes_to", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
 pub fn prune_graph_for_paths(mut graph: ArchitectureGraph, paths: &HashSet<String>) -> ArchitectureGraph {
     if paths.is_empty() {
         return graph;
@@ -1389,6 +1454,21 @@ fn index_manifest(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let ev = builder.push_evidence("manifest", rel, "manifest@0.1.0", None, None);
     let node_id = format!("node:package:{label}");
     builder.push_node(&node_id, "package", &label, Some(rel), &ev);
+    if rel.ends_with("package.json") {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(scripts) = v.get("scripts").and_then(|s| s.as_object()) {
+                for (name, _) in scripts {
+                    let sid = format!("node:symbol:{}:script:{}", rel.replace('/', ":"), name);
+                    if builder.has_node(&sid) {
+                        continue;
+                    }
+                    let sev = builder.push_evidence("manifest", rel, "manifest@0.1.0", None, None);
+                    builder.push_node(&sid, "symbol", name, Some(rel), &sev);
+                    builder.push_edge("defines", &node_id, &sid, &sev);
+                }
+            }
+        }
+    }
 }
 
 fn extract_go_mod_module(content: &str) -> Option<String> {
@@ -3098,6 +3178,46 @@ CREATE TABLE orders (
         assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn proto_extracts_service_and_rpc() {
+        let content = r#"
+syntax = "proto3";
+package auth.v1;
+import "google/protobuf/empty.proto";
+service AuthService {
+  rpc ValidateToken (TokenRequest) returns (TokenResponse);
+}
+message TokenRequest { string token = 1; }
+"#;
+        let tmp = tempfile_path("auth.proto", content);
+        let mut builder = GraphBuilder::default();
+        index_proto_module(&mut builder, "proto/auth.proto", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label == "AuthService"));
+        assert!(builder.nodes.iter().any(|n| n.label == "ValidateToken" || n.id.contains("rpc:ValidateToken")));
+        assert!(builder.nodes.iter().any(|n| n.label == "TokenRequest"));
+        assert!(builder.edges.iter().any(|e| e.kind == "imports"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn package_json_scripts_become_symbols() {
+        let content = r#"{
+  "name": "demo-pkg",
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test"
+  }
+}"#;
+        let tmp = tempfile_path("package.json", content);
+        let mut builder = GraphBuilder::default();
+        index_manifest(&mut builder, "package.json", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.kind == "package" && n.label == "demo-pkg"));
+        assert!(builder.nodes.iter().any(|n| n.kind == "symbol" && n.label == "build"));
+        assert!(builder.nodes.iter().any(|n| n.kind == "symbol" && n.label == "test"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 

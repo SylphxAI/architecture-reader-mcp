@@ -50,7 +50,8 @@ not replace it. Reader portfolio media tools live in
 | GitHub Actions | workflow jobs | `workflow@0.1.0` |
 | Dockerfile | FROM/COPY graph | `docker@0.1.0` |
 | SQL | CREATE TABLE / REFERENCES | `sql@0.1.0` |
-| Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
+| Protobuf | package, import, service/message/rpc | `proto@0.1.0` |
+| Manifests / docs | `package.json` (+ scripts), `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.
 
