@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
   "type": "module",
-  "description": "Spine \u2014 local architecture engine for agents (SDK \u00b7 CLI \u00b7 MCP). Transitional package name architecture-reader-mcp.",
+  "description": "Spine — local architecture engine for agents (SDK · CLI · MCP). Transitional package name architecture-reader-mcp.",
   "publishConfig": {
     "access": "public"
   },
@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/node": "^26.1.2",
     "typescript": "^7.0.2"
   }
 }
