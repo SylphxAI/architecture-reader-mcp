@@ -30,12 +30,12 @@ Usage:
   spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
   spine search [ROOT] <query> [--limit N] [--neighbors] [--type KIND]
   spine browse [ROOT] [--limit N] [--type KIND]   # empty-query fan-in browse
-  spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
+  spine path [ROOT] <from> <to> [--relation any|imports|calls|...] [--mermaid]
   spine trace [ROOT] <from> <to>
-  spine impact [ROOT] <path> [<path>...] [--max-depth N]
-  spine impact [ROOT] --git-diff [--base REF] [--max-depth N]
+  spine impact [ROOT] <path> [<path>...] [--max-depth N] [--mermaid]
+  spine impact [ROOT] --git-diff [--base REF] [--max-depth N] [--mermaid]
   spine evidence [ROOT] <id> [<id>...]
-  spine pack [ROOT] <focus> [--max-neighbors N]
+  spine pack [ROOT] <focus> [--max-neighbors N] [--mermaid]
   spine mcp
   spine doctor
   spine help
@@ -169,13 +169,21 @@ PY
     [[ -n "$from" && -n "$to" ]] || { echo "path requires from to" >&2; exit 2; }
     shift 2 || true
     relation="any"
+    mermaid=false
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --relation) relation="$2"; shift 2 ;;
+        --mermaid) mermaid=true; shift ;;
         *) shift ;;
       esac
     done
-    invoke architecture_path "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3],"relation":sys.argv[4]}))' "$repo_root" "$from" "$to" "$relation")"
+    out=$(invoke architecture_path "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3],"relation":sys.argv[4]}))' "$repo_root" "$from" "$to" "$relation")")
+    if [[ "$mermaid" == true ]]; then
+      python3 -c 'import json,sys; a=json.load(sys.stdin); print((a.get("answer") or {}).get("mermaid") or "")' <<<"$out"
+    else
+      printf '%s
+' "$out"
+    fi
     ;;
   trace)
     from="${1:-}"; to="${2:-}"
@@ -186,21 +194,30 @@ PY
     max_depth=2
     use_git=false
     git_base=""
+    mermaid=false
     paths=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --max-depth) max_depth="$2"; shift 2 ;;
         --git-diff) use_git=true; shift ;;
         --base) git_base="$2"; shift 2 ;;
+        --mermaid) mermaid=true; shift ;;
         *) paths+=("$1"); shift ;;
       esac
     done
     if [[ "$use_git" == true ]]; then
-      invoke architecture_impact "$(python3 -c 'import json,sys; o={"root":sys.argv[1],"useGitDiff":True,"maxDepth":int(sys.argv[2])}; b=sys.argv[3];
-o.update({"gitBase":b} if b else {}); print(json.dumps(o))' "$repo_root" "$max_depth" "$git_base")"
+      out=$(invoke architecture_impact "$(python3 -c 'import json,sys; o={"root":sys.argv[1],"useGitDiff":True,"maxDepth":int(sys.argv[2])}; b=sys.argv[3];
+o.update({"gitBase":b} if b else {}); print(json.dumps(o))' "$repo_root" "$max_depth" "$git_base")")
     else
       [[ ${#paths[@]} -gt 0 ]] || { echo "impact requires paths or --git-diff" >&2; exit 2; }
-      invoke architecture_impact "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"changedPaths":json.loads(sys.argv[2]),"maxDepth":int(sys.argv[3])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")" "$max_depth")"
+      out=$(invoke architecture_impact "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"changedPaths":json.loads(sys.argv[2]),"maxDepth":int(sys.argv[3])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")" "$max_depth")")
+    fi
+    if [[ "$mermaid" == true ]]; then
+      python3 -c 'import json,sys; a=json.load(sys.stdin).get("answer") or {}; m=a.get("mermaid") or {};
+print(m.get("incoming") or ""); print("---"); print(m.get("outgoing") or "")' <<<"$out"
+    else
+      printf '%s
+' "$out"
     fi
     ;;
   evidence)
@@ -211,13 +228,21 @@ o.update({"gitBase":b} if b else {}); print(json.dumps(o))' "$repo_root" "$max_d
     focus="${1:-}"; [[ -n "$focus" ]] || { echo "pack requires focus path/label/id" >&2; exit 2; }
     shift || true
     maxn=12
+    mermaid=false
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --max-neighbors) maxn="$2"; shift 2 ;;
+        --mermaid) mermaid=true; shift ;;
         *) shift ;;
       esac
     done
-    invoke architecture_context_pack "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"maxNeighbors":int(sys.argv[3])}))' "$repo_root" "$focus" "$maxn")"
+    out=$(invoke architecture_context_pack "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"maxNeighbors":int(sys.argv[3])}))' "$repo_root" "$focus" "$maxn")")
+    if [[ "$mermaid" == true ]]; then
+      python3 -c 'import json,sys; a=json.load(sys.stdin); print((a.get("answer") or {}).get("mermaid") or "")' <<<"$out"
+    else
+      printf '%s
+' "$out"
+    fi
     ;;
   *)
     usage
