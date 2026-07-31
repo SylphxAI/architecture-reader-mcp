@@ -31,6 +31,10 @@ npx @sylphx/architecture-reader-mcp
 | `architecture_evidence` | Resolve evidence ids from prior answers |
 | `architecture_context_pack` *(advanced)* | Focus neighborhood + co-located + evidence pack |
 
+## Languages
+
+TS/JS, Python, Rust, Go, Java, C#, Kotlin, Ruby, PHP, **C/C++** (`c@0.1.0`).
+
 ## Evidence contract
 
 Every answer includes file/line evidence when known, extractor id, and explicit gaps.
