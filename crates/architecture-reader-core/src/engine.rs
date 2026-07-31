@@ -87,7 +87,8 @@ fn find_short_cycles(graph: &ArchitectureGraph, max_cycles: usize, max_len: usiz
     use std::collections::{HashMap, HashSet, VecDeque};
     let mut adj: HashMap<String, Vec<String>> = HashMap::new();
     for e in &graph.edges {
-        if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on" | "belongs_to") {
+        // Prefer structural import/depends edges; call edges create noisy false cycles.
+        if matches!(e.kind.as_str(), "imports" | "depends_on") {
             adj.entry(e.from.clone()).or_default().push(e.to.clone());
         }
     }
@@ -417,17 +418,21 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
         vec![]
     };
 
-    let packages: Vec<_> = graph
-        .nodes
-        .iter()
-        .filter(|n| n.kind == "package")
-        .take(depth)
+    let mut package_nodes: Vec<_> = graph.nodes.iter().filter(|n| n.kind == "package").collect();
+    package_nodes.sort_by(|a, b| a.id.cmp(&b.id));
+    let packages: Vec<_> = package_nodes
+        .into_iter()
+        .take(depth.max(1) * 4)
         .map(|n| json!({ "id": n.id, "label": n.label, "path": n.path }))
         .collect();
-    let modules: Vec<_> = graph
+    let mut module_nodes: Vec<_> = graph
         .nodes
         .iter()
         .filter(|n| n.kind == "module" && n.path.is_some())
+        .collect();
+    module_nodes.sort_by(|a, b| a.id.cmp(&b.id));
+    let modules: Vec<_> = module_nodes
+        .into_iter()
         .take(depth * 4)
         .map(|n| json!({ "id": n.id, "label": n.label, "path": n.path }))
         .collect();

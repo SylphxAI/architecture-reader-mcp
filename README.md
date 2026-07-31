@@ -180,7 +180,7 @@ Trace dependency or impact before editing:
 | Follow dependency or call paths | `architecture_trace` |
 | Estimate diff blast radius (incoming dependents + outgoing deps) | `architecture_impact` |
 | Local neighborhood (Graphify-class) | `architecture_overview` focus=… or `architecture_search` `includeNeighbors:true` |
-| Short import/call cycles | `architecture_overview` → `cycles` |
+| Short **import** cycles | `architecture_overview` → `cycles` (imports/depends only) |
 | Fetch proof behind a claim | `architecture_evidence` |
 
 Every answer shares one evidence envelope: path, optional line range, extraction
