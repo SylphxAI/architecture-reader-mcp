@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCliBinary } from './engine.ts';
@@ -73,29 +73,64 @@ const probeFixture = (): DoctorCheck => {
 };
 
 const probeToolSurface = (): DoctorCheck => {
-  const toolsPath = join(here, 'tools.ts');
-  if (!existsSync(toolsPath)) {
-    return {
-      id: 'tool_surface',
-      status: 'fail',
-      message: 'Missing packages/mcp-server/src/tools.ts.',
-    };
-  }
-
   const required = [
     'architecture_index',
     'architecture_status',
     'architecture_overview',
     'architecture_search',
+    'architecture_path',
     'architecture_trace',
     'architecture_impact',
     'architecture_evidence',
   ];
 
+  const routesPath = join(here, '../../../crates/architecture-reader-mcp-server/src/tool_routes.rs');
+  const enginePath = join(here, '../../../crates/architecture-reader-core/src/engine.rs');
+  const toolsPath = join(here, 'tools.ts');
+  const spineSdkPath = join(here, 'spine-sdk.ts');
+
+  if (!existsSync(routesPath) || !existsSync(enginePath)) {
+    return {
+      id: 'tool_surface',
+      status: 'fail',
+      message: 'Missing Rust tool_routes/engine sources for architecture tools.',
+    };
+  }
+
+  const routes = readFileSync(routesPath, 'utf8');
+  const engine = readFileSync(enginePath, 'utf8');
+  const tools = existsSync(toolsPath) ? readFileSync(toolsPath, 'utf8') : '';
+  const sdk = existsSync(spineSdkPath) ? readFileSync(spineSdkPath, 'utf8') : '';
+
+  const missing: string[] = [];
+  for (const name of required) {
+    if (!routes.includes(`"${name}"`) && !routes.includes(name)) {
+      missing.push(`${name}@routes`);
+    }
+    if (!engine.includes(`"${name}"`)) {
+      missing.push(`${name}@engine`);
+    }
+  }
+  // TS adapter should expose path schema + SDK path method for product surface
+  if (!tools.includes('architecturePathSchema') && !tools.includes('architecture_path')) {
+    missing.push('architecturePathSchema@tools.ts');
+  }
+  if (!sdk.includes('path(') && !sdk.includes('.path')) {
+    missing.push('Spine.path@sdk');
+  }
+
+  if (missing.length > 0) {
+    return {
+      id: 'tool_surface',
+      status: 'fail',
+      message: `Missing tool surface markers: ${missing.join(', ')}`,
+    };
+  }
+
   return {
     id: 'tool_surface',
     status: 'ok',
-    message: `MCP adapter exposes ${required.length} architecture tools via the Rust engine.`,
+    message: `MCP/Rust/SDK expose ${required.length} architecture tools (including architecture_path).`,
   };
 };
 
