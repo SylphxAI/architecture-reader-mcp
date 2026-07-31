@@ -1,13 +1,11 @@
-# Spine portfolio notes (this repository only)
+# Spine product-local notes
 
-This directory holds **Spine / architecture-reader-mcp product-local** planning notes.
+This directory holds **Spine / architecture-reader-mcp** planning notes only.
 
-**Sylphx Instruments** (composable product family positioning) is **company-level
-knowledge** — not an implementation monorepo and not owned by this repository.
-Other instruments (Citra, Iris, Cue, Prism, Lookout) each live in their **own
-GitHub repository** for independent marketplace listing, release, and stars.
+This repository is the **product SSOT** (marketplace, release, stars, contracts).
 
-Company portfolio knowledge (docs only): https://github.com/SylphxAI/instruments
+Sibling agent tools (Citra/Iris/Cue/Prism/Lookout) are **separate repositories**.
+Company private map: `SylphxAI/portfolio` (thin only). There is **no** central Instruments monorepo.
 
 ## Product-local docs here
 

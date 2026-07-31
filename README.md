@@ -4,7 +4,7 @@
 
 ### Your agent mapped the repo. **Did it trace the right boundary?**
 
-**Spine** is the architecture instrument in the **Sylphx Instruments** product family —
+**Spine** is a local-first architecture evidence product for agents —
 a **local-first architecture engine** for agents and apps (SDK · CLI · MCP).
 
 Agent-native **repository architecture evidence graphs** — boundaries,

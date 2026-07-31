@@ -47,4 +47,6 @@ There is **no** `evidence_first` tool — proof is on results.
 3. Do not invent architecture — call tools, cite evidence.
 4. Sibling instruments (PDF/image/video/web) are **other repos**; do not assume monorepo imports.
 
-Family knowledge: https://github.com/SylphxAI/instruments
+## Independence
+
+This repository is product SSOT. No central Instruments monorepo.

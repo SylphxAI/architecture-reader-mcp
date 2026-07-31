@@ -3,7 +3,7 @@
 Status: **accepted intent** (2026-07-31)  
 Brand: **Spine**  
 Transitional repo: `architecture-reader-mcp`  
-Family: [Sylphx Instruments](https://github.com/SylphxAI/instruments) (company docs only)
+Independence: this repo is product SSOT; siblings are separate repos.
 
 ## 1. Job
 

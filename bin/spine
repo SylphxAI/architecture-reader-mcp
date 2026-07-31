@@ -22,7 +22,7 @@ resolve_cli() {
 
 usage() {
   cat <<'USAGE'
-Spine — local architecture engine (Sylphx Instruments)
+Spine — local architecture engine (Sylphx)
 
 Usage:
   spine index [ROOT] [--mode auto|full] [--include P] [--exclude N] [--max-file-bytes N]
