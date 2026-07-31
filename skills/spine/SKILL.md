@@ -20,12 +20,12 @@ npx @sylphx/architecture-reader-mcp
 | Tool | When |
 | --- | --- |
 | `architecture_index` | First: build/refresh local graph |
-| `architecture_status` | Freshness / dirty worktree |
+| `architecture_status` | Freshness, languages, topFanIn, cycles |
 | `architecture_overview` | Packages, languages, counts, **cycles**; **`focus=` for neighbors** |
 | `architecture_search` | Ranked symbol/module/route lookup |
 | `architecture_path` | Shortest path with hop provenance |
 | `architecture_trace` | Compact path between entities |
-| `architecture_impact` | Blast radius: direct + **incoming** dependents + outgoing deps (`useGitDiff` / `changedPaths`) |
+| `architecture_impact` | Blast radius + **unknownImpact** for unindexed paths |
 | `architecture_evidence` | Resolve evidence ids from prior answers |
 
 ## Evidence contract

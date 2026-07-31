@@ -512,4 +512,25 @@ mod tests {
         assert!(oans["topFanIn"].is_array());
     }
 
+
+    #[test]
+    fn status_reports_languages_and_fanin() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_status",
+            serde_json::json!({ "root": root.to_string_lossy() }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("languages").is_some());
+        assert!(answer.get("topFanIn").is_some());
+        assert!(answer.get("cycles").is_some());
+        assert!(answer["coverage"]["evidence"].as_u64().unwrap_or(0) > 0);
+    }
+
 }

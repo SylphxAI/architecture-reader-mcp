@@ -388,10 +388,14 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "indexed": true,
             "extractors": graph.extractors,
             "schemaVersion": graph.schema_version,
+            "languages": language_surface_stats(&graph),
+            "topFanIn": top_fan_in_modules(&graph, 5),
+            "cycles": find_short_cycles(&graph, 5, 5),
             "coverage": {
                 "nodes": graph.nodes.len(),
                 "edges": graph.edges.len(),
                 "claims": graph.claims.len(),
+                "evidence": graph.evidence.len(),
                 "synthMode": if synth_active { "active" } else { "off" },
                 "importGraphRoute": if synth_active { "synth_ast" } else { "regex_fallback" }
             }
