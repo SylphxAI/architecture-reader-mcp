@@ -33,7 +33,8 @@ tests**, clear tools, and citeable results.
 
 - [x] Brand **Citra** primary in public copy  
 - [x] TS `Citra` SDK class export (`@sylphx/pdf-reader-mcp/sdk`) over pure-rust client  
-- [ ] Package rename / `@sylphx/citra` alias publish  
+- [x] `citra` bin alias on package (transitional npm name retained)  
+- [ ] Dedicated `@sylphx/citra` package publish  
 - First-class SDK surfaces continue (Rust crate ergonomics) isomorphic with MCP  
 - Auto-first agent path; progressive power-user options  
 - Install/registry/bench honesty  
@@ -70,6 +71,7 @@ tests**, clear tools, and citeable results.
 ### G5 — Iris, Cue, Prism
 
 - [x] Iris/Cue SDK façades (`@sylphx/*-reader-mcp/sdk`)
+- [x] Prism SDK façade (`@sylphx/smart-reader-mcp/sdk`)
 - [ ] Iris/Cue meet full media evidence bar (perf/release gates)
 - Prism routes only; suite push after children qualify  
 - Full surfaces and tests for all three  
@@ -90,6 +92,8 @@ tests**, clear tools, and citeable results.
 ## Priority sequence
 
 `G0 → G2 → G3 → G4 → G5 → G6` (G1 is continuous policy).
+
+- [x] Living surface matrix: `docs/portfolio/INSTRUMENTS_SURFACE_MATRIX.md`
 
 ## Completion rule
 

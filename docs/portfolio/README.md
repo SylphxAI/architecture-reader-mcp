@@ -84,6 +84,10 @@ Every Instruments product targets:
 6. Prism suite entry  
 7. Cross-cutting registry & benches  
 
+## Surface matrix
+
+[INSTRUMENTS_SURFACE_MATRIX.md](./INSTRUMENTS_SURFACE_MATRIX.md)
+
 ## Final goals (portfolio)
 
 See [GOALS.md](./GOALS.md).
