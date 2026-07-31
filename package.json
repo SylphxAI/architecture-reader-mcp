@@ -19,7 +19,8 @@
     "benchmark:release-gate": "bun run build:rust && bun run scripts/release-gate.ts",
     "sync:server-json": "bun scripts/sync-server-json.ts",
     "version-packages": "changeset version && bun run sync:server-json",
-    "release": "bun test && changeset publish"
+    "release": "bun test && changeset publish",
+    "brand:pack-plan": "bun scripts/brand-pack-plan.ts"
   },
   "repository": {
     "type": "git",

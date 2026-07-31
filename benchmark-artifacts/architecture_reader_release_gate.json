@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-31T17:16:18.281Z",
+  "generated_at": "2026-07-31T17:19:49.582Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 22,
-    "passed": 22,
+    "total": 23,
+    "passed": 23,
     "failed": 0
   },
   "checks": [
@@ -113,6 +113,11 @@
       "id": "surface:agent_skill",
       "status": "passed",
       "message": "Graphify-class agent skill surface is present at skills/spine/SKILL.md"
+    },
+    {
+      "id": "docs:brand_publish",
+      "status": "passed",
+      "message": "Brand publish readiness doc is present"
     },
     {
       "id": "brand:server_json_title_spine",

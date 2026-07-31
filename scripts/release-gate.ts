@@ -231,6 +231,13 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
 
   addCheck(
     checks,
+    'docs:brand_publish',
+    fileExists('docs/BRAND_PUBLISH.md'),
+    'Brand publish readiness doc is present'
+  );
+
+  addCheck(
+    checks,
     'brand:server_json_title_spine',
     (JSON.parse(readFileSync(path.join(repoRoot, 'server.json'), 'utf8')) as { title?: string })
       .title === 'Spine',
