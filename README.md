@@ -4,7 +4,7 @@
 
 ### Your agent mapped the repo. **Did it trace the right boundary?**
 
-**Spine** is the architecture instrument in [Sylphx Instruments](docs/portfolio/sylphx-instruments-ssot.md) —
+**Spine** is the architecture instrument in the **Sylphx Instruments** product family —
 a **local-first architecture engine** for agents and apps (SDK · CLI · MCP).
 
 Agent-native **repository architecture evidence graphs** — boundaries,
@@ -40,7 +40,7 @@ not replace it. Reader portfolio media tools live in
 | [Graphify](https://github.com/Graphify-Labs/graphify) | Excellent local AST graph + CLI — Spine targets the same local honesty **plus first-class MCP/SDK** and architecture/impact workflows |
 | [Serena](https://github.com/oraios/serena) | Symbol **edit** IDE for agents — Spine does **not** own edits |
 
-Targets: [docs/portfolio/roadmaps/spine.md](docs/portfolio/roadmaps/spine.md) · Family SSOT: [docs/portfolio/sylphx-instruments-ssot.md](docs/portfolio/sylphx-instruments-ssot.md)
+Targets: [docs/portfolio/specs/spine-product-spec-v0.md](docs/portfolio/specs/spine-product-spec-v0.md) (product-local). Other instruments are separate repositories.
 
 ## The problem
 
