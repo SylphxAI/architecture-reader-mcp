@@ -25,7 +25,7 @@ npx @sylphx/architecture-reader-mcp
 | `architecture_status` | Freshness, languages, topFanIn/Out, **orphans**, cycles |
 | `architecture_overview` | Packages, languages, counts, **cycles**, **orphans** (zero inbound); **`focus=` for neighbors** |
 | `architecture_search` | Ranked symbol/module/route lookup |
-| `architecture_path` | Shortest path with hop provenance |
+| `architecture_path` | Shortest path with hop provenance + **mermaid** diagram |
 | `architecture_trace` | Compact path + **hop provenance** (edge kinds) |
 | `architecture_impact` | Blast radius + **unknownImpact** for unindexed paths |
 | `architecture_evidence` | Resolve evidence ids from prior answers |
@@ -33,7 +33,7 @@ npx @sylphx/architecture-reader-mcp
 
 ## Languages
 
-TS/JS, Python, Rust, Go, Java, C#, Kotlin, Ruby, PHP, **C/C++** (`c@0.1.0`).
+TS/JS, Python, Rust, Go, Java, C#, Kotlin, Ruby, PHP, **C/C++, Shell** (`c@0.1.0`).
 
 ## Evidence contract
 

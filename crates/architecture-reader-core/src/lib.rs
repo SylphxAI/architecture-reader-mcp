@@ -248,6 +248,31 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn path_includes_mermaid_diagram() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_path",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "from": "authMiddleware",
+                "to": "validateToken",
+                "relation": "calls",
+                "maxDepth": 6
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let mermaid = answer.get("mermaid").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(mermaid.contains("graph LR"), "mermaid={mermaid}");
+    }
+
     #[test]
     fn impact_reports_direct_nodes_for_changed_path() {
         let _guard = fixture_index_lock().lock().expect("fixture index lock");

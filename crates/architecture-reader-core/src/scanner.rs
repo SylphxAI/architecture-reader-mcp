@@ -224,6 +224,7 @@ pub fn scan_repository_paths(
         "ruby@0.1.0".into(),
         "php@0.1.0".into(),
         "c@0.1.0".into(),
+        "shell@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -392,6 +393,16 @@ fn index_file(
         match pass {
             IndexPass::Structure => index_c_module(builder, rel_str, path, IndexPass::Structure),
             IndexPass::Calls => index_c_module(builder, rel_str, path, IndexPass::Calls),
+        }
+        return;
+    }
+    if rel_str.ends_with(".sh")
+        || rel_str.ends_with(".bash")
+        || rel_str.ends_with(".zsh")
+        || rel_str.ends_with(".ksh")
+    {
+        if pass == IndexPass::Structure {
+            index_shell_module(builder, rel_str, path);
         }
         return;
     }
@@ -1034,6 +1045,47 @@ fn index_c_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: Inde
                 builder.push_edge("calls", &caller_id, &target_id, &ev);
             }
         }
+    }
+    let _ = path;
+}
+
+
+fn index_shell_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "shell@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // source ./lib.sh or . ./lib.sh
+    let source_re = Regex::new(r#"(?m)^\s*(?:source|\.)\s+["']?([^"'\s;]+)"#).unwrap();
+    for cap in source_re.captures_iter(&content) {
+        let dep = cap[1].to_string();
+        let dep_id = format!("node:module:shell:{}", dep.replace('/', ":"));
+        if !builder.has_node(&dep_id) {
+            builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+        }
+        builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+    }
+    // function name() { or name () {
+    let fn_re = Regex::new(
+        r#"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\)\s*)?\{"#,
+    )
+    .unwrap();
+    let skip = ["if", "for", "while", "case", "until", "select", "function"];
+    for cap in fn_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        if skip.contains(&name.as_str()) {
+            continue;
+        }
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "shell@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
     }
     let _ = path;
 }
@@ -2782,5 +2834,29 @@ int issue_token(int seed) {
         );
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn shell_extracts_functions_and_source() {
+        let content = r#"
+#!/usr/bin/env bash
+source ./lib.sh
+
+doctor() {
+  echo ok
+}
+
+main() {
+  doctor
+}
+"#;
+        let tmp = tempfile_path("spine.sh", content);
+        let mut builder = GraphBuilder::default();
+        index_shell_module(&mut builder, "scripts/spine.sh", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label == "doctor" || n.id.contains("function:doctor")));
+        assert!(builder.nodes.iter().any(|n| n.label == "main" || n.id.contains("function:main")));
+        assert!(builder.edges.iter().any(|e| e.kind == "imports"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 }

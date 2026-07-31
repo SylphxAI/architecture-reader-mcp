@@ -806,6 +806,51 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
 }
 
 
+
+fn hops_to_mermaid(graph: &ArchitectureGraph, hops: &[serde_json::Value]) -> String {
+    let mut lines = vec!["graph LR".to_string()];
+    for (i, hop) in hops.iter().enumerate() {
+        let from = hop
+            .get("fromNode")
+            .and_then(|n| n.get("label"))
+            .or_else(|| hop.get("from"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let to = hop
+            .get("toNode")
+            .and_then(|n| n.get("label"))
+            .or_else(|| hop.get("to"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let edge = hop.get("kind").and_then(|v| v.as_str()).unwrap_or("rel");
+        let from_s = sanitize_mermaid_id(from, i, "f");
+        let to_s = sanitize_mermaid_id(to, i, "t");
+        lines.push(format!(
+            "  {from_s}[\"{}\"] -->|{}| {to_s}[\"{}\"]",
+            escape_mermaid_label(from),
+            edge,
+            escape_mermaid_label(to)
+        ));
+    }
+    if hops.is_empty() {
+        lines.push("  empty[\"no path\"]".into());
+    }
+    let _ = graph;
+    lines.join("\n")
+}
+
+fn sanitize_mermaid_id(label: &str, i: usize, prefix: &str) -> String {
+    let cleaned: String = label
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    format!("{prefix}{i}_{cleaned}")
+}
+
+fn escape_mermaid_label(label: &str) -> String {
+    label.replace('"', "'")
+}
+
 fn architecture_path(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -886,6 +931,7 @@ fn architecture_path(input: serde_json::Value) -> ToolEnvelope {
             "hopCount": hop_count,
             "nodes": node_path,
             "hops": hops,
+            "mermaid": hops_to_mermaid(&graph, &hops),
             "suggestions": suggestions,
         }),
         evidence,
@@ -1508,6 +1554,12 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             || path.ends_with(".hh")
         {
             "c"
+        } else if path.ends_with(".sh")
+            || path.ends_with(".bash")
+            || path.ends_with(".zsh")
+            || path.ends_with(".ksh")
+        {
+            "shell"
         } else if path.is_empty() {
             "external"
         } else {
