@@ -606,4 +606,44 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn evidence_resolves_node_and_reports_missing() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let search = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({ "root": root.to_string_lossy(), "query": "token", "limit": 3 }),
+        );
+        assert_eq!(search.status, "ok");
+        let mid = search
+            .answer
+            .as_ref()
+            .and_then(|a| a["matches"].as_array())
+            .and_then(|m| m.first())
+            .and_then(|m| m["id"].as_str())
+            .expect("match id")
+            .to_string();
+        let envelope = engine::handle_tool(
+            "architecture_evidence",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "ids": [mid, "ev_does_not_exist"]
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer["items"].as_u64().unwrap_or(0) >= 1 || !answer["resolved"].as_array().unwrap().is_empty());
+        let missing = answer["missing"].as_array().cloned().unwrap_or_default();
+        assert!(
+            missing.iter().any(|m| m.as_str() == Some("ev_does_not_exist")),
+            "missing={:?}",
+            missing
+        );
+    }
+
 }

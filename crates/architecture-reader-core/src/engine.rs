@@ -1096,34 +1096,93 @@ fn architecture_evidence(input: serde_json::Value) -> ToolEnvelope {
         .unwrap_or_default();
 
     let mut found = Vec::new();
+    let mut resolved = Vec::new();
+    let mut missing = Vec::new();
+    let mut seen_ev = std::collections::HashSet::<String>::new();
+
     for id in &ids {
+        let mut got = false;
         if let Some(ev) = graph.evidence.iter().find(|e| e.id == *id) {
-            found.push(ev.clone());
-            continue;
+            if seen_ev.insert(ev.id.clone()) {
+                found.push(ev.clone());
+            }
+            got = true;
         }
         if let Some(node) = graph.nodes.iter().find(|n| n.id == *id) {
             for ev_id in &node.evidence_ids {
-                if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
-                    found.push(ev.clone());
+                if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
+                    if seen_ev.insert(ev.id.clone()) {
+                        found.push(ev.clone());
+                    }
+                    got = true;
+                }
+            }
+            resolved.push(json!({ "id": id, "kind": "node", "node": node_summary(&graph, id) }));
+        }
+        if let Some(edge) = graph.edges.iter().find(|e| e.id == *id) {
+            for ev_id in &edge.evidence_ids {
+                if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
+                    if seen_ev.insert(ev.id.clone()) {
+                        found.push(ev.clone());
+                    }
+                    got = true;
+                }
+            }
+            resolved.push(json!({
+                "id": id,
+                "kind": "edge",
+                "edge": edge.kind,
+                "from": edge.from,
+                "to": edge.to,
+                "fromNode": node_summary(&graph, &edge.from),
+                "toNode": node_summary(&graph, &edge.to),
+            }));
+        }
+        // label/path fallback
+        if !got {
+            if let Some(nid) = resolve_node_id(&graph, id) {
+                if let Some(node) = graph.nodes.iter().find(|n| n.id == nid) {
+                    for ev_id in &node.evidence_ids {
+                        if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
+                            if seen_ev.insert(ev.id.clone()) {
+                                found.push(ev.clone());
+                            }
+                            got = true;
+                        }
+                    }
+                    resolved.push(json!({ "id": id, "kind": "resolved_node", "node": node_summary(&graph, &nid) }));
                 }
             }
         }
+        if !got {
+            missing.push(id.clone());
+        }
     }
 
-    if found.is_empty() {
+    if found.is_empty() && resolved.is_empty() {
         return ToolEnvelope::error(
             "EVIDENCE_NOT_FOUND",
             "No evidence found for the requested ids.",
-            Some("Call architecture_search or architecture_overview first."),
+            Some("Call architecture_search, architecture_path, or architecture_overview first."),
         );
+    }
+
+    let mut gaps = Vec::new();
+    if !missing.is_empty() {
+        gaps.push(format!("No evidence for ids: {}", missing.join(", ")));
     }
 
     let repo = repository_state(&root, Some(&graph));
     ToolEnvelope::ok(
         repo,
-        json!({ "items": found.len(), "ids": ids }),
+        json!({
+            "items": found.len(),
+            "ids": ids,
+            "resolved": resolved,
+            "missing": missing,
+        }),
         found,
-        vec![],
+        gaps,
         metrics(started, &graph),
     )
 }
@@ -1356,7 +1415,7 @@ fn bfs_path_detailed(
 fn edge_provenance(graph: &ArchitectureGraph, edge: &crate::types::GraphEdge) -> &'static str {
     // Graphify-style honesty: extracted = deterministic evidence present; else inferred.
     for ev_id in &edge.evidence_ids {
-        if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+        if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
             if matches!(ev.confidence, Confidence::Deterministic | Confidence::Derived) {
                 return "extracted";
             }
@@ -1385,7 +1444,7 @@ fn collect_path_evidence(
             if !seen.insert(ev_id.clone()) {
                 continue;
             }
-            if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+            if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
                 out.push(ev.clone());
             }
         }
@@ -1395,7 +1454,7 @@ fn collect_path_evidence(
                     if !seen.insert(ev_id.clone()) {
                         continue;
                     }
-                    if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+                    if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
                         out.push(ev.clone());
                     }
                 }
@@ -1413,7 +1472,7 @@ fn collect_evidence_for_nodes(graph: &ArchitectureGraph, matches: &[serde_json::
         };
         if let Some(node) = graph.nodes.iter().find(|n| n.id == id) {
             for ev_id in &node.evidence_ids {
-                if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+                if let Some(ev) = graph.evidence.iter().find(|e| e.id == *ev_id) {
                     out.push(ev.clone());
                 }
             }

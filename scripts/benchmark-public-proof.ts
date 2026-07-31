@@ -12,6 +12,7 @@ const outDir = process.env.MCP_ARCHITECTURE_BENCHMARK_OUTPUT_DIR
 function resolveCli(): string {
   for (const c of [
     process.env.ARCHITECTURE_READER_CLI_BIN,
+    process.env.ARCHITECTURE_READER_CLI,
     join(root, 'bin/native/architecture-reader-cli'),
     join(root, 'target/release/architecture-reader-cli'),
     join(root, 'target/debug/architecture-reader-cli'),
@@ -41,7 +42,12 @@ function run(cli: string, tool: string, input: Record<string, unknown>) {
 
 const cli = resolveCli();
 const index = run(cli, 'architecture_index', { root: fixture, mode: 'full', useSynth: false });
-const search = run(cli, 'architecture_search', { root: fixture, query: 'issue_token', limit: 5 });
+const search = run(cli, 'architecture_search', {
+  root: fixture,
+  query: 'issue_token',
+  limit: 5,
+  includeNeighbors: true,
+});
 const path = run(cli, 'architecture_path', {
   root: fixture,
   from: 'src/auth/token.ts',
@@ -49,10 +55,15 @@ const path = run(cli, 'architecture_path', {
 });
 const impact = run(cli, 'architecture_impact', {
   root: fixture,
-  changedPaths: ['src/auth/token.ts'],
+  changedPaths: ['src/auth/token.ts', 'does/not/exist.ts'],
   maxDepth: 2,
 });
 const overview = run(cli, 'architecture_overview', { root: fixture, depth: 3 });
+const status = run(cli, 'architecture_status', { root: fixture });
+const matchId = (search.envelope.answer as { matches?: { id?: string }[] })?.matches?.[0]?.id;
+const evidence = matchId
+  ? run(cli, 'architecture_evidence', { root: fixture, ids: [matchId, 'ev_missing'] })
+  : null;
 
 const report = {
   product: 'Spine',
@@ -63,17 +74,31 @@ const report = {
   pathMs: path.wallMs,
   impactMs: impact.wallMs,
   overviewMs: overview.wallMs,
+  statusMs: status.wallMs,
+  evidenceMs: evidence?.wallMs,
   nodes: index.envelope.metrics?.nodeCount,
   edges: index.envelope.metrics?.edgeCount,
   searchTopLabel: (search.envelope.answer as { matches?: { label?: string }[] })?.matches?.[0]?.label,
+  searchHasNeighbors: Boolean(
+    (search.envelope.answer as { matches?: { neighbors?: unknown[] }[] })?.matches?.[0]?.neighbors,
+  ),
+  pathHopCount: (path.envelope.answer as { hopCount?: number })?.hopCount,
   impactIncoming: ((impact.envelope.answer as { incomingImpact?: unknown[] })?.incomingImpact ?? []).length,
   impactOutgoing: ((impact.envelope.answer as { outgoingImpact?: unknown[] })?.outgoingImpact ?? []).length,
+  impactUnknown: ((impact.envelope.answer as { unknownImpact?: unknown[] })?.unknownImpact ?? []).length,
+  hasTopFanIn: Array.isArray((overview.envelope.answer as { topFanIn?: unknown[] })?.topFanIn),
+  hasTopFanOut: Array.isArray((overview.envelope.answer as { topFanOut?: unknown[] })?.topFanOut),
+  hasCycles: Array.isArray((overview.envelope.answer as { cycles?: unknown[] })?.cycles),
+  statusLanguages: (status.envelope.answer as { languages?: unknown })?.languages,
+  evidenceMissing: ((evidence?.envelope.answer as { missing?: unknown[] })?.missing ?? []).length,
   languages: (overview.envelope.answer as { languages?: unknown })?.languages,
   ok:
     index.envelope.status === 'ok' &&
     search.envelope.status === 'ok' &&
     impact.envelope.status === 'ok' &&
-    overview.envelope.status === 'ok',
+    overview.envelope.status === 'ok' &&
+    status.envelope.status === 'ok' &&
+    ((impact.envelope.answer as { unknownImpact?: unknown[] })?.unknownImpact ?? []).length >= 1,
 };
 
 mkdirSync(outDir, { recursive: true });
