@@ -205,4 +205,37 @@ mod tests {
         let matches = answer["matches"].as_array().expect("matches array");
         assert!(!matches.is_empty());
     }
+
+    #[test]
+    fn path_returns_hops_with_provenance_in_fixture() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let index_input = serde_json::json!({
+            "root": root.to_string_lossy(),
+            "mode": "full",
+            "useSynth": false
+        });
+        let _ = engine::handle_tool("architecture_index", index_input);
+        let path_input = serde_json::json!({
+            "root": root.to_string_lossy(),
+            "from": "authMiddleware",
+            "to": "validateToken",
+            "relation": "calls",
+            "maxDepth": 6
+        });
+        let envelope = engine::handle_tool("architecture_path", path_input);
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("hopCount").is_some());
+        assert!(answer.get("hops").is_some());
+        assert!(answer.get("nodes").is_some());
+        let hops = answer["hops"].as_array().cloned().unwrap_or_default();
+        if !hops.is_empty() {
+            assert!(hops[0].get("provenance").is_some());
+            assert!(hops[0].get("edgeKind").is_some());
+            let nodes = answer["nodes"].as_array().cloned().unwrap_or_default();
+            assert!(nodes.len() >= 2);
+        }
+    }
+
 }

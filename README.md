@@ -158,7 +158,8 @@ Trace dependency or impact before editing:
 | Build or refresh the index | `architecture_index` |
 | Check freshness and coverage | `architecture_status` |
 | Top-level repo map | `architecture_overview` |
-| Find boundaries, routes, schemas | `architecture_search` |
+| Find boundaries, routes, schemas | `architecture_path` | Shortest path with hop provenance (`extracted`/`inferred`) |
+| `architecture_search` |
 | Follow dependency or call paths | `architecture_trace` |
 | Estimate diff blast radius | `architecture_impact` |
 | Fetch proof behind a claim | `architecture_evidence` |
@@ -291,6 +292,24 @@ more agent builders find evidence-backed architecture answers before irreversibl
 | [mcp.so submit](https://mcp.so/submit) | Not listed yet — directory submission |
 
 Know another MCP directory? [Open an issue](https://github.com/SylphxAI/architecture-reader-mcp/issues/new) with the link.
+
+
+## Spine CLI / SDK
+
+```bash
+bun run build:rust
+./bin/spine index .
+./bin/spine search . auth
+./bin/spine path . authMiddleware validateToken --relation calls
+```
+
+TypeScript:
+```ts
+import { Spine } from '@sylphx/architecture-reader-mcp/sdk'
+const spine = Spine.create({ root: process.cwd() })
+await spine.index({ mode: 'full' })
+const path = await spine.path('authMiddleware', 'validateToken', { relation: 'calls' })
+```
 
 ## License
 

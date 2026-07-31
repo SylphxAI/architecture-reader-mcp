@@ -10,7 +10,7 @@ use crate::scanner::{
 };
 use crate::store::{load_file_hashes, load_graph, save_file_hashes, save_graph, FileHashManifest};
 use crate::types::{
-    ArchitectureGraph, EvidenceRef, GraphNode, Metrics, RepositoryState, ToolEnvelope,
+    ArchitectureGraph, Confidence, EvidenceRef, GraphNode, Metrics, RepositoryState, ToolEnvelope,
     GRAPH_SCHEMA_VERSION,
 };
 
@@ -21,6 +21,7 @@ pub fn handle_tool(tool: &str, input: serde_json::Value) -> ToolEnvelope {
         "architecture_status" => architecture_status(input),
         "architecture_overview" => architecture_overview(input),
         "architecture_search" => architecture_search(input),
+        "architecture_path" => architecture_path(input),
         "architecture_trace" => architecture_trace(input),
         "architecture_impact" => architecture_impact(input),
         "architecture_evidence" => architecture_evidence(input),
@@ -422,6 +423,91 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
     )
 }
 
+
+fn architecture_path(input: serde_json::Value) -> ToolEnvelope {
+    let started = Instant::now();
+    let root = match resolve_root(&input) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let graph = match require_graph(&root) {
+        Ok(g) => g,
+        Err(e) => return e,
+    };
+    let from = input
+        .get("from")
+        .or_else(|| input.get("source"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let to = input
+        .get("to")
+        .or_else(|| input.get("target"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if from.is_empty() || to.is_empty() {
+        return ToolEnvelope::error(
+            "INVALID_PATH_QUERY",
+            "architecture_path requires from/source and to/target.",
+            Some("Pass from and to node ids, paths, labels, or path::symbol."),
+        );
+    }
+    let relation = input
+        .get("relation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("any");
+    let max_depth = input
+        .get("maxDepth")
+        .or_else(|| input.get("max_depth"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(8) as usize;
+
+    let from_id = resolve_node_id(&graph, from);
+    let to_id = resolve_node_id(&graph, to);
+    let (node_path, hops) = match (from_id.as_deref(), to_id.as_deref()) {
+        (Some(f), Some(t)) => bfs_path_detailed(&graph, f, t, relation, max_depth),
+        _ => (vec![], vec![]),
+    };
+
+    let mut gaps = Vec::new();
+    if from_id.is_none() {
+        gaps.push(format!("Could not resolve path start: {from}"));
+    }
+    if to_id.is_none() {
+        gaps.push(format!("Could not resolve path end: {to}"));
+    }
+    if node_path.is_empty() && from_id.is_some() && to_id.is_some() {
+        gaps.push("No path found between the requested entities under the relation/depth budget.".into());
+    }
+    gaps.extend(coverage_gaps(
+        &graph,
+        graph
+            .extractors
+            .iter()
+            .any(|extractor| extractor.starts_with("synth-")),
+    ));
+
+    let hop_count = hops.len();
+    let evidence = collect_path_evidence(&graph, &hops);
+    let repo = repository_state(&root, Some(&graph));
+    ToolEnvelope::ok(
+        repo,
+        json!({
+            "from": from,
+            "to": to,
+            "fromId": from_id,
+            "toId": to_id,
+            "relation": relation,
+            "maxDepth": max_depth,
+            "hopCount": hop_count,
+            "nodes": node_path,
+            "hops": hops,
+        }),
+        evidence,
+        gaps,
+        metrics(started, &graph),
+    )
+}
+
 fn architecture_trace(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -666,6 +752,118 @@ fn bfs_path(
         }
     }
     vec![]
+}
+
+
+fn bfs_path_detailed(
+    graph: &ArchitectureGraph,
+    from: &str,
+    to: &str,
+    relation: &str,
+    max_depth: usize,
+) -> (Vec<String>, Vec<serde_json::Value>) {
+    // adjacency: from -> list of (to, edge)
+    let mut adjacency: HashMap<&str, Vec<(&str, &crate::types::GraphEdge)>> = HashMap::new();
+    for edge in &graph.edges {
+        if relation != "any" && edge.kind != relation {
+            continue;
+        }
+        adjacency
+            .entry(edge.from.as_str())
+            .or_default()
+            .push((edge.to.as_str(), edge));
+    }
+
+    let mut queue: VecDeque<(String, Vec<String>, Vec<String>)> =
+        VecDeque::from([(from.to_string(), vec![from.to_string()], vec![])]);
+    let mut visited = HashSet::from([from.to_string()]);
+
+    while let Some((current, node_path, edge_ids)) = queue.pop_front() {
+        if node_path.len().saturating_sub(1) > max_depth {
+            continue;
+        }
+        if current == to {
+            let hops = edge_ids
+                .iter()
+                .filter_map(|eid| graph.edges.iter().find(|e| &e.id == eid))
+                .map(|edge| {
+                    let provenance = edge_provenance(graph, edge);
+                    json!({
+                        "from": edge.from,
+                        "to": edge.to,
+                        "edgeId": edge.id,
+                        "edgeKind": edge.kind,
+                        "provenance": provenance,
+                    })
+                })
+                .collect::<Vec<_>>();
+            return (node_path, hops);
+        }
+        if let Some(neighbors) = adjacency.get(current.as_str()) {
+            for (next, edge) in neighbors {
+                if visited.insert((*next).to_string()) {
+                    let mut next_nodes = node_path.clone();
+                    next_nodes.push((*next).to_string());
+                    let mut next_edges = edge_ids.clone();
+                    next_edges.push(edge.id.clone());
+                    queue.push_back(((*next).to_string(), next_nodes, next_edges));
+                }
+            }
+        }
+    }
+    (vec![], vec![])
+}
+
+fn edge_provenance(graph: &ArchitectureGraph, edge: &crate::types::GraphEdge) -> &'static str {
+    // Graphify-style honesty: extracted = deterministic evidence present; else inferred.
+    for ev_id in &edge.evidence_ids {
+        if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+            if matches!(ev.confidence, Confidence::Deterministic | Confidence::Derived) {
+                return "extracted";
+            }
+        }
+    }
+    if edge.evidence_ids.is_empty() {
+        return "inferred";
+    }
+    "inferred"
+}
+
+fn collect_path_evidence(
+    graph: &ArchitectureGraph,
+    hops: &[serde_json::Value],
+) -> Vec<EvidenceRef> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for hop in hops {
+        let Some(edge_id) = hop.get("edgeId").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(edge) = graph.edges.iter().find(|e| e.id == edge_id) else {
+            continue;
+        };
+        for ev_id in &edge.evidence_ids {
+            if !seen.insert(ev_id.clone()) {
+                continue;
+            }
+            if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+                out.push(ev.clone());
+            }
+        }
+        for endpoint in [&edge.from, &edge.to] {
+            if let Some(node) = graph.nodes.iter().find(|n| &n.id == endpoint) {
+                for ev_id in &node.evidence_ids {
+                    if !seen.insert(ev_id.clone()) {
+                        continue;
+                    }
+                    if let Some(ev) = graph.evidence.iter().find(|e| &e.id == ev_id) {
+                        out.push(ev.clone());
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 fn collect_evidence_for_nodes(graph: &ArchitectureGraph, matches: &[serde_json::Value]) -> Vec<EvidenceRef> {

@@ -31,8 +31,10 @@ tests**, clear tools, and citeable results.
 
 ### G2 — Citra (PDF flagship)
 
-- Brand **Citra** primary in public copy  
-- First-class SDK surfaces (TS/Rust) isomorphic with MCP  
+- [x] Brand **Citra** primary in public copy  
+- [x] TS `Citra` SDK class export (`@sylphx/pdf-reader-mcp/sdk`) over pure-rust client  
+- [ ] Package rename / `@sylphx/citra` alias publish  
+- First-class SDK surfaces continue (Rust crate ergonomics) isomorphic with MCP  
 - Auto-first agent path; progressive power-user options  
 - Install/registry/bench honesty  
 - Remains packaging & quality template for the family  
@@ -40,6 +42,9 @@ tests**, clear tools, and citeable results.
 ### G3 — Spine (architecture)
 
 - [x] Product spec v0 (`docs/portfolio/specs/spine-product-spec-v0.md`)
+- [x] `architecture_path` tool with hop provenance + tests
+- [x] Human CLI `bin/spine` + TS SDK export `@sylphx/architecture-reader-mcp/sdk`
+- [ ] Full language coverage / perf gates / npm package rename to spine
 
 
 - Greenfield-capable redesign under Instruments rules  
@@ -51,6 +56,8 @@ tests**, clear tools, and citeable results.
 ### G4 — Lookout (web)
 
 - [x] Product spec v0 (`docs/portfolio/specs/lookout-product-spec-v0.md`)
+- [x] Public scaffold repo [SylphxAI/lookout](https://github.com/SylphxAI/lookout) (SDK/CLI/core stubs)
+- [ ] Phase 1 engine: search/fetch/extract/cache implementation
 
 
 - New product specified vs wigolo  

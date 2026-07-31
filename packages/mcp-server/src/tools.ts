@@ -27,6 +27,15 @@ export const architectureSearchSchema = rootSchema.extend({
   includeEvidence: z.boolean().optional(),
 });
 
+export const architecturePathSchema = rootSchema.extend({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  source: z.string().optional(),
+  target: z.string().optional(),
+  relation: z.string().optional(),
+  maxDepth: z.number().int().positive().optional(),
+});
+
 export const architectureTraceSchema = rootSchema.extend({
   from: z.string(),
   to: z.string(),

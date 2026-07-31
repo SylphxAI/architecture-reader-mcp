@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Spine human CLI — isomorphic with MCP tools via architecture-reader-cli JSON bridge.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+resolve_cli() {
+  if [[ -n "${ARCHITECTURE_READER_CLI_BIN:-}" && -x "${ARCHITECTURE_READER_CLI_BIN}" ]]; then
+    printf '%s\n' "${ARCHITECTURE_READER_CLI_BIN}"
+    return 0
+  fi
+  for candidate in \
+    "$ROOT/bin/native/architecture-reader-cli" \
+    "$ROOT/target/release/architecture-reader-cli" \
+    "$ROOT/target/debug/architecture-reader-cli"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+usage() {
+  cat <<'USAGE'
+Spine — local architecture engine (Sylphx Instruments)
+
+Usage:
+  spine index [ROOT] [--mode auto|full]
+  spine status [ROOT]
+  spine overview [ROOT]
+  spine search [ROOT] <query>
+  spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
+  spine trace [ROOT] <from> <to>
+  spine impact [ROOT] <path> [<path>...]
+  spine evidence [ROOT] <id> [<id>...]
+  spine mcp
+  spine doctor
+  spine help
+
+ROOT defaults to the current working directory.
+Requires: cargo/bun build producing architecture-reader-cli (bun run build:rust).
+USAGE
+}
+
+if ! CLI="$(resolve_cli)"; then
+  echo "[spine] architecture-reader-cli not built. Run: bun run build:rust" >&2
+  exit 1
+fi
+
+cmd="${1:-help}"
+shift || true
+
+repo_root="$(pwd)"
+# optional first arg as root if it is a directory and command needs it
+case "$cmd" in
+  index|status|overview|search|path|trace|impact|evidence)
+    if [[ "${1:-}" == /* || "${1:-}" == .* || -d "${1:-}" ]]; then
+      if [[ -d "${1:-}" ]]; then
+        repo_root="$(cd "$1" && pwd)"
+        shift
+      fi
+    fi
+    ;;
+esac
+
+invoke() {
+  local tool="$1"
+  local input_json="$2"
+  printf '%s\n' "{\"tool\":\"$tool\",\"input\":$input_json}" | "$CLI"
+}
+
+json_escape() {
+  python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+}
+
+case "$cmd" in
+  help|-h|--help) usage; exit 0 ;;
+  mcp)
+    exec "$ROOT/bin/architecture-reader-mcp"
+    ;;
+  doctor)
+    if command -v bun >/dev/null 2>&1; then
+      exec bun run "$ROOT/packages/mcp-server/src/doctor.ts"
+    fi
+    echo "[spine] doctor requires bun" >&2
+    exit 1
+    ;;
+  index)
+    mode="auto"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --mode) mode="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    invoke architecture_index "{\"root\":$(json_escape "$repo_root"),\"mode\":$(json_escape "$mode")}"
+    ;;
+  status)
+    invoke architecture_status "{\"root\":$(json_escape "$repo_root")}"
+    ;;
+  overview)
+    invoke architecture_overview "{\"root\":$(json_escape "$repo_root")}"
+    ;;
+  search)
+    q="${1:-}"; [[ -n "$q" ]] || { echo "search requires query" >&2; exit 2; }
+    invoke architecture_search "{\"root\":$(json_escape "$repo_root"),\"query\":$(json_escape "$q"),\"limit\":10}"
+    ;;
+  path)
+    from="${1:-}"; to="${2:-}"
+    [[ -n "$from" && -n "$to" ]] || { echo "path requires from to" >&2; exit 2; }
+    shift 2 || true
+    relation="any"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --relation) relation="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    invoke architecture_path "{\"root\":$(json_escape "$repo_root"),\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to"),\"relation\":$(json_escape "$relation"),\"maxDepth\":8}"
+    ;;
+  trace)
+    from="${1:-}"; to="${2:-}"
+    [[ -n "$from" && -n "$to" ]] || { echo "trace requires from to" >&2; exit 2; }
+    invoke architecture_trace "{\"root\":$(json_escape "$repo_root"),\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to"),\"relation\":\"any\",\"maxDepth\":5}"
+    ;;
+  impact)
+    [[ $# -gt 0 ]] || { echo "impact requires at least one path" >&2; exit 2; }
+    paths=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")
+    invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"changedPaths\":$paths}"
+    ;;
+  evidence)
+    [[ $# -gt 0 ]] || { echo "evidence requires id(s)" >&2; exit 2; }
+    ids=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")
+    invoke architecture_evidence "{\"root\":$(json_escape "$repo_root"),\"ids\":$ids}"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac

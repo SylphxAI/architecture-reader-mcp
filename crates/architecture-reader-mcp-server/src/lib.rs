@@ -25,7 +25,7 @@ impl FreeformToolArgs {
 pub const SERVER_NAME: &str = "architecture-reader-mcp";
 pub const SERVER_VERSION: &str = "0.1.0";
 pub const SERVER_INSTRUCTIONS: &str =
-    "Architecture Reader MCP server (Rust rmcp transport). Index, search, trace, impact, and evidence tools run through the Rust evidence-graph engine.";
+    "Architecture Reader MCP server (Rust rmcp transport). Index, search, path, trace, impact, and evidence tools run through the Rust evidence-graph engine.";
 
 #[derive(Clone)]
 pub struct ArchitectureReaderMcp {
@@ -76,6 +76,14 @@ impl ArchitectureReaderMcp {
         Parameters(args): Parameters<FreeformToolArgs>,
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
         self.invoke("architecture_search", args.into_value())
+    }
+
+    #[tool(description = "Shortest architecture path between two entities with hop provenance (extracted|inferred).")]
+    fn architecture_path(
+        &self,
+        Parameters(args): Parameters<FreeformToolArgs>,
+    ) -> Result<rmcp::model::CallToolResult, ErrorData> {
+        self.invoke("architecture_path", args.into_value())
     }
 
     #[tool(description = "Trace relations between architecture nodes or symbols.")]

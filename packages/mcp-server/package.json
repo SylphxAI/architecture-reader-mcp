@@ -3,25 +3,29 @@
   "version": "0.2.0",
   "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
   "type": "module",
-  "description": "Agent-native architecture evidence graph MCP with Rust indexing, trace, impact, and search.",
+  "description": "Spine \u2014 local architecture engine for agents (SDK \u00b7 CLI \u00b7 MCP). Transitional package name architecture-reader-mcp.",
   "publishConfig": {
     "access": "public"
   },
   "license": "MIT",
   "bin": {
-    "architecture-reader-mcp": "../../bin/architecture-reader-mcp"
+    "architecture-reader-mcp": "../../bin/architecture-reader-mcp",
+    "spine": "../../bin/spine"
   },
   "files": [
+    "LICENSE",
+    "README.md",
     "src/doctor.ts",
     "src/engine.ts",
-    "src/tools.ts",
-    "README.md",
-    "LICENSE"
+    "src/spine-sdk.ts",
+    "src/tools.ts"
   ],
   "exports": {
     ".": "./src/tools.ts",
     "./doctor": "./src/doctor.ts",
-    "./tools": "./src/tools.ts"
+    "./tools": "./src/tools.ts",
+    "./spine": "./src/spine-sdk.ts",
+    "./sdk": "./src/spine-sdk.ts"
   },
   "repository": {
     "type": "git",
