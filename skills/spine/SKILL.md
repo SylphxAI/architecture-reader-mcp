@@ -21,7 +21,7 @@ npx @sylphx/architecture-reader-mcp
 | --- | --- |
 | `architecture_index` | First: build/refresh local graph |
 | `architecture_status` | Freshness / dirty worktree |
-| `architecture_overview` | Packages, languages, counts; **`focus=` path/label for neighbors** |
+| `architecture_overview` | Packages, languages, counts, **cycles**; **`focus=` for neighbors** |
 | `architecture_search` | Ranked symbol/module/route lookup |
 | `architecture_path` | Shortest path with hop provenance |
 | `architecture_trace` | Compact path between entities |

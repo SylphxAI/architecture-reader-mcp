@@ -44,6 +44,7 @@ not replace it. Reader portfolio media tools live in
 | C# | namespace, usings, types, methods, local calls | `csharp@0.1.0` |
 | Kotlin | package, imports, classes, fun, local calls | `kotlin@0.1.0` |
 | Ruby | require, class/module, def | `ruby@0.1.0` |
+| PHP | namespace, use, class, function | `php@0.1.0` |
 | Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.
@@ -179,6 +180,7 @@ Trace dependency or impact before editing:
 | Follow dependency or call paths | `architecture_trace` |
 | Estimate diff blast radius (incoming dependents + outgoing deps) | `architecture_impact` |
 | Local neighborhood (Graphify-class) | `architecture_overview` focus=… or `architecture_search` `includeNeighbors:true` |
+| Short import/call cycles | `architecture_overview` → `cycles` |
 | Fetch proof behind a claim | `architecture_evidence` |
 
 Every answer shares one evidence envelope: path, optional line range, extraction

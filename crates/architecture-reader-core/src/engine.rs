@@ -81,6 +81,88 @@ fn require_graph(root: &Path) -> Result<ArchitectureGraph, ToolEnvelope> {
     })
 }
 
+
+/// Bounded search for short directed cycles (Graphify-class structural signal).
+fn find_short_cycles(graph: &ArchitectureGraph, max_cycles: usize, max_len: usize) -> Vec<serde_json::Value> {
+    use std::collections::{HashMap, HashSet, VecDeque};
+    let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+    for e in &graph.edges {
+        if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on" | "belongs_to") {
+            adj.entry(e.from.clone()).or_default().push(e.to.clone());
+        }
+    }
+    let mut cycles: Vec<serde_json::Value> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut starts: Vec<String> = adj.keys().cloned().collect();
+    starts.sort();
+    starts.truncate(120);
+    for start in starts {
+        let mut q: VecDeque<Vec<String>> = VecDeque::new();
+        q.push_back(vec![start.clone()]);
+        while let Some(path) = q.pop_front() {
+            if cycles.len() >= max_cycles {
+                break;
+            }
+            if path.len() > max_len {
+                continue;
+            }
+            let last = path.last().cloned().unwrap_or_default();
+            let Some(nexts) = adj.get(&last) else { continue };
+            for next in nexts {
+                if next == &start && path.len() >= 2 {
+                    let mut cyc = path.clone();
+                    cyc.push(start.clone());
+                    let mut key_parts = path.clone();
+                    if let Some(min_i) = key_parts.iter().enumerate().min_by_key(|(_, s)| *s).map(|(i, _)| i) {
+                        key_parts.rotate_left(min_i);
+                    }
+                    let key = key_parts.join("->");
+                    if seen.insert(key) {
+                        cycles.push(json!({ "nodes": cyc, "length": path.len() }));
+                    }
+                    continue;
+                }
+                if path.contains(next) {
+                    continue;
+                }
+                if path.len() < max_len {
+                    let mut np = path.clone();
+                    np.push(next.clone());
+                    q.push_back(np);
+                }
+            }
+        }
+        if cycles.len() >= max_cycles {
+            break;
+        }
+    }
+    cycles.sort_by(|a, b| {
+        let ka = a
+            .get("nodes")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join("->")
+            })
+            .unwrap_or_default();
+        let kb = b
+            .get("nodes")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join("->")
+            })
+            .unwrap_or_default();
+        ka.cmp(&kb)
+    });
+    cycles.truncate(max_cycles);
+    cycles
+}
+
 fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -383,6 +465,7 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             },
             "extractors": graph.extractors,
             "languages": language_surface_stats(&graph),
+            "cycles": find_short_cycles(&graph, 8, 5),
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
@@ -925,6 +1008,8 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             "kotlin"
         } else if path.ends_with(".rb") {
             "ruby"
+        } else if path.ends_with(".php") {
+            "php"
         } else if path.is_empty() {
             "external"
         } else {

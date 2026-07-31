@@ -458,4 +458,23 @@ mod tests {
         assert!(top.get("neighbors").is_some(), "expected neighbors on match");
     }
 
+
+    #[test]
+    fn overview_includes_cycles_field() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({ "root": root.to_string_lossy(), "depth": 2 }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("cycles").is_some(), "cycles field required");
+        assert!(answer["cycles"].is_array());
+    }
+
 }
