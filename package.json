@@ -21,7 +21,8 @@
     "sync:server-json": "bun scripts/sync-server-json.ts",
     "version-packages": "changeset version && bun run sync:server-json",
     "release": "bun test && changeset publish",
-    "check:instruments": "node scripts/check-instruments-surfaces.mjs"
+    "check:instruments": "node scripts/check-instruments-surfaces.mjs",
+    "test:instruments": "node scripts/run-instruments-tests.mjs"
   },
   "repository": {
     "type": "git",

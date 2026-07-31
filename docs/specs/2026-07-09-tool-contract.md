@@ -143,6 +143,33 @@ Input:
 Search combines structural filters, lexical terms, graph neighborhood ranking,
 and optional semantic retrieval.
 
+
+### `architecture_path`
+
+Shortest path between two architecture entities with hop-level provenance.
+
+Request:
+
+```json
+{
+  "root": "/abs/path",
+  "from": "authMiddleware",
+  "to": "validateToken",
+  "relation": "calls",
+  "maxDepth": 8
+}
+```
+
+Aliases: `source`/`target` for `from`/`to`.
+
+Answer includes:
+
+- `nodes`: ordered node ids
+- `hops`: `{ from, to, edgeId, edgeKind, provenance }` where `provenance` is `extracted` or `inferred`
+- `hopCount`, resolved `fromId`/`toId`
+
+This is the Graphify-style path query; `architecture_trace` remains available for relation-oriented traces.
+
 ### `architecture_trace`
 
 Trace paths between architecture entities.

@@ -17,6 +17,7 @@ Archived (not in matrix): filesystem-mcp, awesome-mcp-servers, …
 
 ```bash
 node scripts/check-instruments-surfaces.mjs
+bun run test:instruments   # surface gate + Lookout suite + brand SDK contracts + Spine path test
 # requires sibling checkouts under ../ (SylphxAI/*)
 ```
 

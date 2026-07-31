@@ -95,6 +95,8 @@ tests**, clear tools, and citeable results.
 
 - [x] Living surface matrix: `docs/portfolio/INSTRUMENTS_SURFACE_MATRIX.md`
 - [x] Automated surface gate `scripts/check-instruments-surfaces.mjs` (6/6 when siblings present)
+- [x] Lightweight multi-repo test orchestrator `scripts/run-instruments-tests.mjs` / `bun run test:instruments`
+
 - [x] Publish-ready brand alias packages under `packages/instruments-aliases/*` (`@sylphx/citra` … `@sylphx/spine`)
 
 
