@@ -362,4 +362,39 @@ mod tests {
         assert!(ans.get("extractors").is_some());
     }
 
+
+    #[test]
+    fn impact_reports_incoming_dependents() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        // token.ts is imported by middleware / routes in fixture — expect reverse edges when present
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "changedPaths": ["src/auth/token.ts"],
+                "maxDepth": 2
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("incomingImpact").is_some());
+        assert!(answer.get("outgoingImpact").is_some());
+        assert_eq!(answer["maxDepth"], 2);
+        let direct = answer["directImpact"].as_array().cloned().unwrap_or_default();
+        assert!(!direct.is_empty(), "expected direct impact nodes");
+        // At least one of incoming/outgoing should be non-empty on this fixture
+        let inc = answer["incomingImpact"].as_array().cloned().unwrap_or_default();
+        let out = answer["outgoingImpact"].as_array().cloned().unwrap_or_default();
+        assert!(
+            !inc.is_empty() || !out.is_empty(),
+            "expected blast-radius edges, answer={:?}",
+            answer
+        );
+    }
+
 }

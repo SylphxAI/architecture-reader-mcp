@@ -76,7 +76,7 @@ repo is shaped, what depends on what, and which files back each claim.**
 
 **Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
 adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
-TypeScript/Python/Rust/Go indexing, path/impact with git-diff, and incremental refresh are implemented with release-gate proof.
+TypeScript/Python/Rust/Go/Java indexing, path/impact with git-diff, and incremental refresh are implemented with release-gate proof.
 First npm publish is workflow-owned via Changesets on `main` — see
 [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
@@ -174,7 +174,7 @@ Trace dependency or impact before editing:
 | Find boundaries, routes, schemas | `architecture_path` | Shortest path with hop provenance (`extracted`/`inferred`) |
 | `architecture_search` |
 | Follow dependency or call paths | `architecture_trace` |
-| Estimate diff blast radius | `architecture_impact` |
+| Estimate diff blast radius (incoming dependents + outgoing deps) | `architecture_impact` |
 | Fetch proof behind a claim | `architecture_evidence` |
 
 Every answer shares one evidence envelope: path, optional line range, extraction
@@ -250,6 +250,10 @@ architecture-reader-mcp/
 | Category research | [docs/research/2026-07-09-category-and-internal-analysis.md](./docs/research/2026-07-09-category-and-internal-analysis.md) |
 | Portfolio plan | [docs/portfolio/README.md](./docs/portfolio/README.md) |
 | Roadmap | [docs/portfolio/roadmaps/architecture-reader-mcp.md](./docs/portfolio/roadmaps/architecture-reader-mcp.md) |
+
+## Agent skill surface
+
+Codex/Claude-style skill: [`skills/spine/SKILL.md`](./skills/spine/SKILL.md) — install, tools, evidence contract (Graphify-class agent UX without multi-GB weight).
 
 ## Tool contract
 

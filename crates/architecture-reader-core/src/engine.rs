@@ -628,16 +628,101 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
         changed = list_changed_paths(&root, git_base);
     }
 
+    let max_depth = input
+        .get("maxDepth")
+        .or_else(|| input.get("max_depth"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(2) as usize;
+
     let mut direct = Vec::new();
-    let mut transitive = Vec::new();
+    let mut seed_ids = Vec::new();
     for path in &changed {
         for node in graph.nodes.iter().filter(|n| n.path.as_deref() == Some(path.as_str())) {
-            direct.push(json!({ "id": node.id, "path": node.path, "kind": node.kind }));
-            for edge in graph.edges.iter().filter(|e| e.from == node.id) {
-                transitive.push(json!({ "edge": edge.kind, "to": edge.to }));
+            direct.push(json!({ "id": node.id, "path": node.path, "kind": node.kind, "label": node.label }));
+            seed_ids.push(node.id.clone());
+        }
+    }
+
+    // Outgoing: dependencies of changed nodes. Incoming: reverse dependents (blast radius).
+    let mut outgoing = Vec::new();
+    let mut incoming = Vec::new();
+    let mut seen_out = std::collections::HashSet::<String>::new();
+    let mut seen_in = std::collections::HashSet::<String>::new();
+    for id in &seed_ids {
+        for edge in graph.edges.iter().filter(|e| e.from == *id) {
+            let key = format!("{}->{}:{}", edge.from, edge.to, edge.kind);
+            if seen_out.insert(key) {
+                outgoing.push(json!({
+                    "edge": edge.kind,
+                    "from": edge.from,
+                    "to": edge.to,
+                    "direction": "outgoing",
+                    "depth": 1
+                }));
+            }
+        }
+        for edge in graph.edges.iter().filter(|e| e.to == *id) {
+            let key = format!("{}->{}:{}", edge.from, edge.to, edge.kind);
+            if seen_in.insert(key) {
+                incoming.push(json!({
+                    "edge": edge.kind,
+                    "from": edge.from,
+                    "to": edge.to,
+                    "direction": "incoming",
+                    "depth": 1
+                }));
             }
         }
     }
+
+    // Multi-hop expansion (bounded) for reverse dependents and forward deps.
+    if max_depth > 1 {
+        // Forward BFS from seeds
+        let mut frontier = seed_ids.clone();
+        for depth in 2..=max_depth {
+            let mut next = Vec::new();
+            for id in &frontier {
+                for edge in graph.edges.iter().filter(|e| e.from == *id) {
+                    let key = format!("{}->{}:{}", edge.from, edge.to, edge.kind);
+                    if seen_out.insert(key) {
+                        outgoing.push(json!({
+                            "edge": edge.kind,
+                            "from": edge.from,
+                            "to": edge.to,
+                            "direction": "outgoing",
+                            "depth": depth
+                        }));
+                        next.push(edge.to.clone());
+                    }
+                }
+            }
+            frontier = next;
+        }
+        // Reverse BFS (who depends on seeds)
+        frontier = seed_ids.clone();
+        for depth in 2..=max_depth {
+            let mut next = Vec::new();
+            for id in &frontier {
+                for edge in graph.edges.iter().filter(|e| e.to == *id) {
+                    let key = format!("{}->{}:{}", edge.from, edge.to, edge.kind);
+                    if seen_in.insert(key) {
+                        incoming.push(json!({
+                            "edge": edge.kind,
+                            "from": edge.from,
+                            "to": edge.to,
+                            "direction": "incoming",
+                            "depth": depth
+                        }));
+                        next.push(edge.from.clone());
+                    }
+                }
+            }
+            frontier = next;
+        }
+    }
+
+    // Back-compat: transitiveImpact = outgoing (prior field name)
+    let transitive = outgoing.clone();
 
     let repo = repository_state(&root, Some(&graph));
     ToolEnvelope::ok(
@@ -654,7 +739,10 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
             } else {
                 "explicit"
             },
+            "maxDepth": max_depth,
             "directImpact": direct,
+            "outgoingImpact": outgoing,
+            "incomingImpact": incoming,
             "transitiveImpact": transitive,
             "unknownImpact": []
         }),

@@ -1,0 +1,24 @@
+{
+  "product": "Spine",
+  "fixture": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/fixtures/sample-repo",
+  "generatedAt": "2026-07-31T17:11:50.195Z",
+  "indexMs": 141.036504,
+  "searchMs": 25.020949,
+  "pathMs": 21.86998299999999,
+  "impactMs": 23.941517000000005,
+  "overviewMs": 22.502815,
+  "nodes": 44,
+  "edges": 43,
+  "searchTopLabel": "issue_token",
+  "impactIncoming": 2,
+  "impactOutgoing": 1,
+  "languages": {
+    "external": 10,
+    "go": 1,
+    "java": 1,
+    "python": 2,
+    "rust": 1,
+    "typescript": 4
+  },
+  "ok": true
+}
