@@ -7,6 +7,8 @@ knowledge** — not an implementation monorepo and not owned by this repository.
 Other instruments (Citra, Iris, Cue, Prism, Lookout) each live in their **own
 GitHub repository** for independent marketplace listing, release, and stars.
 
+Company portfolio knowledge (docs only): https://github.com/SylphxAI/instruments
+
 ## Product-local docs here
 
 | Doc | Purpose |
