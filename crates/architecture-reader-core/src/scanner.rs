@@ -229,6 +229,9 @@ pub fn scan_repository_paths(
         "docker@0.1.0".into(),
         "sql@0.1.0".into(),
         "proto@0.1.0".into(),
+        "graphql@0.1.0".into(),
+        "make@0.1.0".into(),
+        "codeowners@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -322,6 +325,30 @@ fn index_file(
     if rel_str.ends_with(".proto") {
         if pass == IndexPass::Structure {
             index_proto_module(builder, rel_str, path);
+        }
+        return;
+    }
+    if rel_str.ends_with(".graphql")
+        || rel_str.ends_with(".gql")
+        || rel_str.ends_with(".graphqls")
+    {
+        if pass == IndexPass::Structure {
+            index_graphql_module(builder, rel_str, path);
+        }
+        return;
+    }
+    if file_name_lc == "makefile"
+        || file_name_lc == "gnumakefile"
+        || file_name_lc.ends_with(".mk")
+    {
+        if pass == IndexPass::Structure {
+            index_makefile(builder, rel_str, path);
+        }
+        return;
+    }
+    if file_name_lc == "codeowners" || rel_str.ends_with("/CODEOWNERS") || rel_str == "CODEOWNERS" {
+        if pass == IndexPass::Structure {
+            index_codeowners(builder, rel_str, path);
         }
         return;
     }
@@ -1332,6 +1359,138 @@ fn index_proto_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
         builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
         builder.push_edge("defines", &file_id, &node_id, &ev);
         builder.push_edge("routes_to", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
+
+fn index_graphql_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "graphql@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    let type_re = Regex::new(
+        r"(?m)^\s*(type|interface|enum|input|union|scalar)\s+([A-Za-z_][A-Za-z0-9_]*)",
+    )
+    .unwrap();
+    for cap in type_re.captures_iter(&content) {
+        let kind = cap[1].to_string();
+        let name = cap[2].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "graphql@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    // Query/Mutation fields: rough "  fieldName(" under type Query
+    let field_re = Regex::new(r"(?m)^\s{2}([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|:)").unwrap();
+    let mut in_root = false;
+    for (i, line) in content.lines().enumerate() {
+        if Regex::new(r"(?m)^\s*(type|extend type)\s+(Query|Mutation|Subscription)\b")
+            .unwrap()
+            .is_match(line)
+        {
+            in_root = true;
+            continue;
+        }
+        if in_root && line.starts_with('}') {
+            in_root = false;
+            continue;
+        }
+        if !in_root {
+            continue;
+        }
+        if let Some(cap) = field_re.captures(line) {
+            let name = cap[1].to_string();
+            if name == "type" || name == "implements" {
+                continue;
+            }
+            let line_no = (i + 1) as u32;
+            let node_id = format!("node:symbol:{}:field:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "graphql@0.1.0", Some(line_no), Some(line_no));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+            builder.push_edge("routes_to", &file_id, &node_id, &ev);
+        }
+    }
+    let _ = path;
+}
+
+fn index_makefile(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "make@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // target: deps
+    let target_re = Regex::new(r"(?m)^([A-Za-z_][\w\-./]*)\s*:").unwrap();
+    for cap in target_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        if name.starts_with('.') && name != ".PHONY" {
+            // allow .PHONY but skip other specials somewhat
+        }
+        if name.contains('=') {
+            continue;
+        }
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:target:{}", rel.replace('/', ":"), name.replace('/', ":"));
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "make@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
+fn index_codeowners(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "codeowners@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", "CODEOWNERS", Some(rel), &file_ev);
+    }
+    for (i, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let mut parts = trimmed.split_whitespace();
+        let Some(pattern) = parts.next() else { continue };
+        let owners: Vec<&str> = parts.collect();
+        if owners.is_empty() {
+            continue;
+        }
+        let line_no = (i + 1) as u32;
+        let pattern_id = format!(
+            "node:symbol:{}:path:{}",
+            rel.replace('/', ":"),
+            pattern.replace('/', ":").replace('*', "star")
+        );
+        if !builder.has_node(&pattern_id) {
+            let ev = builder.push_evidence("ast", rel, "codeowners@0.1.0", Some(line_no), Some(line_no));
+            builder.push_node(&pattern_id, "symbol", pattern, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &pattern_id, &ev);
+        }
+        for owner in owners {
+            let owner_id = format!("node:package:owner:{}", owner.trim_start_matches('@'));
+            if !builder.has_node(&owner_id) {
+                let ev = builder.push_evidence("ast", rel, "codeowners@0.1.0", Some(line_no), Some(line_no));
+                builder.push_node(&owner_id, "package", owner, None, &ev);
+            }
+            let ev = builder.push_evidence("ast", rel, "codeowners@0.1.0", Some(line_no), Some(line_no));
+            builder.push_edge("owns", &owner_id, &pattern_id, &ev);
+        }
     }
     let _ = path;
 }
@@ -3217,6 +3376,46 @@ message TokenRequest { string token = 1; }
         assert!(builder.nodes.iter().any(|n| n.kind == "symbol" && n.label == "test"));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn graphql_extracts_types_and_fields() {
+        let content = r#"
+type User { id: ID! }
+type Query {
+  me: User
+  user(id: ID!): User
+}
+"#;
+        let tmp = tempfile_path("schema.graphql", content);
+        let mut builder = GraphBuilder::default();
+        index_graphql_module(&mut builder, "schema.graphql", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label == "User"));
+        assert!(builder.nodes.iter().any(|n| n.label == "me" || n.id.contains("field:me")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn makefile_extracts_targets() {
+        let content = "build:\n\techo hi\ntest: build\n\techo test\n";
+        let tmp = tempfile_path("Makefile", content);
+        let mut builder = GraphBuilder::default();
+        index_makefile(&mut builder, "Makefile", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label == "build"));
+        assert!(builder.nodes.iter().any(|n| n.label == "test"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn codeowners_extracts_owners() {
+        let content = "* @team-core\n/src/auth/ @alice @bob\n";
+        let tmp = tempfile_path("CODEOWNERS", content);
+        let mut builder = GraphBuilder::default();
+        index_codeowners(&mut builder, "CODEOWNERS", &tmp);
+        assert!(builder.edges.iter().any(|e| e.kind == "owns"));
+        assert!(builder.nodes.iter().any(|n| n.label == "@alice" || n.label == "alice" || n.id.contains("alice")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 
