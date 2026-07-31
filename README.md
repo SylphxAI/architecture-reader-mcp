@@ -54,6 +54,7 @@ not replace it. Reader portfolio media tools live in
 | GraphQL | type/interface/enum + Query fields | `graphql@0.1.0` |
 | Makefile | targets | `make@0.1.0` |
 | CODEOWNERS | path → owner edges | `codeowners@0.1.0` |
+| OpenAPI | paths + HTTP methods as routes | `openapi@0.1.0` |
 | Manifests / docs | `package.json` (+ scripts), `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.

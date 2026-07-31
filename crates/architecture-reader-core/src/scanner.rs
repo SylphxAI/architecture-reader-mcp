@@ -232,6 +232,7 @@ pub fn scan_repository_paths(
         "graphql@0.1.0".into(),
         "make@0.1.0".into(),
         "codeowners@0.1.0".into(),
+        "openapi@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -335,6 +336,23 @@ fn index_file(
         if pass == IndexPass::Structure {
             index_graphql_module(builder, rel_str, path);
         }
+        return;
+    }
+    // OpenAPI / Swagger (json or yaml) — path operations become routes
+    if pass == IndexPass::Structure
+        && (rel_str.ends_with(".yaml")
+            || rel_str.ends_with(".yml")
+            || rel_str.ends_with(".json"))
+        && (rel_str.contains("openapi")
+            || rel_str.contains("swagger")
+            || file_name_lc == "openapi.yaml"
+            || file_name_lc == "openapi.yml"
+            || file_name_lc == "openapi.json"
+            || file_name_lc == "swagger.yaml"
+            || file_name_lc == "swagger.yml"
+            || file_name_lc == "swagger.json")
+    {
+        index_openapi_spec(builder, rel_str, path);
         return;
     }
     if file_name_lc == "makefile"
@@ -1490,6 +1508,67 @@ fn index_codeowners(builder: &mut GraphBuilder, rel: &str, path: &Path) {
             }
             let ev = builder.push_evidence("ast", rel, "codeowners@0.1.0", Some(line_no), Some(line_no));
             builder.push_edge("owns", &owner_id, &pattern_id, &ev);
+        }
+    }
+    let _ = path;
+}
+
+
+fn index_openapi_spec(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    // Lightweight detection: must look like OpenAPI/Swagger.
+    let lower = content.to_ascii_lowercase();
+    if !(lower.contains("openapi") || lower.contains("swagger")) {
+        return;
+    }
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "openapi@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // Paths: "  /foo:" or "  \"/foo\":"
+    let path_re = Regex::new(r#"(?m)^\s{0,4}["']?(/[^"'#\s:]+)["']?\s*:"#).unwrap();
+    let method_re = Regex::new(r"(?mi)^\s{2,8}(get|post|put|patch|delete|options|head)\s*:").unwrap();
+    let mut current_path: Option<String> = None;
+    for (i, line) in content.lines().enumerate() {
+        let line_no = (i + 1) as u32;
+        if let Some(cap) = path_re.captures(line) {
+            let p = cap[1].to_string();
+            // skip components/schemas noise: only under paths: roughly — require leading /
+            current_path = Some(p.clone());
+            let route_id = format!("node:route:{}:{}", rel.replace('/', ":"), p.replace('/', ":"));
+            if !builder.has_node(&route_id) {
+                let ev = builder.push_evidence("ast", rel, "openapi@0.1.0", Some(line_no), Some(line_no));
+                builder.push_node(&route_id, "route", &p, Some(rel), &ev);
+                builder.push_edge("defines", &file_id, &route_id, &ev);
+            }
+            continue;
+        }
+        if let (Some(ref pth), Some(cap)) = (current_path.as_ref(), method_re.captures(line)) {
+            let method = cap[1].to_ascii_uppercase();
+            let label = format!("{method} {pth}");
+            let op_id = format!(
+                "node:symbol:{}:op:{}:{}",
+                rel.replace('/', ":"),
+                method,
+                pth.replace('/', ":")
+            );
+            if builder.has_node(&op_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "openapi@0.1.0", Some(line_no), Some(line_no));
+            builder.push_node(&op_id, "symbol", &label, Some(rel), &ev);
+            let route_id = format!("node:route:{}:{}", rel.replace('/', ":"), pth.replace('/', ":"));
+            builder.push_edge("defines", &file_id, &op_id, &ev);
+            if builder.has_node(&route_id) {
+                builder.push_edge("routes_to", &op_id, &route_id, &ev);
+            }
+        }
+        // leaving paths section roughly when de-indent to top-level key without /
+        if !line.starts_with(' ') && !line.starts_with('\t') && !line.trim().is_empty() {
+            if !line.trim_start().starts_with('/') && !line.contains("paths") {
+                current_path = None;
+            }
         }
     }
     let _ = path;
@@ -3415,6 +3494,32 @@ type Query {
         assert!(builder.nodes.iter().any(|n| n.label == "@alice" || n.label == "alice" || n.id.contains("alice")));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn openapi_extracts_paths_and_methods() {
+        let content = r#"
+openapi: 3.0.0
+info:
+  title: Demo
+paths:
+  /v1/tokens:
+    get:
+      summary: List tokens
+    post:
+      summary: Create token
+  /v1/health:
+    get:
+      summary: Health
+"#;
+        let tmp = tempfile_path("openapi.yaml", content);
+        let mut builder = GraphBuilder::default();
+        index_openapi_spec(&mut builder, "openapi.yaml", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.kind == "route" && n.label == "/v1/tokens"));
+        assert!(builder.nodes.iter().any(|n| n.label == "GET /v1/tokens" || n.id.contains("op:GET")));
+        assert!(builder.nodes.iter().any(|n| n.label == "POST /v1/tokens" || n.id.contains("op:POST")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 
