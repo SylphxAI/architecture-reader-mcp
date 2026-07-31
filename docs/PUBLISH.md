@@ -1,16 +1,20 @@
-# Publish status
+# Publish status — Spine
 
 | Field | Value |
 | --- | --- |
-| Package | `@sylphx/architecture-reader-mcp` |
+| Transitional npm | `@sylphx/architecture-reader-mcp` |
+| Brand npm | `@sylphx/spine` |
 | Version | `0.2.1` |
-| Registry state | **published (SDK/launcher shell; native via git build:rust)** |
-| Auth path | GitHub org secret `NPM_TOKEN` via `publish-npm-package.yml` |
+| Registry | **live** (dual expand–contract where brand ≠ transitional) |
+| Auth | GitHub org `NPM_TOKEN` via publish workflows |
 
 ## Install
 
 ```bash
+# preferred brand
+npm i -g @sylphx/spine
+# transitional still valid during expand
 npm i -g @sylphx/architecture-reader-mcp
 ```
 
-Git SSOT remains the product repository for source/release train.
+Workflows: `publish-npm-package.yml`, `publish-brand-alias.yml`.
