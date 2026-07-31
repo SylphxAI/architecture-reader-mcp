@@ -144,6 +144,9 @@ const report = {
     hasDockerfile: existsSync(join(fixture, 'Dockerfile')),
     hasMakefile: existsSync(join(fixture, 'Makefile')),
     hasCodeowners: existsSync(join(fixture, 'CODEOWNERS')),
+    hasHelmChart: existsSync(join(fixture, 'charts/demo/Chart.yaml')),
+    hasK8s: existsSync(join(fixture, 'k8s/deploy.yaml')),
+    hasTerraform: existsSync(join(fixture, 'infra/main.tf')),
   },
   ok:
     index.envelope.status === 'ok' &&

@@ -57,6 +57,7 @@ not replace it. Reader portfolio media tools live in
 | OpenAPI | paths + HTTP methods as routes | `openapi@0.1.0` |
 | Terraform | resource/data blocks | `terraform@0.1.0` |
 | Kubernetes YAML | kind/name symbols | `k8s@0.1.0` |
+| Helm Chart.yaml | chart name/version + deps | `helm@0.1.0` |
 | Manifests / docs | `package.json` (+ scripts), `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.

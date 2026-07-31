@@ -235,6 +235,7 @@ pub fn scan_repository_paths(
         "openapi@0.1.0".into(),
         "terraform@0.1.0".into(),
         "k8s@0.1.0".into(),
+        "helm@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -335,6 +336,13 @@ fn index_file(
         if pass == IndexPass::Structure {
             index_terraform_module(builder, rel_str, path);
         }
+        return;
+    }
+    // Helm Chart.yaml
+    if pass == IndexPass::Structure
+        && (file_name_lc == "chart.yaml" || file_name_lc == "chart.yml")
+    {
+        index_helm_chart(builder, rel_str, path);
         return;
     }
     // Kubernetes-ish YAML: apiVersion + kind
@@ -1679,6 +1687,67 @@ fn index_k8s_manifest(builder: &mut GraphBuilder, rel: &str, path: &Path, conten
             }
             let ev = builder.push_evidence("ast", rel, "k8s@0.1.0", Some(kind_line), Some(kind_line));
             builder.push_node(&node_id, "symbol", &label, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+    }
+    let _ = path;
+}
+
+
+fn index_helm_chart(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "helm@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    let mut chart_name: Option<String> = None;
+    let mut chart_version: Option<String> = None;
+    for (i, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        let line_no = (i + 1) as u32;
+        if let Some(rest) = trimmed.strip_prefix("name:") {
+            let n = rest.trim().trim_matches('"').to_string();
+            if !n.is_empty() && chart_name.is_none() {
+                chart_name = Some(n);
+            }
+        }
+        if let Some(rest) = trimmed.strip_prefix("version:") {
+            let v = rest.trim().trim_matches('"').to_string();
+            if !v.is_empty() && chart_version.is_none() {
+                chart_version = Some(v);
+            }
+        }
+        // dependencies: - name: foo
+        if trimmed.starts_with("- name:") || trimmed.starts_with("-name:") {
+            let dep = trimmed
+                .trim_start_matches('-')
+                .trim()
+                .trim_start_matches("name:")
+                .trim()
+                .trim_matches('"')
+                .to_string();
+            if dep.is_empty() {
+                continue;
+            }
+            let dep_id = format!("node:package:helm-dep:{dep}");
+            if !builder.has_node(&dep_id) {
+                let ev = builder.push_evidence("ast", rel, "helm@0.1.0", Some(line_no), Some(line_no));
+                builder.push_node(&dep_id, "package", &dep, None, &ev);
+            }
+            let ev = builder.push_evidence("ast", rel, "helm@0.1.0", Some(line_no), Some(line_no));
+            builder.push_edge("depends_on", &file_id, &dep_id, &ev);
+        }
+    }
+    if let Some(name) = chart_name {
+        let label = match chart_version {
+            Some(v) => format!("chart:{name}@{v}"),
+            None => format!("chart:{name}"),
+        };
+        let node_id = format!("node:package:helm:{name}");
+        if !builder.has_node(&node_id) {
+            let ev = builder.push_evidence("ast", rel, "helm@0.1.0", Some(1), Some(1));
+            builder.push_node(&node_id, "package", &label, Some(rel), &ev);
             builder.push_edge("defines", &file_id, &node_id, &ev);
         }
     }
@@ -3750,6 +3819,26 @@ metadata:
         assert!(builder.nodes.iter().any(|n| n.label == "Service/api"));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn helm_chart_extracts_name_and_deps() {
+        let content = r#"
+apiVersion: v2
+name: demo-api
+version: 0.1.0
+dependencies:
+  - name: postgresql
+    version: 12.0.0
+"#;
+        let tmp = tempfile_path("Chart.yaml", content);
+        let mut builder = GraphBuilder::default();
+        index_helm_chart(&mut builder, "charts/demo/Chart.yaml", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.label.contains("demo-api")));
+        assert!(builder.nodes.iter().any(|n| n.label == "postgresql" || n.id.contains("postgresql")));
+        assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 
