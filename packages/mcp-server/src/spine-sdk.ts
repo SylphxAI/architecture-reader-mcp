@@ -23,7 +23,13 @@ export class Spine {
     return runTool(tool, { root: this.root, ...input });
   }
 
-  index(input: { mode?: 'auto' | 'full' | 'status_only' } = {}) {
+  index(input: {
+    mode?: 'auto' | 'full' | 'status_only';
+    include?: string[];
+    exclude?: string[];
+    maxFileBytes?: number;
+    useSynth?: boolean;
+  } = {}) {
     return this.call('architecture_index', input);
   }
 

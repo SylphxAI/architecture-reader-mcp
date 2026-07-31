@@ -690,4 +690,27 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn index_exclude_extends_defaults_and_echoes_scan() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let envelope = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "mode": "full",
+                "useSynth": false,
+                "exclude": ["custom_noise"]
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let exclude = answer["scan"]["exclude"].as_array().cloned().unwrap_or_default();
+        let as_str: Vec<_> = exclude.iter().filter_map(|v| v.as_str()).collect();
+        assert!(as_str.iter().any(|e| *e == "node_modules"), "defaults retained: {:?}", as_str);
+        assert!(as_str.iter().any(|e| *e == "custom_noise"), "custom exclude present: {:?}", as_str);
+        assert!(as_str.iter().any(|e| *e == ".next"), "expanded defaults present: {:?}", as_str);
+    }
+
 }

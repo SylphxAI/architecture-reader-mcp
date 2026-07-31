@@ -273,10 +273,12 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
             .collect();
     }
     if let Some(exclude) = input.get("exclude").and_then(|v| v.as_array()) {
-        options.exclude = exclude
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_string))
-            .collect();
+        // Extend defaults rather than replace — agents should not accidentally reindex node_modules.
+        for ex in exclude.iter().filter_map(|v| v.as_str().map(str::to_string)) {
+            if !options.exclude.iter().any(|e| e == &ex) {
+                options.exclude.push(ex);
+            }
+        }
     }
     if let Some(max) = input.get("maxFileBytes").and_then(|v| v.as_u64()) {
         options.max_file_bytes = max;
@@ -423,6 +425,12 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
             "edges": graph.edges.len(),
             "extractors": graph.extractors,
             "languages": language_surface_stats(&graph),
+            "scan": {
+                "include": options.include,
+                "exclude": options.exclude,
+                "maxFileBytes": options.max_file_bytes,
+                "useSynth": options.use_synth,
+            },
             "coverage": {
                 "ast": coverage_ast,
                 "manifests": manifest_nodes,

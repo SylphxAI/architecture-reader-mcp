@@ -14,9 +14,21 @@ use crate::types::{
 const DEFAULT_EXCLUDES: &[&str] = &[
     "node_modules",
     "dist",
+    "build",
+    "out",
     "target",
+    "coverage",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".next",
+    ".nuxt",
+    ".turbo",
     ".git",
     ".architecture-reader",
+    ".idea",
+    ".vscode",
 ];
 
 #[derive(Debug, Clone)]
