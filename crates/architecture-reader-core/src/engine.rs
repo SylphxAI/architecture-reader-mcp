@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use serde_json::json;
 
-use crate::git::{freshness, read_git_state};
+use crate::git::{freshness, list_changed_paths, read_git_state};
 use crate::scanner::{
     incremental_refresh, inventory_files, scan_repository, ScanOptions,
 };
@@ -560,11 +560,24 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
         Ok(g) => g,
         Err(e) => return e,
     };
-    let changed: Vec<String> = input
+    let use_git_diff = input
+        .get("useGitDiff")
+        .or_else(|| input.get("use_git_diff"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let git_base = input
+        .get("gitBase")
+        .or_else(|| input.get("git_base"))
+        .and_then(|v| v.as_str());
+    let mut changed: Vec<String> = input
         .get("changedPaths")
         .and_then(|v| v.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
         .unwrap_or_default();
+    // Allow CLI to pass a single sentinel path "--git-diff"
+    if changed.iter().any(|p| p == "--git-diff") || use_git_diff {
+        changed = list_changed_paths(&root, git_base);
+    }
 
     let mut direct = Vec::new();
     let mut transitive = Vec::new();
@@ -582,6 +595,16 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
         repo,
         json!({
             "changedPaths": changed,
+            "changedPathSource": if use_git_diff || input
+                .get("changedPaths")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|x| x.as_str() == Some("--git-diff")))
+                .unwrap_or(false)
+            {
+                "git"
+            } else {
+                "explicit"
+            },
             "directImpact": direct,
             "transitiveImpact": transitive,
             "unknownImpact": []

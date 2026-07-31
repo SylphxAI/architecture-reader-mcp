@@ -32,6 +32,7 @@ Usage:
   spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
   spine trace [ROOT] <from> <to>
   spine impact [ROOT] <path> [<path>...]
+  spine impact [ROOT] --git-diff [--base REF]
   spine evidence [ROOT] <id> [<id>...]
   spine mcp
   spine doctor
@@ -124,9 +125,27 @@ case "$cmd" in
     invoke architecture_trace "{\"root\":$(json_escape "$repo_root"),\"from\":$(json_escape "$from"),\"to\":$(json_escape "$to"),\"relation\":\"any\",\"maxDepth\":5}"
     ;;
   impact)
-    [[ $# -gt 0 ]] || { echo "impact requires at least one path" >&2; exit 2; }
-    paths=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")
-    invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"changedPaths\":$paths}"
+    use_git=false
+    git_base=""
+    paths=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --git-diff) use_git=true; shift ;;
+        --base) git_base="$2"; shift 2 ;;
+        *) paths+=("$1"); shift ;;
+      esac
+    done
+    if [[ "$use_git" == true ]]; then
+      if [[ -n "$git_base" ]]; then
+        invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"useGitDiff\":true,\"gitBase\":$(json_escape "$git_base")}"
+      else
+        invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"useGitDiff\":true}"
+      fi
+    else
+      [[ ${#paths[@]} -gt 0 ]] || { echo "impact requires paths or --git-diff" >&2; exit 2; }
+      paths_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")
+      invoke architecture_impact "{\"root\":$(json_escape "$repo_root"),\"changedPaths\":$paths_json}"
+    fi
     ;;
   evidence)
     [[ $# -gt 0 ]] || { echo "evidence requires id(s)" >&2; exit 2; }

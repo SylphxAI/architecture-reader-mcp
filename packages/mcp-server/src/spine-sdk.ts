@@ -47,8 +47,11 @@ export class Spine {
     return this.call('architecture_trace', { from, to, ...input });
   }
 
-  impact(changedPaths: string[], input: Record<string, unknown> = {}) {
-    return this.call('architecture_impact', { changedPaths, ...input });
+  impact(changedPaths: string[] | { useGitDiff: true; gitBase?: string }, input: Record<string, unknown> = {}) {
+    if (Array.isArray(changedPaths)) {
+      return this.call('architecture_impact', { changedPaths, ...input });
+    }
+    return this.call('architecture_impact', { ...changedPaths, ...input });
   }
 
   evidence(ids: string[], input: Record<string, unknown> = {}) {

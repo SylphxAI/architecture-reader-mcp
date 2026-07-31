@@ -49,6 +49,55 @@ pub fn freshness(
     }
 }
 
+
+/// Paths changed in the worktree / index (git status --porcelain), relative to root.
+/// Also supports `base` commit via `git diff --name-only <base>` when provided.
+pub fn list_changed_paths(root: &Path, base: Option<&str>) -> Vec<String> {
+    let root_s = root.to_string_lossy();
+    let output = if let Some(base) = base {
+        Command::new("git")
+            .args(["-C", root_s.as_ref(), "diff", "--name-only", "--diff-filter=ACMRTUXB", base])
+            .output()
+    } else {
+        // Unstaged + staged names
+        Command::new("git")
+            .args(["-C", root_s.as_ref(), "status", "--porcelain"])
+            .output()
+    };
+
+    let Ok(output) = output else {
+        return vec![];
+    };
+    if !output.status.success() {
+        return vec![];
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut paths = Vec::new();
+    for line in text.lines() {
+        let line = line.trim_end();
+        if line.is_empty() {
+            continue;
+        }
+        if base.is_some() {
+            paths.push(line.to_string());
+            continue;
+        }
+        // porcelain: XY PATH or XY ORIG -> PATH
+        let rest = if line.len() >= 3 { line[3..].trim() } else { line };
+        let path = if let Some((_, right)) = rest.split_once(" -> ") {
+            right
+        } else {
+            rest
+        };
+        if !path.is_empty() {
+            paths.push(path.to_string());
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
 #[cfg(test)]
 mod pure_residual_tests {
     use super::*;
@@ -125,4 +174,13 @@ mod pure_residual_tests {
         assert_eq!(freshness(Some("abc"), Some("def"), true), Freshness::Dirty);
         assert_eq!(freshness(Some("abc"), None, false), Freshness::Unknown);
     }
+    #[test]
+    fn list_changed_paths_returns_empty_outside_git() {
+        let dir = std::env::temp_dir().join(format!("spine-git-none-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let paths = list_changed_paths(&dir, None);
+        assert!(paths.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }

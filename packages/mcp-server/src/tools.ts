@@ -44,7 +44,9 @@ export const architectureTraceSchema = rootSchema.extend({
 });
 
 export const architectureImpactSchema = rootSchema.extend({
-  changedPaths: z.array(z.string()),
+  changedPaths: z.array(z.string()).optional(),
+  useGitDiff: z.boolean().optional(),
+  gitBase: z.string().optional(),
   includeTests: z.boolean().optional(),
   includeDocs: z.boolean().optional(),
 });
