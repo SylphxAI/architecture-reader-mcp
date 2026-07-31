@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Brand alias launcher — delegates to transitional package bin when installed.
+if command -v smart-reader-mcp >/dev/null 2>&1; then
+  exec smart-reader-mcp "$@"
+fi
+# node resolution fallback
+NODE_BIN=$(node -e "try{console.log(require.resolve('@sylphx/smart-reader-mcp/package.json'))}catch(e){process.exit(1)}" 2>/dev/null || true)
+if [[ -n "${NODE_BIN:-}" ]]; then
+  ROOT=$(dirname "$NODE_BIN")
+  if [[ -x "$ROOT/bin/smart-reader-mcp" ]]; then exec "$ROOT/bin/smart-reader-mcp" "$@"; fi
+  if [[ -f "$ROOT/dist/runtime-entry.js" ]]; then exec node "$ROOT/dist/runtime-entry.js" "$@"; fi
+fi
+echo "@sylphx/prism: install @sylphx/smart-reader-mcp (or prism-linked package) first" >&2
+exit 1

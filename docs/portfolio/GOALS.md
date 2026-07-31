@@ -94,6 +94,9 @@ tests**, clear tools, and citeable results.
 `G0 → G2 → G3 → G4 → G5 → G6` (G1 is continuous policy).
 
 - [x] Living surface matrix: `docs/portfolio/INSTRUMENTS_SURFACE_MATRIX.md`
+- [x] Automated surface gate `scripts/check-instruments-surfaces.mjs` (6/6 when siblings present)
+- [x] Publish-ready brand alias packages under `packages/instruments-aliases/*` (`@sylphx/citra` … `@sylphx/spine`)
+
 
 ## Completion rule
 

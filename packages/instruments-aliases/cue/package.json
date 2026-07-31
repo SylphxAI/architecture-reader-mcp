@@ -1,0 +1,25 @@
+{
+  "name": "@sylphx/cue",
+  "version": "0.1.0",
+  "description": "Cue — video timeline evidence (Sylphx Instruments brand alias → @sylphx/video-reader-mcp)",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "publishConfig": { "access": "public" },
+  "bin": {
+    "cue": "./bin/cue"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./sdk": "./index.js"
+  },
+  "dependencies": {
+    "@sylphx/video-reader-mcp": "*"
+  },
+  "files": ["bin", "index.js", "README.md", "package.json"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SylphxAI/architecture-reader-mcp.git",
+    "directory": "packages/instruments-aliases/cue"
+  }
+}

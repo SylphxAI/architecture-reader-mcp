@@ -1,0 +1,25 @@
+{
+  "name": "@sylphx/spine",
+  "version": "0.1.0",
+  "description": "Spine — architecture engine (Sylphx Instruments brand alias → @sylphx/architecture-reader-mcp)",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "publishConfig": { "access": "public" },
+  "bin": {
+    "spine": "./bin/spine"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./sdk": "./index.js"
+  },
+  "dependencies": {
+    "@sylphx/architecture-reader-mcp": "*"
+  },
+  "files": ["bin", "index.js", "README.md", "package.json"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SylphxAI/architecture-reader-mcp.git",
+    "directory": "packages/instruments-aliases/spine"
+  }
+}

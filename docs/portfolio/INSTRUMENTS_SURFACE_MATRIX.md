@@ -12,3 +12,12 @@ Updated: 2026-07-31
 | **Lookout** | lookout | TS engine + Rust policy | `@sylphx/lookout` | `bin/lookout` | yes | bun 9 offline + optional live |
 
 Archived (not in matrix): filesystem-mcp, awesome-mcp-servers, …
+
+## Automated gate
+
+```bash
+node scripts/check-instruments-surfaces.mjs
+# requires sibling checkouts under ../ (SylphxAI/*)
+```
+
+Brand alias packages (publish-ready): `packages/instruments-aliases/{citra,iris,cue,prism,spine}`.

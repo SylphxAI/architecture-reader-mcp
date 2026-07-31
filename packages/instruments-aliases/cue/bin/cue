@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Brand alias launcher — delegates to transitional package bin when installed.
+if command -v video-reader-mcp >/dev/null 2>&1; then
+  exec video-reader-mcp "$@"
+fi
+# node resolution fallback
+NODE_BIN=$(node -e "try{console.log(require.resolve('@sylphx/video-reader-mcp/package.json'))}catch(e){process.exit(1)}" 2>/dev/null || true)
+if [[ -n "${NODE_BIN:-}" ]]; then
+  ROOT=$(dirname "$NODE_BIN")
+  if [[ -x "$ROOT/bin/video-reader-mcp" ]]; then exec "$ROOT/bin/video-reader-mcp" "$@"; fi
+  if [[ -f "$ROOT/dist/runtime-entry.js" ]]; then exec node "$ROOT/dist/runtime-entry.js" "$@"; fi
+fi
+echo "@sylphx/cue: install @sylphx/video-reader-mcp (or cue-linked package) first" >&2
+exit 1
