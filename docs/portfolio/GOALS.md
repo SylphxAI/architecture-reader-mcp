@@ -1,0 +1,82 @@
+# Sylphx Instruments — Final goals
+
+Status: accepted (2026-07-31)  
+Linked session goal: active Codex goal *without token budget cap* for this program.
+
+## North-star goal
+
+**Ship Sylphx Instruments** as the coherent local-first instrument family for
+agents and applications: Citra, Iris, Cue, Prism, Spine, and Lookout — each
+**powerful, extremely fast, extremely light**, with **SDK + CLI + MCP + full
+tests**, clear tools, and citeable results.
+
+## Locked outcomes
+
+### G0 — Documentation & authority (immediate)
+
+- [x] Portfolio SSOT written (`sylphx-instruments-ssot.md`)
+- [x] Naming ADR accepted (`ADR-3-sylphx-instruments-naming.md`)
+- [x] Per-line target roadmaps for Citra, Spine, Lookout, Iris/Cue/Prism
+- [x] Portfolio README points at SSOT
+- [ ] Land SSOT on default branch / visible origin tip (delivery of this change)
+- [ ] Citra/Iris/Cue/Prism READMEs adopt brand heroes (follow-on per repo)
+
+### G1 — Family constitution in force
+
+- Local-first default on every active product  
+- Evidence = result contract (not a tool)  
+- Tool clarity rules (no pathological merge)  
+- Core + SDK + CLI + MCP + tests as the completeness bar  
+- Archived lines stay archived (filesystem, awesome-mcp-servers, …)
+
+### G2 — Citra (PDF flagship)
+
+- Brand **Citra** primary in public copy  
+- First-class SDK surfaces (TS/Rust) isomorphic with MCP  
+- Auto-first agent path; progressive power-user options  
+- Install/registry/bench honesty  
+- Remains packaging & quality template for the family  
+
+### G3 — Spine (architecture)
+
+- Greenfield-capable redesign under Instruments rules  
+- Competitive clarity vs Understand-Anything + Graphify; no Serena-edit ownership  
+- Deterministic structural graph without required LLM  
+- Target tools: index/status/overview/search/path/trace/impact/evidence  
+- SDK + CLI + MCP + golden/perf tests  
+
+### G4 — Lookout (web)
+
+- New product specified vs wigolo  
+- Light default (no mandatory multi-GB warmup)  
+- Core tools: search/fetch/extract/cache  
+- SDK + CLI + MCP + tests  
+- SSRF/robots/rate-limit policy enforced  
+
+### G5 — Iris, Cue, Prism
+
+- Iris/Cue meet media evidence bar (local, light, fast, citeable)  
+- Prism routes only; suite push after children qualify  
+- Full surfaces and tests  
+
+### G6 — Distribution & proof
+
+- MCP registry / client install blocks where applicable  
+- Public reproducible benches per product  
+- Optional Instruments overview page  
+
+## Non-goals (final)
+
+- Star count as a hard engineering gate  
+- Reviving filesystem-mcp as a primary Instruments brand without new ADR  
+- LLM multi-agent as the only way to produce structure  
+- Mega-tool catalogs or mega-merged god tools  
+
+## Priority sequence
+
+`G0 → G2 → G3 → G4 → G5 → G6` (G1 is continuous policy).
+
+## Completion rule
+
+A goal item is complete only with **durable artifacts** (docs landed, packages
+published, or tests/benches green on a declared revision) — not chat claims alone.

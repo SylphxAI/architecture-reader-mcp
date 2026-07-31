@@ -1,157 +1,87 @@
-# SylphxAI MCP Portfolio Plan
+# Sylphx Instruments — Portfolio
 
-Status: planning baseline  
-Audience: implementation agents, maintainers, product owners  
-Scope: SylphxAI MCP packages and their shared runtime, packaging, evidence,
-performance, and market-positioning standards.
+Status: **accepted baseline** (2026-07-31)  
+Audience: implementation agents, maintainers, product owners
 
-## Portfolio Thesis
+## Start here
 
-SylphxAI should build a coherent suite of agent-native MCP products, not a
-loose set of utilities. Each MCP must own one category-level job, install in
-under a minute, return evidence that an agent can trust, and prove speed with a
-public benchmark harness.
+| Document | Purpose |
+| --- | --- |
+| **[sylphx-instruments-ssot.md](./sylphx-instruments-ssot.md)** | **Portfolio SSOT** — constraints, evidence meaning, surfaces, brands, products, priority |
+| **[ADR-3 Naming](../adr/ADR-3-sylphx-instruments-naming.md)** | Locked product names |
+| [roadmaps/citra.md](./roadmaps/citra.md) | PDF / Citra targets |
+| [roadmaps/spine.md](./roadmaps/spine.md) | Architecture / Spine targets |
+| [roadmaps/lookout.md](./roadmaps/lookout.md) | Web / Lookout targets |
+| [roadmaps/iris-cue-prism.md](./roadmaps/iris-cue-prism.md) | Image / Video / Router targets |
+| [notes/portfolio-positioning-and-growth.md](./notes/portfolio-positioning-and-growth.md) | Historical growth packaging note (subordinate to SSOT) |
 
-The target is an average of 10,000+ GitHub stars per MCP. That requires more
-than functional correctness. Every repo must be obviously useful in the first
-screen, have a one-command demo, publish reliable packages, show measurable
-performance, and make agents better on real work without forcing users into a
-dashboard.
+Older per-repo files under `roadmaps/*-reader-mcp.md` are transitional. Prefer brand roadmaps + SSOT on conflict.
 
-## Product Lines
+## Thesis
 
-| Line | Projects | Category job |
-| --- | --- | --- |
-| Reader | `pdf-reader-mcp`, `image-reader-mcp`, `video-reader-mcp`, `smart-reader-mcp` | Turn files and media into citeable agent evidence. |
-| Code Intelligence | `coderag`, `architecture-reader-mcp` | Let agents retrieve code facts, architectural maps, dependency traces, and impact evidence. |
-| Control | `filesystem-mcp` | Give agents safe, bounded local filesystem operations. |
+Build a coherent suite of **local-first agent instruments**, not a loose bag of
+`*-reader-mcp` utilities. Each product owns one category job, installs quickly,
+returns citeable results, exposes **SDK + CLI + MCP**, and proves speed with
+reproducible benches.
 
-## Runtime Standard
+Star growth (including ambitious public targets) is an **outcome**. Acceptance
+is the readiness checklist in the SSOT.
 
-Rust is the default core runtime for new SOTA engines. It should own parsing,
-indexing, graph construction, search, streaming IO, policy enforcement, and
-other deterministic high-throughput work.
+## Brands
 
-Bun or TypeScript may remain as a thin MCP adapter when it materially reduces
-protocol risk, package friction, or provider-integration cost. The adapter must
-not become the product core. It should delegate to the Rust engine through a
-stable local command, stdio JSON-RPC, or embedded native binding once the engine
-contract is stable.
+| Brand | Job |
+| --- | --- |
+| **Citra** | PDF evidence for agents |
+| **Iris** | Image evidence |
+| **Cue** | Video timeline evidence |
+| **Prism** | Local media routing |
+| **Spine** | Repo architecture engine |
+| **Lookout** | Local web search/fetch |
 
-Long term, high-performance MCPs should converge toward a Rust-native server
-binary when the Rust MCP SDK surface, schema generation, transport support, and
-release process can match the TypeScript adapter without product regression.
+## Active vs archived
 
-## Install Standard
+**Active:** Citra, Iris, Cue, Prism, Spine, Lookout (planned).  
 
-Rust core does not have to create user installation pain, but only if binary
-distribution is treated as a product feature.
+**Archived (no primary investment):** `filesystem-mcp`, `awesome-mcp-servers`,
+retired consultant/sdk/linear/smart-read/rag-server/reader-evidence lines, etc.
 
-The standard npm package shape is:
+## Runtime & packaging standards
 
-- one small public wrapper package, for example `@sylphx/<project>-mcp`;
-- platform-specific optional binary packages, for example
-  `@sylphx/<project>-darwin-arm64`, `linux-x64-gnu`, `linux-x64-musl`,
-  `linux-arm64-gnu`, and `win32-x64`;
-- no required network download during `postinstall`;
-- deterministic binary resolution at runtime;
-- checksum and provenance verification in release CI;
-- a `doctor` command that explains missing binary, unsupported platform,
-  blocked lifecycle scripts, quarantine, PATH, and permission issues;
-- standalone GitHub release binaries for users who do not want npm.
+- Prefer **Rust cores** for deterministic hot paths.
+- Thin TS adapters only when they reduce protocol/package risk; they must not own semantics.
+- npm shape: small wrapper + optional platform natives; **no required postinstall network binary fetch**; `doctor` for install failure diagnosis.
+- WASM is for sandboxed/portable plugins — not the default local server runtime.
 
-This avoids the weakest install pattern: a package that downloads an executable
-from the network at install time and leaves users with a missing binary when
-firewalls, registries, proxies, or lifecycle-script policies block the download.
+## Evidence standard
 
-## WASM Policy
+Outputs should be agent-usable evidence objects where claims matter: locators,
+routes, warnings/gaps. See SSOT §3. There is **no** `evidence_first` tool.
 
-WASM is a supported execution target for sandboxed plugins, portable extractors,
-browser demos, edge experiments, and untrusted user extensions. It is not the
-default runtime for local high-performance MCP servers.
+## Tool standard
 
-The default server path remains native Rust. WASM can be introduced where
-isolation and portability beat raw throughput or where a user-supplied extension
-must run under strict capability boundaries.
+Clear, independently meaningful tools. Reasonable catalog size. No pathological
+merge into one mega-tool; no vanity explosion. Core vs advanced in docs.
 
-## Evidence Standard
+## Surface standard
 
-Every MCP output should be an agent-readable evidence object, not just text.
-Where possible it should include:
+Every Instruments product targets:
 
-- source path or URI;
-- content hash and version;
-- byte offsets, line ranges, page numbers, timestamps, bounding boxes, node ids,
-  or symbol ids;
-- confidence and extraction route;
-- warnings for missing coverage, lossy extraction, unsafe paths, stale indexes,
-  or provider failures;
-- reproducible follow-up tool calls for deeper inspection.
+1. Domain core  
+2. SDKs (TS + Rust long-term)  
+3. CLI  
+4. MCP  
+5. Full automated tests (golden/contract/e2e/perf as applicable)
 
-The agent should be able to answer: "What was observed, where did it come from,
-how fresh is it, how can I verify it, and what should I call next?"
+## Priority order
 
-## Performance Standard
+1. SSOT/docs lock (**done in this tree**)  
+2. Citra template (brand + SDK + gates)  
+3. Spine greenfield  
+4. Lookout greenfield  
+5. Iris / Cue  
+6. Prism suite entry  
+7. Cross-cutting registry & benches  
 
-Each project needs a benchmark fixture that runs in CI and locally:
+## Final goals (portfolio)
 
-- cold start;
-- first useful response;
-- p50 and p95 tool latency;
-- indexing throughput;
-- memory ceiling;
-- incremental update latency;
-- output determinism across repeated runs;
-- failure behavior on corrupted, oversized, or adversarial inputs.
-
-The public README should show headline numbers only after CI produces them.
-Claims without benchmark proof are planning goals, not shipped facts.
-
-## Brand And Growth Standard
-
-Every MCP repo should have:
-
-- a category-defining one-line promise;
-- a 30-second install path;
-- a copy-paste MCP client config;
-- one tiny demo fixture checked into the repo;
-- one real-world demo script;
-- clear tool contracts and JSON examples;
-- public benchmark commands;
-- security and trust boundaries;
-- a release badge that means the package is actually publishable;
-- a short "why agents use this" section focused on the job, not implementation
-  trivia.
-
-The suite should look like one product family: consistent names, command names,
-output envelopes, trust warnings, benchmark style, and release quality.
-
-## Archived MCP Projects
-
-These repositories are **read-only on GitHub** and are no longer active portfolio
-delivery targets. Keep historical roadmaps for context; do not treat them as
-installable products.
-
-| Repo | Archived | Former category job |
-| --- | --- | --- |
-| [`consultant-mcp`](https://github.com/SylphxAI/consultant-mcp) | 2026-07-09 | Typed consultant panel for high-stakes agent decisions |
-| [`gpt-review`](https://github.com/SylphxAI/gpt-review) | 2026-07-09 | Governed-workflow engine, MCP server, and external GPT review gate |
-
-## ADR Index
-
-- `ADR-DRAFT-rust-first-runtime-distribution.md`
-- `ADR-DRAFT-wasm-plugin-sandbox.md`
-- `ADR-DRAFT-agent-evidence-envelope.md`
-- `ADR-DRAFT-portfolio-positioning-and-growth.md`
-
-## Roadmap Index
-
-- `roadmaps/architecture-reader-mcp.md`
-- `roadmaps/coderag.md`
-- `roadmaps/pdf-reader-mcp.md`
-- `roadmaps/image-reader-mcp.md`
-- `roadmaps/video-reader-mcp.md`
-- `roadmaps/smart-reader-mcp.md`
-- `roadmaps/filesystem-mcp.md`
-- `roadmaps/consultant-mcp.md` (archived — historical)
-- `roadmaps/gpt-review.md` (archived — historical)
+See [GOALS.md](./GOALS.md).
