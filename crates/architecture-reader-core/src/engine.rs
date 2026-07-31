@@ -461,6 +461,10 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
         .iter()
         .any(|extractor| extractor.starts_with("synth-"));
     let gaps = coverage_gaps(&graph, synth_active);
+    let mut relation_kinds: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    for e in &graph.edges {
+        *relation_kinds.entry(e.kind.clone()).or_default() += 1;
+    }
     ToolEnvelope::ok(
         repo,
         json!({
@@ -472,6 +476,7 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "topFanOut": top_fan_out_modules(&graph, 5),
             "cycles": find_short_cycles(&graph, 5, 5),
             "defaultExcludes": crate::scanner::default_excludes(),
+            "relationKinds": relation_kinds,
             "coverage": {
                 "nodes": graph.nodes.len(),
                 "edges": graph.edges.len(),
@@ -621,6 +626,16 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
         .unwrap_or_default();
 
+    // Empty-query browse mode: rank by structural fan-in (Graphify-class "show me important nodes").
+    let mut fan_in: std::collections::HashMap<&str, u64> = std::collections::HashMap::new();
+    if query.is_empty() {
+        for e in &graph.edges {
+            if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on") {
+                *fan_in.entry(e.to.as_str()).or_default() += 1;
+            }
+        }
+    }
+
     let mut scored: Vec<(f64, serde_json::Value)> = Vec::new();
     for node in &graph.nodes {
         if !types.is_empty() && !types.contains(&node.kind) {
@@ -634,7 +649,8 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
             continue;
         }
         let (base_score, match_kind) = if query.is_empty() {
-            (0.5_f64, "empty_query")
+            let fi = *fan_in.get(node.id.as_str()).unwrap_or(&0);
+            (1.0 + (fi as f64), "browse_fan_in")
         } else if label == query {
             (10.0, "exact_label")
         } else if label.starts_with(&query) {

@@ -721,4 +721,49 @@ mod tests {
         assert!(as_str.iter().any(|e| *e == ".next"), "expanded defaults present: {:?}", as_str);
     }
 
+
+    #[test]
+    fn search_empty_query_browse_fan_in() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "query": "",
+                "limit": 5
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let matches = envelope.answer.expect("answer")["matches"].as_array().cloned().unwrap_or_default();
+        assert!(!matches.is_empty());
+        let explain = matches[0]["scoreExplain"].as_array().cloned().unwrap_or_default();
+        assert!(
+            explain.iter().any(|e| e.as_str() == Some("browse_fan_in") || e.as_str() == Some("empty_query")),
+            "expected browse ranking, got {:?}",
+            explain
+        );
+    }
+
+    #[test]
+    fn status_reports_relation_kinds() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_status",
+            serde_json::json!({ "root": root.to_string_lossy() }),
+        );
+        assert_eq!(envelope.status, "ok");
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("relationKinds").is_some());
+    }
+
 }

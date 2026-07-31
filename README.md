@@ -182,6 +182,8 @@ Trace dependency or impact before editing:
 | Local neighborhood (Graphify-class) | `architecture_overview` focus=… or `architecture_search` `includeNeighbors:true` |
 | Short **import** cycles | `architecture_overview` → `cycles` (imports/depends only) |
 | Top fan-in / fan-out modules | `architecture_overview` / `status` → `topFanIn` / `topFanOut` |
+| Browse important nodes | `architecture_search` with empty query (fan-in rank) |
+| Relation kind histogram | `architecture_status` → `relationKinds` |
 | Unknown changed paths | `architecture_impact` → `unknownImpact` |
 | Unresolved path ends | `architecture_path` → `suggestions` |
 | Impact edge labels | `fromNode` / `toNode` summaries on impact edges |
