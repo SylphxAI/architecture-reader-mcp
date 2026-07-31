@@ -186,6 +186,11 @@ mod tests {
             "expected symbol call trace path, got {:?}",
             path
         );
+    
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("hops").is_some(), "trace must include hops provenance");
+        assert!(answer.get("hopCount").is_some());
+        assert_eq!(answer["fromId"].as_str().is_some(), true);
     }
 
     #[test]

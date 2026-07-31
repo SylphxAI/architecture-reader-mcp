@@ -777,34 +777,62 @@ fn architecture_trace(input: serde_json::Value) -> ToolEnvelope {
         Ok(g) => g,
         Err(e) => return e,
     };
-    let from = input.get("from").and_then(|v| v.as_str()).unwrap_or("");
-    let to = input.get("to").and_then(|v| v.as_str()).unwrap_or("");
+    let from = input
+        .get("from")
+        .or_else(|| input.get("source"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let to = input
+        .get("to")
+        .or_else(|| input.get("target"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let relation = input.get("relation").and_then(|v| v.as_str()).unwrap_or("any");
-    let max_depth = input.get("maxDepth").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+    let max_depth = input
+        .get("maxDepth")
+        .or_else(|| input.get("max_depth"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(5) as usize;
 
     let from_id = resolve_node_id(&graph, from);
     let to_id = resolve_node_id(&graph, to);
-    let path = if let (Some(from_id), Some(to_id)) = (from_id, to_id) {
-        bfs_path(&graph, &from_id, &to_id, relation, max_depth)
-    } else {
-        vec![]
+    let (path, hops) = match (from_id.as_deref(), to_id.as_deref()) {
+        (Some(f), Some(t)) => bfs_path_detailed(&graph, f, t, relation, max_depth),
+        _ => (vec![], vec![]),
     };
 
+    let mut gaps = Vec::new();
+    if from_id.is_none() {
+        gaps.push(format!("Could not resolve trace start: {from}"));
+    }
+    if to_id.is_none() {
+        gaps.push(format!("Could not resolve trace end: {to}"));
+    }
+    if path.is_empty() && from_id.is_some() && to_id.is_some() {
+        gaps.push("No trace path found between the requested entities under the relation/depth budget.".into());
+    }
+
+    let evidence = if hops.is_empty() {
+        graph.evidence.clone()
+    } else {
+        collect_path_evidence(&graph, &hops)
+    };
     let repo = repository_state(&root, Some(&graph));
     ToolEnvelope::ok(
         repo,
         json!({
             "from": from,
             "to": to,
+            "fromId": from_id,
+            "toId": to_id,
             "relation": relation,
-            "path": path
+            "maxDepth": max_depth,
+            "hopCount": hops.len(),
+            "path": path,
+            "hops": hops,
         }),
-        graph.evidence.clone(),
-        if path.is_empty() {
-            vec!["No trace path found between the requested entities.".into()]
-        } else {
-            vec![]
-        },
+        evidence,
+        gaps,
         metrics(started, &graph),
     )
 }
@@ -1163,6 +1191,7 @@ fn prefer_symbol_node_id(nodes: &[&GraphNode]) -> String {
         .unwrap_or_else(|| nodes[0].id.clone())
 }
 
+#[allow(dead_code)]
 fn bfs_path(
     graph: &ArchitectureGraph,
     from: &str,

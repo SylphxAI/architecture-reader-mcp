@@ -24,7 +24,7 @@ npx @sylphx/architecture-reader-mcp
 | `architecture_overview` | Packages, languages, counts, **cycles**; **`focus=` for neighbors** |
 | `architecture_search` | Ranked symbol/module/route lookup |
 | `architecture_path` | Shortest path with hop provenance |
-| `architecture_trace` | Compact path between entities |
+| `architecture_trace` | Compact path + **hop provenance** (edge kinds) |
 | `architecture_impact` | Blast radius + **unknownImpact** for unindexed paths |
 | `architecture_evidence` | Resolve evidence ids from prior answers |
 
