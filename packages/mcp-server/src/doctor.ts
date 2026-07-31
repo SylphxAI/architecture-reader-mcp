@@ -148,7 +148,7 @@ export async function runDoctor(version: string): Promise<DoctorReport> {
 }
 
 if (import.meta.main) {
-  const pkg = await import('../../../package.json', { with: { type: 'json' } });
+  const pkg = await import('../package.json', { with: { type: 'json' } });
   const report = await runDoctor(pkg.default.version);
   console.log(JSON.stringify(report, null, 2));
   process.exit(report.status === 'unavailable' ? 1 : 0);
