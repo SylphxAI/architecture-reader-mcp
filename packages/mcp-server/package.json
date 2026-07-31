@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/architecture-reader-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
   "type": "module",
   "description": "Spine \u2014 local architecture engine for agents (SDK \u00b7 CLI \u00b7 MCP). Transitional package name architecture-reader-mcp.",
