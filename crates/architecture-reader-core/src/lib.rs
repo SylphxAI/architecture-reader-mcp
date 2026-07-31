@@ -536,6 +536,8 @@ mod tests {
         assert!(answer.get("topFanIn").is_some());
         assert!(answer.get("topFanOut").is_some());
         assert!(answer.get("cycles").is_some());
+        assert!(answer.get("defaultExcludes").is_some());
+        assert!(answer["defaultExcludes"].as_array().unwrap().iter().any(|v| v.as_str() == Some("node_modules")));
         assert!(answer["coverage"]["evidence"].as_u64().unwrap_or(0) > 0);
     }
 

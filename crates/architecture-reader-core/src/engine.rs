@@ -471,6 +471,7 @@ fn architecture_status(input: serde_json::Value) -> ToolEnvelope {
             "topFanIn": top_fan_in_modules(&graph, 5),
             "topFanOut": top_fan_out_modules(&graph, 5),
             "cycles": find_short_cycles(&graph, 5, 5),
+            "defaultExcludes": crate::scanner::default_excludes(),
             "coverage": {
                 "nodes": graph.nodes.len(),
                 "edges": graph.edges.len(),

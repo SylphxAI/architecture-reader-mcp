@@ -11,6 +11,10 @@ use crate::types::{
     GRAPH_SCHEMA_VERSION,
 };
 
+pub fn default_excludes() -> Vec<String> {
+    DEFAULT_EXCLUDES.iter().map(|s| (*s).to_string()).collect()
+}
+
 const DEFAULT_EXCLUDES: &[&str] = &[
     "node_modules",
     "dist",
