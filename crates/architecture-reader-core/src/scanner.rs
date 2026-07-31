@@ -239,7 +239,11 @@ fn index_file(
     pass: IndexPass,
 ) {
     let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-    if file_name == "package.json" || file_name == "Cargo.toml" {
+    if file_name == "package.json"
+        || file_name == "Cargo.toml"
+        || file_name == "go.mod"
+        || file_name == "pyproject.toml"
+    {
         if pass == IndexPass::Structure {
             index_manifest(builder, rel_str, path);
         }
@@ -429,12 +433,53 @@ fn index_manifest(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let content = fs::read_to_string(path).unwrap_or_default();
     let label = if rel.ends_with("package.json") {
         extract_json_name(&content).unwrap_or_else(|| "npm-package".into())
+    } else if rel.ends_with("go.mod") {
+        extract_go_mod_module(&content).unwrap_or_else(|| "go-module".into())
+    } else if rel.ends_with("pyproject.toml") {
+        extract_pyproject_name(&content)
+            .or_else(|| extract_toml_name(&content))
+            .unwrap_or_else(|| "python-package".into())
     } else {
         extract_toml_name(&content).unwrap_or_else(|| "cargo-package".into())
     };
     let ev = builder.push_evidence("manifest", rel, "manifest@0.1.0", None, None);
     let node_id = format!("node:package:{label}");
     builder.push_node(&node_id, "package", &label, Some(rel), &ev);
+}
+
+fn extract_go_mod_module(content: &str) -> Option<String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("module ") {
+            let name = rest.trim();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn extract_pyproject_name(content: &str) -> Option<String> {
+    let mut in_project = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_project = trimmed == "[project]";
+            continue;
+        }
+        if !in_project {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("name") {
+            let rest = rest.trim().trim_start_matches('=').trim();
+            let name = rest.trim_matches(|c| c == '"' || c == '\'').trim();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
 }
 
 fn index_document(builder: &mut GraphBuilder, rel: &str, kind: &str) {
@@ -1840,6 +1885,21 @@ func helperSalt() string { return "x" }
         let path = dir.join(name);
         fs::write(&path, content).expect("write temp");
         path
+    }
+
+
+    #[test]
+    fn extract_go_mod_and_pyproject_names() {
+        assert_eq!(
+            extract_go_mod_module("module github.com/acme/x\n\ngo 1.22\n").as_deref(),
+            Some("github.com/acme/x")
+        );
+        assert_eq!(extract_go_mod_module("go 1.22\n"), None);
+        assert_eq!(
+            extract_pyproject_name("[project]\nname = \"demo\"\nversion = \"0\"\n").as_deref(),
+            Some("demo")
+        );
+        assert_eq!(extract_pyproject_name("[tool.poetry]\nname = \"x\"\n"), None);
     }
 
 }
