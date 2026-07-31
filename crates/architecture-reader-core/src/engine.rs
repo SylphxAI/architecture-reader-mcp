@@ -431,20 +431,20 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
         if !query.is_empty() && !hay.contains(&query) {
             continue;
         }
-        let score = if query.is_empty() {
-            0.5
+        let (base_score, match_kind) = if query.is_empty() {
+            (0.5_f64, "empty_query")
         } else if label == query {
-            10.0
+            (10.0, "exact_label")
         } else if label.starts_with(&query) {
-            8.0
+            (8.0, "label_prefix")
         } else if label.contains(&query) {
-            6.0
+            (6.0, "label_substring")
         } else if path.ends_with(&query) || path.contains(&format!("/{query}")) {
-            5.0
+            (5.0, "path_suffix_or_segment")
         } else if path.contains(&query) {
-            3.5
+            (3.5, "path_substring")
         } else {
-            1.0
+            (1.0, "kind_or_weak")
         };
         // Prefer symbols and routes slightly for architecture questions.
         let kind_boost = match node.kind.as_str() {
@@ -455,7 +455,7 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
             "package" => 0.1,
             _ => 0.0,
         };
-        let score = score + kind_boost;
+        let score = base_score + kind_boost;
         scored.push((
             score,
             json!({
@@ -465,18 +465,47 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
                 "path": node.path,
                 "score": score,
                 "scoreExplain": [
-                    if query.is_empty() {
-                        "empty_query".to_string()
-                    } else {
-                        "substring_match".to_string()
-                    },
+                    match_kind.to_string(),
                     format!("kind={}", node.kind),
+                    format!("kindBoost={kind_boost}"),
                 ],
             }),
         ));
     }
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let matches: Vec<_> = scored.into_iter().take(limit).map(|(_, v)| v).collect();
+    let mut matches: Vec<serde_json::Value> = scored.into_iter().take(limit).map(|(_, v)| v).collect();
+
+    let include_neighbors = input
+        .get("includeNeighbors")
+        .or_else(|| input.get("include_neighbors"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if include_neighbors {
+        for m in matches.iter_mut() {
+            let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if id.is_empty() {
+                continue;
+            }
+            let mut neighbors = Vec::new();
+            for edge in graph.edges.iter().filter(|e| e.from == id || e.to == id) {
+                let other = if edge.from == id { &edge.to } else { &edge.from };
+                let other_node = graph.nodes.iter().find(|n| n.id == *other);
+                neighbors.push(json!({
+                    "edge": edge.kind,
+                    "direction": if edge.from == id { "outgoing" } else { "incoming" },
+                    "id": other,
+                    "kind": other_node.map(|n| n.kind.clone()),
+                    "label": other_node.map(|n| n.label.clone()),
+                    "path": other_node.and_then(|n| n.path.clone()),
+                }));
+                if neighbors.len() >= 8 {
+                    break;
+                }
+            }
+            m.as_object_mut()
+                .map(|obj| obj.insert("neighbors".into(), json!(neighbors)));
+        }
+    }
 
     let include_evidence = input
         .get("includeEvidence")
@@ -491,7 +520,7 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
     let repo = repository_state(&root, Some(&graph));
     ToolEnvelope::ok(
         repo,
-        json!({ "matches": matches }),
+        json!({ "matches": matches, "includeNeighbors": include_neighbors }),
         evidence,
         coverage_gaps(
             &graph,
@@ -894,6 +923,8 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             "csharp"
         } else if path.ends_with(".kt") || path.ends_with(".kts") {
             "kotlin"
+        } else if path.ends_with(".rb") {
+            "ruby"
         } else if path.is_empty() {
             "external"
         } else {

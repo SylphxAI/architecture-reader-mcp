@@ -425,4 +425,37 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn search_score_explain_and_neighbors() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "query": "issue_token",
+                "limit": 5,
+                "includeNeighbors": true
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert_eq!(answer["includeNeighbors"], true);
+        let matches = answer["matches"].as_array().cloned().unwrap_or_default();
+        assert!(!matches.is_empty());
+        let top = &matches[0];
+        let explain = top["scoreExplain"].as_array().cloned().unwrap_or_default();
+        assert!(
+            explain.iter().any(|e| e.as_str() == Some("exact_label") || e.as_str() == Some("label_substring") || e.as_str() == Some("label_prefix")),
+            "scoreExplain={:?}",
+            explain
+        );
+        assert!(top.get("neighbors").is_some(), "expected neighbors on match");
+    }
+
 }

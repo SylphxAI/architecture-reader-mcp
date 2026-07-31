@@ -205,6 +205,7 @@ pub fn scan_repository_paths(
         "java@0.1.0".into(),
         "csharp@0.1.0".into(),
         "kotlin@0.1.0".into(),
+        "ruby@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -343,6 +344,14 @@ fn index_file(
         match pass {
             IndexPass::Structure => index_kt_module(builder, rel_str, path, IndexPass::Structure),
             IndexPass::Calls => index_kt_module(builder, rel_str, path, IndexPass::Calls),
+        }
+        return;
+    }
+
+    if rel_str.ends_with(".rb") {
+        match pass {
+            IndexPass::Structure => index_rb_module(builder, rel_str, path, IndexPass::Structure),
+            IndexPass::Calls => index_rb_module(builder, rel_str, path, IndexPass::Calls),
         }
         return;
     }
@@ -676,6 +685,90 @@ fn index_kt_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: Ind
                     continue;
                 }
                 let ev = builder.push_evidence("ast", rel, "kotlin@0.1.0", Some(line_number), Some(line_number));
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
+    }
+    let _ = path;
+}
+
+
+fn index_rb_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: IndexPass) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if pass == IndexPass::Structure {
+        let file_ev = builder.push_evidence("ast", rel, "ruby@0.1.0", None, None);
+        if !builder.has_node(&file_id) {
+            builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+        }
+        // require / require_relative
+        let req_re = Regex::new(r#"(?m)^\s*require(?:_relative)?\s+['"]([^'"]+)['"]"#).unwrap();
+        for cap in req_re.captures_iter(&content) {
+            let dep = cap[1].to_string();
+            let dep_id = format!("node:module:dep:{dep}");
+            if !builder.has_node(&dep_id) {
+                builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+            }
+            builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        }
+        // class / module
+        let type_re = Regex::new(r#"(?m)^\s*(class|module)\s+([A-Za-z_][A-Za-z0-9_:]*)"#).unwrap();
+        for cap in type_re.captures_iter(&content) {
+            let kind = cap[1].to_string();
+            let name = cap[2].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "ruby@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        // def method
+        let def_re = Regex::new(r#"(?m)^\s*def\s+([A-Za-z_][A-Za-z0-9_!?=]*)"#).unwrap();
+        for cap in def_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "ruby@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        return;
+    }
+    let def_re = Regex::new(r#"(?m)^\s*def\s+([A-Za-z_][A-Za-z0-9_!?=]*)"#).unwrap();
+    let mut symbols = Vec::new();
+    for cap in def_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        symbols.push((name, line, line + 80));
+    }
+    let call_re = Regex::new(r#"\b([A-Za-z_][A-Za-z0-9_?!]*)\s*(?:\(|$)"#).unwrap();
+    let keywords = ["if", "unless", "while", "until", "for", "return", "class", "module", "def", "end", "true", "false", "nil", "super", "self"];
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || keywords.contains(&callee.as_str()) {
+                    continue;
+                }
+                let target_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), callee);
+                if !builder.has_node(&target_id) {
+                    continue;
+                }
+                let ev = builder.push_evidence("ast", rel, "ruby@0.1.0", Some(line_number), Some(line_number));
                 builder.push_edge("calls", &caller_id, &target_id, &ev);
             }
         }
@@ -2341,6 +2434,28 @@ class TokenService {
             "edges={:?}",
             builder.edges
         );
+    }
+
+
+    #[test]
+    fn rb_extracts_class_and_defs() {
+        let content = r#"
+require "json"
+class TokenService
+  def issue_token(user)
+    helper_salt
+  end
+  def helper_salt
+    "x"
+  end
+end
+"#;
+        let mut builder = GraphBuilder::default();
+        let tmp = tempfile_path("token_service.rb", content);
+        index_rb_module(&mut builder, "src/ruby/token_service.rb", &tmp, IndexPass::Structure);
+        index_rb_module(&mut builder, "src/ruby/token_service.rb", &tmp, IndexPass::Calls);
+        assert!(builder.nodes.iter().any(|n| n.label == "TokenService"));
+        assert!(builder.nodes.iter().any(|n| n.id.contains("function:issue_token")));
     }
 
 }
