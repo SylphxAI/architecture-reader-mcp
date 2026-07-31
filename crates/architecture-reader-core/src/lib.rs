@@ -285,4 +285,45 @@ mod tests {
     }
 
 
+
+    #[test]
+    fn indexes_rust_and_go_fixtures() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        // ensure fixture files present
+        assert!(root.join("src/rust/token.rs").exists());
+        assert!(root.join("src/go/auth/token.go").exists());
+        let envelope = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let overview = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({ "root": root.to_string_lossy(), "query": "issue_token" }),
+        );
+        assert_eq!(overview.status, "ok", "{:?}", overview.message);
+        let answer = overview.answer.expect("answer");
+        let matches = answer["matches"].as_array().cloned().unwrap_or_default();
+        assert!(
+            matches.iter().any(|m| m["id"].as_str().unwrap_or("").contains("issue_token")
+                || m["label"].as_str().unwrap_or("").contains("issue_token")),
+            "expected issue_token match, got {:?}",
+            matches
+        );
+        let go = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({ "root": root.to_string_lossy(), "query": "IssueToken" }),
+        );
+        assert_eq!(go.status, "ok");
+        let gans = go.answer.expect("answer");
+        let gmatches = gans["matches"].as_array().cloned().unwrap_or_default();
+        assert!(
+            gmatches.iter().any(|m| m["label"].as_str().unwrap_or("").contains("IssueToken")
+                || m["id"].as_str().unwrap_or("").contains("IssueToken")),
+            "expected IssueToken match {:?}",
+            gmatches
+        );
+    }
+
 }

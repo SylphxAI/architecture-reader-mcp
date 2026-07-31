@@ -200,6 +200,8 @@ pub fn scan_repository_paths(
         "routes@0.1.0".into(),
         "schema@0.1.0".into(),
         "python@0.1.0".into(),
+        "rust@0.1.0".into(),
+        "go@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -299,8 +301,17 @@ fn index_file(
     }
 
     if rel_str.ends_with(".rs") {
-        if pass == IndexPass::Structure {
-            index_rs_imports(builder, rel_str, path);
+        match pass {
+            IndexPass::Structure => index_rs_module(builder, rel_str, path, IndexPass::Structure),
+            IndexPass::Calls => index_rs_module(builder, rel_str, path, IndexPass::Calls),
+        }
+        return;
+    }
+
+    if rel_str.ends_with(".go") {
+        match pass {
+            IndexPass::Structure => index_go_module(builder, rel_str, path, IndexPass::Structure),
+            IndexPass::Calls => index_go_module(builder, rel_str, path, IndexPass::Calls),
         }
         return;
     }
@@ -862,9 +873,22 @@ fn index_py_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
         }
     }
 
-    let def_re = Regex::new(r#"(?m)^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let def_re = Regex::new(r#"(?m)^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let class_re = Regex::new(r#"(?m)^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[:(]"#).unwrap();
     let call_re = Regex::new(r#"(?m)\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
     let mut symbols = Vec::new();
+
+    for cap in class_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:symbol:{}:class:{}", rel.replace('/', ":"), name);
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "python@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
 
     for cap in def_re.captures_iter(&content) {
         let name = cap[1].to_string();
@@ -918,30 +942,217 @@ fn index_py_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
     let _ = path;
 }
 
-fn index_rs_imports(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+fn index_rs_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: IndexPass) {
     let content = fs::read_to_string(path).unwrap_or_default();
-    let file_ev = builder.push_evidence("ast", rel, "import-graph@0.1.0", None, None);
     let file_id = format!("node:module:{}", rel.replace('/', ":"));
-    builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
 
-    let use_re = Regex::new(r#"(?m)^\s*use\s+([a-zA-Z0-9_:]+)"#).unwrap();
-    let mod_re = Regex::new(r#"(?m)^\s*mod\s+([a-zA-Z0-9_]+)"#).unwrap();
-    let mut deps = BTreeSet::new();
-    for cap in use_re.captures_iter(&content) {
-        deps.insert(cap[1].to_string());
-    }
-    for cap in mod_re.captures_iter(&content) {
-        deps.insert(cap[1].to_string());
-    }
-    for dep in deps {
-        let dep_id = format!("node:module:dep:{dep}");
-        if !builder.nodes.iter().any(|n| n.id == dep_id) {
-            builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+    if pass == IndexPass::Structure {
+        let file_ev = builder.push_evidence("ast", rel, "rust@0.1.0", None, None);
+        if !builder.has_node(&file_id) {
+            builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
         }
-        builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+
+        let use_re = Regex::new(r#"(?m)^\s*use\s+([a-zA-Z0-9_:]+)"#).unwrap();
+        let mod_re = Regex::new(r#"(?m)^\s*(?:pub\s+)?mod\s+([a-zA-Z0-9_]+)"#).unwrap();
+        let mut deps = BTreeSet::new();
+        for cap in use_re.captures_iter(&content) {
+            deps.insert(cap[1].to_string());
+        }
+        for cap in mod_re.captures_iter(&content) {
+            deps.insert(cap[1].to_string());
+        }
+        for dep in deps {
+            let dep_id = format!("node:module:dep:{dep}");
+            if !builder.has_node(&dep_id) {
+                builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+            }
+            builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        }
+
+        // pub/private fn, including async
+        let fn_re = Regex::new(
+            r#"(?m)^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\("#,
+        )
+        .unwrap();
+        for cap in fn_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "rust@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        return;
+    }
+
+    // Calls pass: link local fn calls when callee is a symbol in this file
+    let symbols = {
+        let fn_re = Regex::new(
+            r#"(?m)^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\("#,
+        )
+        .unwrap();
+        let mut out = Vec::new();
+        for cap in fn_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            out.push((name, line, line + 80));
+        }
+        out
+    };
+    let call_re = Regex::new(r#"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:::\s*)?\("#).unwrap();
+    let keywords = [
+        "if", "for", "while", "loop", "match", "return", "self", "Super", "super", "Some", "None",
+        "Ok", "Err", "true", "false", "vec", "format", "println", "eprintln", "assert", "panic",
+    ];
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || keywords.contains(&callee.as_str()) {
+                    continue;
+                }
+                let target_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), callee);
+                if !builder.has_node(&target_id) {
+                    continue;
+                }
+                let ev = builder.push_evidence(
+                    "ast",
+                    rel,
+                    "rust@0.1.0",
+                    Some(line_number),
+                    Some(line_number),
+                );
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
     }
     let _ = path;
 }
+
+fn index_go_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: IndexPass) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+
+    if pass == IndexPass::Structure {
+        let file_ev = builder.push_evidence("ast", rel, "go@0.1.0", None, None);
+        if !builder.has_node(&file_id) {
+            builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+        }
+
+        // package name as package-ish claim node
+        if let Some(cap) = Regex::new(r#"(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_]*)"#)
+            .unwrap()
+            .captures(&content)
+        {
+            let pkg = cap[1].to_string();
+            let pkg_id = format!("node:package:go:{pkg}");
+            if !builder.has_node(&pkg_id) {
+                let pev = builder.push_evidence("ast", rel, "go@0.1.0", Some(1), Some(1));
+                builder.push_node(&pkg_id, "package", &pkg, Some(rel), &pev);
+            }
+            builder.push_edge("belongs_to", &file_id, &pkg_id, &file_ev);
+        }
+
+        // imports: import "x" and import ( "a" "b" )
+        let import_line = Regex::new(r#"(?m)^\s*import\s+"([^"]+)""#).unwrap();
+        let import_block_item = Regex::new(r#"(?m)^\s+(?:[A-Za-z_]\w*\s+)?"([^"]+)""#).unwrap();
+        let mut deps = BTreeSet::new();
+        for cap in import_line.captures_iter(&content) {
+            deps.insert(cap[1].to_string());
+        }
+        // crude block: between import ( and )
+        if let Some(start) = content.find("import (") {
+            if let Some(end_rel) = content[start..].find(')') {
+                let block = &content[start..start + end_rel];
+                for cap in import_block_item.captures_iter(block) {
+                    deps.insert(cap[1].to_string());
+                }
+            }
+        }
+        for dep in deps {
+            let dep_id = format!("node:module:dep:{dep}");
+            if !builder.has_node(&dep_id) {
+                builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+            }
+            builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        }
+
+        // func Name / func (r *T) Name
+        let fn_re = Regex::new(
+            r#"(?m)^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\("#,
+        )
+        .unwrap();
+        for cap in fn_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "go@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        return;
+    }
+
+    // Calls within file
+    let fn_re = Regex::new(r#"(?m)^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let mut symbols = Vec::new();
+    for cap in fn_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        symbols.push((name, line, line + 80));
+    }
+    let call_re = Regex::new(r#"\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let keywords = [
+        "if", "for", "switch", "return", "func", "make", "len", "append", "copy", "new", "panic",
+        "recover", "true", "false", "nil", "range", "select", "case", "default", "go", "defer",
+    ];
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || keywords.contains(&callee.as_str()) {
+                    continue;
+                }
+                let target_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), callee);
+                if !builder.has_node(&target_id) {
+                    continue;
+                }
+                let ev = builder.push_evidence(
+                    "ast",
+                    rel,
+                    "go@0.1.0",
+                    Some(line_number),
+                    Some(line_number),
+                );
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
+    }
+    let _ = path;
+}
+
 
 fn extract_json_name(content: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(content).ok()?;
@@ -1564,4 +1775,71 @@ import Def from '../def';
         assert_eq!(extract_json_name(r#"{"name":123}"#), None);
         assert_eq!(extract_json_name(""), None);
     }
+
+    #[test]
+    fn rust_and_go_extract_symbols_and_calls() {
+        let content_rs = r#"
+use std::collections::HashMap;
+pub fn issue_token(user: &str) -> String {
+    helper_salt()
+}
+fn helper_salt() -> String { "x".into() }
+"#;
+        let mut builder = GraphBuilder::default();
+        let tmp = tempfile_path("token.rs", content_rs);
+        index_rs_module(&mut builder, "src/rust/token.rs", &tmp, IndexPass::Structure);
+        index_rs_module(&mut builder, "src/rust/token.rs", &tmp, IndexPass::Calls);
+        assert!(builder.nodes.iter().any(|n| n.id.contains("function:issue_token")));
+        assert!(builder.nodes.iter().any(|n| n.id.contains("function:helper_salt")));
+        assert!(
+            builder.edges.iter().any(|e| e.kind == "calls"
+                && e.from.contains("issue_token")
+                && e.to.contains("helper_salt")),
+            "expected issue_token -> helper_salt call edge, edges={:?}",
+            builder.edges
+        );
+        assert!(builder.evidence.iter().any(|e| e.extractor == "rust@0.1.0"));
+
+        let content_go = r#"
+package auth
+import "fmt"
+func IssueToken(user string) string {
+    return helperSalt()
+}
+func helperSalt() string { return "x" }
+"#;
+        let mut gbuilder = GraphBuilder::default();
+        let gtmp = tempfile_path("token.go", content_go);
+        index_go_module(&mut gbuilder, "src/go/auth/token.go", &gtmp, IndexPass::Structure);
+        index_go_module(&mut gbuilder, "src/go/auth/token.go", &gtmp, IndexPass::Calls);
+        assert!(gbuilder.nodes.iter().any(|n| n.kind == "package" && n.label == "auth"));
+        assert!(gbuilder.nodes.iter().any(|n| n.id.contains("function:IssueToken")));
+        assert!(
+            gbuilder.edges.iter().any(|e| e.kind == "calls"
+                && e.from.contains("IssueToken")
+                && e.to.contains("helperSalt")),
+            "expected IssueToken -> helperSalt, edges={:?}",
+            gbuilder.edges
+        );
+        assert!(gbuilder.evidence.iter().any(|e| e.extractor == "go@0.1.0"));
+    }
+
+    #[test]
+    fn python_extracts_class_symbols() {
+        let content = "class TokenService:\n    def issue(self):\n        return 1\n";
+        let mut builder = GraphBuilder::default();
+        let tmp = tempfile_path("svc.py", content);
+        index_py_module(&mut builder, "src/svc.py", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.id.contains(":class:TokenService")));
+        assert!(builder.nodes.iter().any(|n| n.id.contains(":function:issue")));
+    }
+
+    fn tempfile_path(name: &str, content: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("spine-test-{}-{}", std::process::id(), name));
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join(name);
+        fs::write(&path, content).expect("write temp");
+        path
+    }
+
 }

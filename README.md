@@ -18,7 +18,7 @@ Transitional package/repo: `@sylphx/architecture-reader-mcp` / `architecture-rea
 [![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
 
-**Beta 0.1** · **Rust core + Bun MCP adapter** · **7 typed MCP tools** · **Evidence envelope** · **5 tests**
+**Beta 0.1** · **Rust core + Bun MCP adapter** · **8 typed MCP tools** · **Evidence envelope** · **Rust/Go/Python/TS extractors**
 
 [⭐ Star this repo](https://github.com/SylphxAI/architecture-reader-mcp) if agents should answer architecture questions with proof, not graphviz guesses.
 · [Quick start](#quick-start) · [Tool contract](#tool-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)
@@ -31,6 +31,18 @@ not replace it. Reader portfolio media tools live in
 
 ---
 
+
+## Language extractors (deterministic)
+
+| Language | What is extracted | Extractor id |
+| --- | --- | --- |
+| TypeScript / JavaScript | modules, imports, symbols, calls, routes, zod schemas | `import-graph` / `call-graph` / `routes` / `schema` (+ opt-in Synth AST) |
+| Python | modules, imports, classes, functions, calls | `python@0.1.0` |
+| Rust | modules, `use`/`mod`, functions, local calls | `rust@0.1.0` |
+| Go | package, imports, functions, local calls | `go@0.1.0` |
+| Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
+
+Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.
 
 ## Competitive position
 
@@ -63,7 +75,7 @@ repo is shaped, what depends on what, and which files back each claim.**
 
 **Beta 0.1** ships a runnable Rust evidence-graph engine with a thin Bun MCP
 adapter. Manifest/import/docs/route/schema extraction, symbol call tracing,
-Python indexing, and incremental refresh are implemented with release-gate proof.
+TypeScript/Python/Rust/Go indexing, path/impact with git-diff, and incremental refresh are implemented with release-gate proof.
 First npm publish is workflow-owned via Changesets on `main` — see
 [roadmap](./docs/portfolio/roadmaps/architecture-reader-mcp.md).
 
