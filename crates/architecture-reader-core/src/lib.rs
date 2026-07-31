@@ -646,4 +646,20 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn index_answer_includes_languages() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let envelope = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("languages").is_some());
+        assert!(answer.get("extractors").is_some());
+        assert!(answer["coverage"]["symbols"].as_u64().unwrap_or(0) > 0);
+    }
+
 }

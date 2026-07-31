@@ -28,7 +28,7 @@ Usage:
   spine index [ROOT] [--mode auto|full]
   spine status [ROOT]
   spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
-  spine search [ROOT] <query>
+  spine search [ROOT] <query> [--limit N] [--neighbors]
   spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
   spine trace [ROOT] <from> <to>
   spine impact [ROOT] <path> [<path>...] [--max-depth N]

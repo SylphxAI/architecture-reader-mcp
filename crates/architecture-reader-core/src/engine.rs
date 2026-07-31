@@ -421,10 +421,14 @@ fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
             "filesIndexed": graph.nodes.len(),
             "nodes": graph.nodes.len(),
             "edges": graph.edges.len(),
+            "extractors": graph.extractors,
+            "languages": language_surface_stats(&graph),
             "coverage": {
                 "ast": coverage_ast,
                 "manifests": manifest_nodes,
-                "docs": coverage_docs
+                "docs": coverage_docs,
+                "symbols": graph.nodes.iter().filter(|n| n.kind == "symbol").count(),
+                "routes": graph.nodes.iter().filter(|n| n.kind == "route").count(),
             }
         }),
         graph.evidence.clone(),
