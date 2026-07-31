@@ -223,6 +223,7 @@ pub fn scan_repository_paths(
         "kotlin@0.1.0".into(),
         "ruby@0.1.0".into(),
         "php@0.1.0".into(),
+        "c@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -377,6 +378,20 @@ fn index_file(
         match pass {
             IndexPass::Structure => index_php_module(builder, rel_str, path, IndexPass::Structure),
             IndexPass::Calls => index_php_module(builder, rel_str, path, IndexPass::Calls),
+        }
+        return;
+    }
+    if rel_str.ends_with(".c")
+        || rel_str.ends_with(".h")
+        || rel_str.ends_with(".cc")
+        || rel_str.ends_with(".cpp")
+        || rel_str.ends_with(".cxx")
+        || rel_str.ends_with(".hpp")
+        || rel_str.ends_with(".hh")
+    {
+        match pass {
+            IndexPass::Structure => index_c_module(builder, rel_str, path, IndexPass::Structure),
+            IndexPass::Calls => index_c_module(builder, rel_str, path, IndexPass::Calls),
         }
         return;
     }
@@ -900,6 +915,122 @@ fn index_php_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: In
                     continue;
                 }
                 let ev = builder.push_evidence("ast", rel, "php@0.1.0", Some(line_number), Some(line_number));
+                builder.push_edge("calls", &caller_id, &target_id, &ev);
+            }
+        }
+    }
+    let _ = path;
+}
+
+
+fn index_c_module(builder: &mut GraphBuilder, rel: &str, path: &Path, pass: IndexPass) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    if pass == IndexPass::Structure {
+        let file_ev = builder.push_evidence("ast", rel, "c@0.1.0", None, None);
+        if !builder.has_node(&file_id) {
+            builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+        }
+        // #include "local.h" or <stdio.h>
+        let include_re = Regex::new(r#"(?m)^\s*#\s*include\s*([<"])([^>"]+)[>"]"#).unwrap();
+        for cap in include_re.captures_iter(&content) {
+            let kind = &cap[1];
+            let dep = cap[2].to_string();
+            let dep_id = if kind == "\"" {
+                format!("node:module:include:{}", dep.replace('/', ":"))
+            } else {
+                format!("node:module:dep:{}", dep.replace('/', ":"))
+            };
+            if !builder.has_node(&dep_id) {
+                builder.push_node(&dep_id, "module", &dep, None, &file_ev);
+            }
+            builder.push_edge("imports", &file_id, &dep_id, &file_ev);
+        }
+        // struct / enum / class (C++)
+        let type_re = Regex::new(
+            r#"(?m)^\s*(?:typedef\s+)?(struct|enum|union|class)\s+([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .unwrap();
+        for cap in type_re.captures_iter(&content) {
+            let kind = cap[1].to_string();
+            let name = cap[2].to_string();
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:{}:{}", rel.replace('/', ":"), kind, name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "c@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        // function definitions: return_type name( — skip control keywords
+        let fn_re = Regex::new(
+            r#"(?m)^\s*(?:static\s+|inline\s+|extern\s+|constexpr\s+|virtual\s+)*(?:[\w:<>\*&]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{?"#,
+        )
+        .unwrap();
+        let skip = [
+            "if", "for", "while", "switch", "return", "sizeof", "typeof", "else", "do",
+            "struct", "enum", "union", "class", "namespace",
+        ];
+        for cap in fn_re.captures_iter(&content) {
+            let name = cap[1].to_string();
+            if skip.contains(&name.as_str()) {
+                continue;
+            }
+            let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+            let node_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "c@0.1.0", Some(line), Some(line));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+        return;
+    }
+    // Calls pass
+    let fn_re = Regex::new(
+        r#"(?m)^\s*(?:static\s+|inline\s+|extern\s+|constexpr\s+|virtual\s+)*(?:[\w:<>\*&]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{?"#,
+    )
+    .unwrap();
+    let skip = [
+        "if", "for", "while", "switch", "return", "sizeof", "typeof", "else", "do",
+        "struct", "enum", "union", "class", "namespace",
+    ];
+    let mut symbols = Vec::new();
+    for cap in fn_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        if skip.contains(&name.as_str()) {
+            continue;
+        }
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        symbols.push((name, line, line + 120));
+    }
+    let call_re = Regex::new(r#"\b([A-Za-z_][A-Za-z0-9_]*)\s*\("#).unwrap();
+    let keywords = [
+        "if", "for", "while", "switch", "return", "sizeof", "typeof", "else", "do",
+        "printf", "malloc", "free", "memcpy", "memset", "assert",
+    ];
+    for (caller, start_line, end_line) in symbols {
+        let caller_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), caller);
+        if !builder.has_node(&caller_id) {
+            continue;
+        }
+        for (line_no, line) in content.lines().enumerate() {
+            let line_number = (line_no + 1) as u32;
+            if line_number < start_line || line_number > end_line {
+                continue;
+            }
+            for cap in call_re.captures_iter(line) {
+                let callee = cap[1].to_string();
+                if callee == caller || keywords.contains(&callee.as_str()) {
+                    continue;
+                }
+                let target_id = format!("node:symbol:{}:function:{}", rel.replace('/', ":"), callee);
+                if !builder.has_node(&target_id) {
+                    continue;
+                }
+                let ev = builder.push_evidence("ast", rel, "c@0.1.0", Some(line_number), Some(line_number));
                 builder.push_edge("calls", &caller_id, &target_id, &ev);
             }
         }
@@ -2615,6 +2746,41 @@ class TokenService {
             "edges={:?}",
             builder.edges
         );
+    }
+
+    #[test]
+    fn c_extracts_includes_and_functions() {
+        let content = r#"
+#include "token.h"
+#include <stdio.h>
+
+struct TokenBucket {
+  int capacity;
+};
+
+static int helper_salt(int x) {
+  return x + 1;
+}
+
+int issue_token(int seed) {
+  return helper_salt(seed);
+}
+"#;
+        let tmp = tempfile_path("token.c", content);
+        let mut builder = GraphBuilder::default();
+        index_c_module(&mut builder, "src/c/token.c", &tmp, IndexPass::Structure);
+        index_c_module(&mut builder, "src/c/token.c", &tmp, IndexPass::Calls);
+        assert!(builder.nodes.iter().any(|n| n.label == "issue_token" || n.id.contains("function:issue_token")));
+        assert!(builder.nodes.iter().any(|n| n.label == "helper_salt" || n.id.contains("function:helper_salt")));
+        assert!(builder.edges.iter().any(|e| e.kind == "imports"));
+        assert!(
+            builder.edges.iter().any(|e| e.kind == "calls"
+                && e.from.contains("issue_token")
+                && e.to.contains("helper_salt")),
+            "edges={:?}",
+            builder.edges
+        );
+        let _ = std::fs::remove_file(&tmp);
     }
 
 }
