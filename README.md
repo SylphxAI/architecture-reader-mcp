@@ -183,6 +183,8 @@ Trace dependency or impact before editing:
 | Short **import** cycles | `architecture_overview` → `cycles` (imports/depends only) |
 | Top fan-in / fan-out modules | `architecture_overview` / `status` → `topFanIn` / `topFanOut` |
 | Unknown changed paths | `architecture_impact` → `unknownImpact` |
+| Unresolved path ends | `architecture_path` → `suggestions` |
+| Impact edge labels | `fromNode` / `toNode` summaries on impact edges |
 | Fetch proof behind a claim | `architecture_evidence` |
 
 Every answer shares one evidence envelope: path, optional line range, extraction

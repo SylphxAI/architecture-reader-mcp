@@ -218,6 +218,46 @@ fn top_fan_out_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_jso
         .collect()
 }
 
+
+fn node_summary(graph: &ArchitectureGraph, id: &str) -> serde_json::Value {
+    if let Some(n) = graph.nodes.iter().find(|n| n.id == id) {
+        json!({ "id": n.id, "kind": n.kind, "label": n.label, "path": n.path })
+    } else {
+        json!({ "id": id })
+    }
+}
+
+fn suggest_nodes(graph: &ArchitectureGraph, needle: &str, limit: usize) -> Vec<serde_json::Value> {
+    let q = needle.to_lowercase();
+    let mut scored: Vec<(i32, &crate::types::GraphNode)> = Vec::new();
+    for n in &graph.nodes {
+        let label = n.label.to_lowercase();
+        let path = n.path.as_deref().unwrap_or("").to_lowercase();
+        let score = if label == q {
+            100
+        } else if label.starts_with(&q) {
+            80
+        } else if label.contains(&q) {
+            60
+        } else if path.contains(&q) {
+            40
+        } else if n.id.to_lowercase().contains(&q) {
+            20
+        } else {
+            0
+        };
+        if score > 0 {
+            scored.push((score, n));
+        }
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
+    scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, n)| json!({ "id": n.id, "kind": n.kind, "label": n.label, "path": n.path }))
+        .collect()
+}
+
 fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -728,11 +768,14 @@ fn architecture_path(input: serde_json::Value) -> ToolEnvelope {
     };
 
     let mut gaps = Vec::new();
+    let mut suggestions = serde_json::Map::new();
     if from_id.is_none() {
         gaps.push(format!("Could not resolve path start: {from}"));
+        suggestions.insert("from".into(), json!(suggest_nodes(&graph, from, 5)));
     }
     if to_id.is_none() {
         gaps.push(format!("Could not resolve path end: {to}"));
+        suggestions.insert("to".into(), json!(suggest_nodes(&graph, to, 5)));
     }
     if node_path.is_empty() && from_id.is_some() && to_id.is_some() {
         gaps.push("No path found between the requested entities under the relation/depth budget.".into());
@@ -760,6 +803,7 @@ fn architecture_path(input: serde_json::Value) -> ToolEnvelope {
             "hopCount": hop_count,
             "nodes": node_path,
             "hops": hops,
+            "suggestions": suggestions,
         }),
         evidence,
         gaps,
@@ -967,6 +1011,24 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
             }
             frontier = next;
         }
+    }
+
+    // Attach node summaries for agent readability
+    let enrich = |v: &mut serde_json::Value| {
+        if let Some(obj) = v.as_object_mut() {
+            if let Some(from) = obj.get("from").and_then(|x| x.as_str()).map(str::to_string) {
+                obj.insert("fromNode".into(), node_summary(&graph, &from));
+            }
+            if let Some(to) = obj.get("to").and_then(|x| x.as_str()).map(str::to_string) {
+                obj.insert("toNode".into(), node_summary(&graph, &to));
+            }
+        }
+    };
+    for e in &mut outgoing {
+        enrich(e);
+    }
+    for e in &mut incoming {
+        enrich(e);
     }
 
     // Deterministic edge ordering for stable agent answers / golden parity

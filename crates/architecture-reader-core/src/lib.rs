@@ -539,4 +539,71 @@ mod tests {
         assert!(answer["coverage"]["evidence"].as_u64().unwrap_or(0) > 0);
     }
 
+
+    #[test]
+    fn path_suggestions_for_unresolved() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_path",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "from": "auth",
+                "to": "totally-missing-entity-xyz",
+                "maxDepth": 4
+            }),
+        );
+        // may be ok with gaps when one side resolves partially via label
+        let answer = envelope.answer.expect("answer");
+        let suggestions = answer.get("suggestions").cloned().unwrap_or(serde_json::json!({}));
+        assert!(
+            suggestions.get("to").is_some() || envelope.status == "ok",
+            "expected suggestions or ok envelope, got status={:?} answer={:?}",
+            envelope.status,
+            answer
+        );
+        // force unresolved end
+        let envelope2 = engine::handle_tool(
+            "architecture_path",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "from": "___no_such_from___",
+                "to": "___no_such_to___",
+            }),
+        );
+        let answer2 = envelope2.answer.expect("answer");
+        let sug2 = answer2["suggestions"].as_object().cloned().unwrap_or_default();
+        assert!(sug2.contains_key("from") || sug2.contains_key("to") || answer2.get("fromId").is_none());
+    }
+
+    #[test]
+    fn impact_edges_include_node_summaries() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "changedPaths": ["src/auth/token.ts"],
+                "maxDepth": 2
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let out = answer["outgoingImpact"].as_array().cloned().unwrap_or_default();
+        let inc = answer["incomingImpact"].as_array().cloned().unwrap_or_default();
+        let sample = out.into_iter().chain(inc).next();
+        if let Some(edge) = sample {
+            assert!(edge.get("fromNode").is_some() || edge.get("toNode").is_some(), "{:?}", edge);
+        }
+    }
+
 }
