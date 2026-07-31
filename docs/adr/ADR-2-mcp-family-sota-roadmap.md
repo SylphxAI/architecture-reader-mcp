@@ -1,3 +1,7 @@
+# RETIRED family control-plane note
+
+Superseded by product-local POSITIONING/IPPB. Historical only.
+
 # ADR-2: Adopt Architecture Reader MCP Family SOTA Roadmap
 
 Date: 2026-07-09
