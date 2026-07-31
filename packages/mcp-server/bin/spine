@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PKG_ROOT="$(cd "$HERE/.." && pwd)"
+
+resolve_cli() {
+  if [[ -n "${ARCHITECTURE_READER_CLI_BIN:-}" && -x "${ARCHITECTURE_READER_CLI_BIN}" ]]; then
+    printf '%s\n' "${ARCHITECTURE_READER_CLI_BIN}"
+    return 0
+  fi
+  for candidate in \
+    "$PKG_ROOT/bin/native/architecture-reader-cli" \
+    "$PKG_ROOT/native/architecture-reader-cli" \
+    "$PKG_ROOT/../../bin/native/architecture-reader-cli" \
+    "$PKG_ROOT/../../target/release/architecture-reader-cli" \
+    "$PKG_ROOT/../../target/debug/architecture-reader-cli"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ "${1:-}" == "mcp" ]]; then
+  shift || true
+  exec "$HERE/architecture-reader-mcp" "$@"
+fi
+
+if cli="$(resolve_cli)"; then
+  # map human subcommands to CLI when binary speaks JSON tool names
+  exec "$cli" "$@"
+fi
+
+echo "[spine] architecture-reader-cli not found." >&2
+echo "Build from the product repo (bun run build:rust) or set ARCHITECTURE_READER_CLI_BIN." >&2
+exit 1

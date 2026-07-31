@@ -9,16 +9,15 @@
   },
   "license": "MIT",
   "bin": {
-    "architecture-reader-mcp": "../../bin/architecture-reader-mcp",
-    "spine": "../../bin/spine"
+    "architecture-reader-mcp": "./bin/architecture-reader-mcp",
+    "spine": "./bin/spine"
   },
   "files": [
     "LICENSE",
     "README.md",
-    "src/doctor.ts",
-    "src/engine.ts",
-    "src/spine-sdk.ts",
-    "src/tools.ts"
+    "CHANGELOG.md",
+    "bin/",
+    "src/"
   ],
   "exports": {
     ".": "./src/tools.ts",
