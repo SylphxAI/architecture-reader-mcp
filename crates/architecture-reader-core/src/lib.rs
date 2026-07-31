@@ -237,5 +237,52 @@ mod tests {
             assert!(nodes.len() >= 2);
         }
     }
+    #[test]
+    fn impact_reports_direct_nodes_for_changed_path() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "changedPaths": ["src/auth/token.ts"]
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert_eq!(answer["changedPathSource"], "explicit");
+        let direct = answer["directImpact"].as_array().cloned().unwrap_or_default();
+        assert!(
+            !direct.is_empty(),
+            "expected direct impact for auth token module, got {:?}",
+            answer
+        );
+    }
+
+    #[test]
+    fn impact_use_git_diff_sets_source_git() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "useGitDiff": true
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert_eq!(answer["changedPathSource"], "git");
+        assert!(answer.get("changedPaths").is_some());
+    }
+
 
 }

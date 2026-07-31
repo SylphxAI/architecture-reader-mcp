@@ -1,7 +1,7 @@
 # Spine — product targets (Architecture)
 
 Brand: **Spine** (transitional repo: `architecture-reader-mcp`)  
-SSOT: `docs/portfolio/sylphx-instruments-ssot.md`
+Company portfolio knowledge: https://github.com/SylphxAI/instruments (docs only; not owned by this repo)
 
 ## Final target
 
