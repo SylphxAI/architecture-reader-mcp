@@ -335,6 +335,22 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "packages": packages,
             "modules": modules,
             "documents": docs,
+            "counts": {
+                "nodes": graph.nodes.len(),
+                "edges": graph.edges.len(),
+                "evidence": graph.evidence.len(),
+                "claims": graph.claims.len(),
+                "byKind": {
+                    "package": graph.nodes.iter().filter(|n| n.kind == "package").count(),
+                    "module": graph.nodes.iter().filter(|n| n.kind == "module").count(),
+                    "symbol": graph.nodes.iter().filter(|n| n.kind == "symbol").count(),
+                    "route": graph.nodes.iter().filter(|n| n.kind == "route").count(),
+                    "schema": graph.nodes.iter().filter(|n| n.kind == "schema").count(),
+                    "document": graph.nodes.iter().filter(|n| n.kind == "document" || n.kind == "adr").count(),
+                }
+            },
+            "extractors": graph.extractors,
+            "languages": language_surface_stats(&graph),
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
@@ -371,31 +387,64 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
         .unwrap_or_default();
 
-    let mut matches = Vec::new();
+    let mut scored: Vec<(f64, serde_json::Value)> = Vec::new();
     for node in &graph.nodes {
         if !types.is_empty() && !types.contains(&node.kind) {
             continue;
         }
-        let hay = format!(
-            "{} {} {}",
-            node.label,
-            node.path.clone().unwrap_or_default(),
-            node.kind
-        )
-        .to_lowercase();
-        if query.is_empty() || hay.contains(&query) {
-            matches.push(json!({
+        let label = node.label.to_lowercase();
+        let path = node.path.clone().unwrap_or_default().to_lowercase();
+        let kind = node.kind.to_lowercase();
+        let hay = format!("{label} {path} {kind}");
+        if !query.is_empty() && !hay.contains(&query) {
+            continue;
+        }
+        let score = if query.is_empty() {
+            0.5
+        } else if label == query {
+            10.0
+        } else if label.starts_with(&query) {
+            8.0
+        } else if label.contains(&query) {
+            6.0
+        } else if path.ends_with(&query) || path.contains(&format!("/{query}")) {
+            5.0
+        } else if path.contains(&query) {
+            3.5
+        } else {
+            1.0
+        };
+        // Prefer symbols and routes slightly for architecture questions.
+        let kind_boost = match node.kind.as_str() {
+            "symbol" => 0.4,
+            "route" => 0.3,
+            "schema" => 0.25,
+            "module" => 0.15,
+            "package" => 0.1,
+            _ => 0.0,
+        };
+        let score = score + kind_boost;
+        scored.push((
+            score,
+            json!({
                 "id": node.id,
                 "kind": node.kind,
                 "label": node.label,
                 "path": node.path,
-                "score": if query.is_empty() { 0.5 } else { 1.0 }
-            }));
-        }
-        if matches.len() >= limit {
-            break;
-        }
+                "score": score,
+                "scoreExplain": [
+                    if query.is_empty() {
+                        "empty_query".to_string()
+                    } else {
+                        "substring_match".to_string()
+                    },
+                    format!("kind={}", node.kind),
+                ],
+            }),
+        ));
     }
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let matches: Vec<_> = scored.into_iter().take(limit).map(|(_, v)| v).collect();
 
     let include_evidence = input
         .get("includeEvidence")
@@ -672,11 +721,23 @@ fn architecture_evidence(input: serde_json::Value) -> ToolEnvelope {
 
 fn coverage_gaps(graph: &ArchitectureGraph, synth_active: bool) -> Vec<String> {
     let mut gaps = Vec::new();
+    // Honest residual gaps only — routes/schemas ARE implemented when present in graph.
     if graph.nodes.iter().all(|n| n.kind != "route") {
-        gaps.push("Route extraction not yet implemented.".into());
+        gaps.push("No HTTP route nodes found in this index (TS Express-style extractors may not match this repo).".into());
     }
     if graph.nodes.iter().all(|n| n.kind != "schema") {
-        gaps.push("Schema extraction not yet implemented.".into());
+        gaps.push("No schema nodes found in this index (zod/JSON-schema extractors may not match this repo).".into());
+    }
+    if graph.nodes.iter().all(|n| n.kind != "symbol") {
+        gaps.push("No symbol nodes found — language extractors may not cover this repository yet.".into());
+    }
+    let langs = language_module_counts(graph);
+    if langs.get("rust").copied().unwrap_or(0) == 0
+        && langs.get("go").copied().unwrap_or(0) == 0
+        && langs.get("python").copied().unwrap_or(0) == 0
+        && langs.get("typescript").copied().unwrap_or(0) == 0
+    {
+        gaps.push("No recognized source-language modules indexed (TS/JS/Python/Rust/Go).".into());
     }
     if graph.repository.worktree_dirty {
         gaps.push("Working tree has uncommitted changes.".into());
@@ -687,6 +748,43 @@ fn coverage_gaps(graph: &ArchitectureGraph, synth_active: bool) -> Vec<String> {
         );
     }
     gaps
+}
+
+fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeMap<String, u64> {
+    let mut counts = std::collections::BTreeMap::<String, u64>::new();
+    for node in graph.nodes.iter().filter(|n| n.kind == "module") {
+        let path = node.path.as_deref().unwrap_or("");
+        let lang = if path.ends_with(".ts")
+            || path.ends_with(".tsx")
+            || path.ends_with(".js")
+            || path.ends_with(".jsx")
+            || path.ends_with(".mjs")
+            || path.ends_with(".cjs")
+        {
+            "typescript"
+        } else if path.ends_with(".py") {
+            "python"
+        } else if path.ends_with(".rs") {
+            "rust"
+        } else if path.ends_with(".go") {
+            "go"
+        } else if path.ends_with(".java") {
+            "java"
+        } else if path.is_empty() {
+            "external"
+        } else {
+            "other"
+        };
+        *counts.entry(lang.to_string()).or_default() += 1;
+    }
+    counts
+}
+
+fn language_surface_stats(graph: &ArchitectureGraph) -> serde_json::Map<String, serde_json::Value> {
+    language_module_counts(graph)
+        .into_iter()
+        .map(|(k, v)| (k, json!(v)))
+        .collect()
 }
 
 fn resolve_node_id(graph: &ArchitectureGraph, needle: &str) -> Option<String> {

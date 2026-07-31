@@ -326,4 +326,40 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn search_ranks_exact_symbol_above_path_substring() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({ "root": root.to_string_lossy(), "query": "issue_token", "limit": 10 }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let matches = envelope.answer.expect("answer")["matches"].as_array().cloned().unwrap_or_default();
+        assert!(!matches.is_empty());
+        let top = &matches[0];
+        assert!(
+            top["label"].as_str() == Some("issue_token") || top["id"].as_str().unwrap_or("").contains("issue_token"),
+            "top match should prefer exact symbol, got {:?}",
+            top
+        );
+        let scores: Vec<f64> = matches.iter().filter_map(|m| m["score"].as_f64()).collect();
+        assert!(scores.windows(2).all(|w| w[0] >= w[1]), "scores should be non-increasing: {:?}", scores);
+
+        let overview = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({ "root": root.to_string_lossy(), "depth": 3 }),
+        );
+        assert_eq!(overview.status, "ok");
+        let ans = overview.answer.expect("answer");
+        assert!(ans.get("counts").is_some());
+        assert!(ans.get("languages").is_some());
+        assert!(ans.get("extractors").is_some());
+    }
+
 }

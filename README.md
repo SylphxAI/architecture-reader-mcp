@@ -40,6 +40,7 @@ not replace it. Reader portfolio media tools live in
 | Python | modules, imports, classes, functions, calls | `python@0.1.0` |
 | Rust | modules, `use`/`mod`, functions, local calls | `rust@0.1.0` |
 | Go | package, imports, functions, local calls | `go@0.1.0` |
+| Java | package, imports, classes, methods, local calls | `java@0.1.0` |
 | Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.
