@@ -605,6 +605,34 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
         .map(|n| json!({ "id": n.id, "kind": n.kind, "path": n.path }))
         .collect();
 
+    let mut overview_edges: Vec<serde_json::Value> = Vec::new();
+    if let Some(ref fid) = focus_node {
+        for n in &neighbors {
+            let direction = n.get("direction").and_then(|v| v.as_str()).unwrap_or("outgoing");
+            let other_id = n
+                .get("node")
+                .and_then(|node| node.get("id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let edge_kind = n.get("edge").and_then(|v| v.as_str()).unwrap_or("rel");
+            if other_id.is_empty() {
+                continue;
+            }
+            let (from, to) = if direction == "incoming" {
+                (other_id, fid.as_str())
+            } else {
+                (fid.as_str(), other_id)
+            };
+            overview_edges.push(json!({
+                "from": from,
+                "to": to,
+                "edge": edge_kind,
+                "fromNode": node_summary(&graph, from),
+                "toNode": node_summary(&graph, to),
+            }));
+        }
+    }
+
     let repo = repository_state(&root, Some(&graph));
     ToolEnvelope::ok(
         repo,
@@ -627,6 +655,7 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
                     "route": graph.nodes.iter().filter(|n| n.kind == "route").count(),
                     "schema": graph.nodes.iter().filter(|n| n.kind == "schema").count(),
                     "document": graph.nodes.iter().filter(|n| n.kind == "document" || n.kind == "adr").count(),
+                    "workflow": graph.nodes.iter().filter(|n| n.kind == "workflow").count(),
                 }
             },
             "extractors": graph.extractors,
@@ -635,7 +664,12 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "topFanIn": top_fan_in_modules(&graph, depth * 4),
             "topFanOut": top_fan_out_modules(&graph, depth * 4),
             "orphans": orphan_modules(&graph, depth * 4),
-            "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
+            "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>(),
+            "mermaid": if overview_edges.is_empty() {
+                serde_json::Value::Null
+            } else {
+                json!(edges_to_mermaid(&graph, &overview_edges, "overview focus neighborhood"))
+            }
         }),
         graph.evidence.clone(),
         coverage_gaps(
@@ -1631,6 +1665,8 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             || path.ends_with(".ksh")
         {
             "shell"
+        } else if path.ends_with(".sql") {
+            "sql"
         } else if path.is_empty() {
             "external"
         } else {

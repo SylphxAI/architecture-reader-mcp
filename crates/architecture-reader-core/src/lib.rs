@@ -297,6 +297,32 @@ mod tests {
     }
 
     #[test]
+    fn overview_focus_includes_mermaid_when_neighbors_exist() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "focus": "src/auth/token.ts",
+                "depth": 2
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let neighbors = answer.get("neighbors").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        if !neighbors.is_empty() {
+            let mermaid = answer.get("mermaid").and_then(|v| v.as_str()).unwrap_or("");
+            assert!(mermaid.contains("graph LR"), "mermaid={mermaid}");
+        }
+    }
+
+
+    #[test]
     fn context_pack_includes_mermaid() {
         let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();

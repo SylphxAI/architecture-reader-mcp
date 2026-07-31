@@ -226,6 +226,8 @@ pub fn scan_repository_paths(
         "c@0.1.0".into(),
         "shell@0.1.0".into(),
         "workflow@0.1.0".into(),
+        "docker@0.1.0".into(),
+        "sql@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -293,6 +295,26 @@ fn index_file(
     {
         if pass == IndexPass::Structure {
             index_github_workflow(builder, rel_str, path);
+        }
+        return;
+    }
+    let file_name_lc = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if file_name_lc == "dockerfile"
+        || file_name_lc.starts_with("dockerfile.")
+        || file_name_lc.ends_with(".dockerfile")
+    {
+        if pass == IndexPass::Structure {
+            index_dockerfile(builder, rel_str, path);
+        }
+        return;
+    }
+    if rel_str.ends_with(".sql") {
+        if pass == IndexPass::Structure {
+            index_sql_module(builder, rel_str, path);
         }
         return;
     }
@@ -1158,6 +1180,93 @@ fn index_github_workflow(builder: &mut GraphBuilder, rel: &str, path: &Path) {
                 builder.push_edge("depends_on", &file_id, &dep_id, &ev);
             }
         }
+    }
+    let _ = path;
+}
+
+
+fn index_dockerfile(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "docker@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // FROM image
+    let from_re = Regex::new(r#"(?mi)^\s*FROM\s+(\S+)"#).unwrap();
+    for cap in from_re.captures_iter(&content) {
+        let image = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let dep_id = format!("node:module:docker-image:{}", image.replace('/', ":").replace(':', "@"));
+        if !builder.has_node(&dep_id) {
+            let ev = builder.push_evidence("ast", rel, "docker@0.1.0", Some(line), Some(line));
+            builder.push_node(&dep_id, "module", &image, None, &ev);
+        }
+        let ev = builder.push_evidence("ast", rel, "docker@0.1.0", Some(line), Some(line));
+        builder.push_edge("depends_on", &file_id, &dep_id, &ev);
+    }
+    // COPY/ADD sources as weak imports
+    let copy_re = Regex::new(r#"(?mi)^\s*(?:COPY|ADD)\s+(.+?)\s+\S+\s*$"#).unwrap();
+    for cap in copy_re.captures_iter(&content) {
+        let srcs = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        for src in srcs.split_whitespace() {
+            if src.starts_with("--") {
+                continue;
+            }
+            let dep_id = format!("node:module:docker-src:{}", src.replace('/', ":"));
+            if !builder.has_node(&dep_id) {
+                let ev = builder.push_evidence("ast", rel, "docker@0.1.0", Some(line), Some(line));
+                builder.push_node(&dep_id, "module", src, Some(src), &ev);
+            }
+            let ev = builder.push_evidence("ast", rel, "docker@0.1.0", Some(line), Some(line));
+            builder.push_edge("imports", &file_id, &dep_id, &ev);
+        }
+    }
+    let _ = path;
+}
+
+fn index_sql_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:module:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "sql@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        builder.push_node(&file_id, "module", rel, Some(rel), &file_ev);
+    }
+    // CREATE TABLE name
+    let table_re = Regex::new(
+        r#"(?mi)^\s*CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][\w\.]*)"#,
+    )
+    .unwrap();
+    for cap in table_re.captures_iter(&content) {
+        let name = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let node_id = format!("node:schema:{}:table:{}", rel.replace('/', ":"), name.replace('.', ":"));
+        if builder.has_node(&node_id) {
+            continue;
+        }
+        let ev = builder.push_evidence("ast", rel, "sql@0.1.0", Some(line), Some(line));
+        builder.push_node(&node_id, "schema", &name, Some(rel), &ev);
+        builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    // REFERENCES other_table
+    let fk_re = Regex::new(r#"(?i)REFERENCES\s+([A-Za-z_][\w\.]*)"#).unwrap();
+    for cap in fk_re.captures_iter(&content) {
+        let target = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let target_id = format!(
+            "node:schema:{}:table:{}",
+            rel.replace('/', ":"),
+            target.replace('.', ":")
+        );
+        // if target not defined in this file, still create external schema node
+        if !builder.has_node(&target_id) {
+            let ev = builder.push_evidence("ast", rel, "sql@0.1.0", Some(line), Some(line));
+            builder.push_node(&target_id, "schema", &target, None, &ev);
+        }
+        // link file depends on referenced table
+        let ev = builder.push_evidence("ast", rel, "sql@0.1.0", Some(line), Some(line));
+        builder.push_edge("depends_on", &file_id, &target_id, &ev);
     }
     let _ = path;
 }
@@ -2954,6 +3063,42 @@ jobs:
         assert!(builder.nodes.iter().any(|n| n.label == "test" || n.id.contains("job:test")));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn dockerfile_extracts_from_and_copy() {
+        let content = r#"
+FROM node:22-alpine
+COPY package.json /app/
+COPY src /app/src
+"#;
+        let tmp = tempfile_path("Dockerfile", content);
+        let mut builder = GraphBuilder::default();
+        index_dockerfile(&mut builder, "Dockerfile", &tmp);
+        assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
+        assert!(builder.edges.iter().any(|e| e.kind == "imports"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn sql_extracts_tables_and_references() {
+        let content = r#"
+CREATE TABLE users (
+  id INT PRIMARY KEY
+);
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  user_id INT REFERENCES users(id)
+);
+"#;
+        let tmp = tempfile_path("schema.sql", content);
+        let mut builder = GraphBuilder::default();
+        index_sql_module(&mut builder, "db/schema.sql", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.kind == "schema" && n.label == "users"));
+        assert!(builder.nodes.iter().any(|n| n.kind == "schema" && n.label == "orders"));
+        assert!(builder.edges.iter().any(|e| e.kind == "depends_on"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 

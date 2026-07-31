@@ -23,7 +23,7 @@ npx @sylphx/architecture-reader-mcp
 | --- | --- |
 | `architecture_index` | First: build/refresh local graph |
 | `architecture_status` | Freshness, languages, topFanIn/Out, **orphans**, cycles |
-| `architecture_overview` | Packages, languages, counts, **cycles**, **orphans** (zero inbound); **`focus=` for neighbors** |
+| `architecture_overview` | Packages, languages, counts, **cycles**, **orphans**; **focus neighbors + mermaid** |
 | `architecture_search` | Ranked symbol/module/route lookup |
 | `architecture_path` | Shortest path with hop provenance + **mermaid** |
 | `architecture_trace` | Compact path + **hop provenance** (edge kinds) |
