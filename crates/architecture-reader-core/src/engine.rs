@@ -807,6 +807,46 @@ fn architecture_search(input: serde_json::Value) -> ToolEnvelope {
 
 
 
+
+/// Build mermaid graph LR from impact/neighborhood edges with from/to labels.
+fn edges_to_mermaid(graph: &ArchitectureGraph, edges: &[serde_json::Value], title: &str) -> String {
+    let mut lines = vec![format!("%% {title}"), "graph LR".to_string()];
+    if edges.is_empty() {
+        lines.push("  empty[\"no edges\"]".into());
+        return lines.join("\n");
+    }
+    for (i, edge) in edges.iter().enumerate() {
+        let from_id = edge.get("from").and_then(|v| v.as_str()).unwrap_or("?");
+        let to_id = edge.get("to").and_then(|v| v.as_str()).unwrap_or("?");
+        let kind = edge
+            .get("edge")
+            .or_else(|| edge.get("kind"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("rel");
+        let from_label = edge
+            .get("fromNode")
+            .and_then(|n| n.get("label"))
+            .and_then(|v| v.as_str())
+            .or_else(|| graph.nodes.iter().find(|n| n.id == from_id).map(|n| n.label.as_str()))
+            .unwrap_or(from_id);
+        let to_label = edge
+            .get("toNode")
+            .and_then(|n| n.get("label"))
+            .and_then(|v| v.as_str())
+            .or_else(|| graph.nodes.iter().find(|n| n.id == to_id).map(|n| n.label.as_str()))
+            .unwrap_or(to_id);
+        let from_s = sanitize_mermaid_id(from_label, i, "f");
+        let to_s = sanitize_mermaid_id(to_label, i, "t");
+        lines.push(format!(
+            "  {from_s}[\"{}\"] -->|{}| {to_s}[\"{}\"]",
+            escape_mermaid_label(from_label),
+            kind,
+            escape_mermaid_label(to_label)
+        ));
+    }
+    lines.join("\n")
+}
+
 fn hops_to_mermaid(graph: &ArchitectureGraph, hops: &[serde_json::Value]) -> String {
     let mut lines = vec!["graph LR".to_string()];
     for (i, hop) in hops.iter().enumerate() {
@@ -1194,7 +1234,11 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
             "outgoingImpact": outgoing,
             "incomingImpact": incoming,
             "transitiveImpact": transitive,
-            "unknownImpact": unknown
+            "unknownImpact": unknown,
+            "mermaid": {
+                "incoming": edges_to_mermaid(&graph, &incoming, "incoming blast radius"),
+                "outgoing": edges_to_mermaid(&graph, &outgoing, "outgoing dependencies"),
+            }
         }),
         graph.evidence.clone(),
         coverage_gaps(
@@ -1461,6 +1505,32 @@ fn architecture_context_pack(input: serde_json::Value) -> ToolEnvelope {
             .into(),
     );
 
+    let mut neighbor_edges: Vec<serde_json::Value> = Vec::new();
+    for n in &neighbors {
+        let direction = n.get("direction").and_then(|v| v.as_str()).unwrap_or("outgoing");
+        let other_id = n
+            .get("node")
+            .and_then(|node| node.get("id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let edge_kind = n.get("edge").and_then(|v| v.as_str()).unwrap_or("rel");
+        if other_id.is_empty() {
+            continue;
+        }
+        let (from, to) = if direction == "incoming" {
+            (other_id, focus_id.as_str())
+        } else {
+            (focus_id.as_str(), other_id)
+        };
+        neighbor_edges.push(json!({
+            "from": from,
+            "to": to,
+            "edge": edge_kind,
+            "fromNode": node_summary(&graph, from),
+            "toNode": node_summary(&graph, to),
+        }));
+    }
+
     ToolEnvelope::ok(
         repo,
         json!({
@@ -1477,7 +1547,8 @@ fn architecture_context_pack(input: serde_json::Value) -> ToolEnvelope {
                 "neighbors": neighbors.len(),
                 "coLocated": co_located.len(),
                 "evidence": evidence.len(),
-            }
+            },
+            "mermaid": edges_to_mermaid(&graph, &neighbor_edges, "context pack neighborhood"),
         }),
         evidence.clone(),
         warnings,

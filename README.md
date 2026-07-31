@@ -47,6 +47,7 @@ not replace it. Reader portfolio media tools live in
 | PHP | namespace, use, class, function | `php@0.1.0` |
 | C / C++ | includes, struct/enum/class, functions, local calls | `c@0.1.0` |
 | Shell | source/., functions | `shell@0.1.0` |
+| GitHub Actions | workflow jobs | `workflow@0.1.0` |
 | Manifests / docs | `package.json`, `Cargo.toml`, ADRs/docs | `manifest` / `docs` |
 
 Every node/edge carries **file:line evidence** when known. Inference is labeled separately from deterministic structure.

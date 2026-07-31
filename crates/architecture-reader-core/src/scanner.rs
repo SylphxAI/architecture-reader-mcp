@@ -225,6 +225,7 @@ pub fn scan_repository_paths(
         "php@0.1.0".into(),
         "c@0.1.0".into(),
         "shell@0.1.0".into(),
+        "workflow@0.1.0".into(),
     ];
     if options.use_synth && builder.evidence.iter().any(|ev| ev.extractor.starts_with("synth-")) {
         extractors.push(crate::synth::SYNTH_JS_EXTRACTOR.into());
@@ -284,6 +285,14 @@ fn index_file(
                     "document"
                 },
             );
+        }
+        return;
+    }
+    if (rel_str.starts_with(".github/workflows/") || rel_str.starts_with(".github/actions/"))
+        && (rel_str.ends_with(".yml") || rel_str.ends_with(".yaml"))
+    {
+        if pass == IndexPass::Structure {
+            index_github_workflow(builder, rel_str, path);
         }
         return;
     }
@@ -1086,6 +1095,69 @@ fn index_shell_module(builder: &mut GraphBuilder, rel: &str, path: &Path) {
         let ev = builder.push_evidence("ast", rel, "shell@0.1.0", Some(line), Some(line));
         builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
         builder.push_edge("defines", &file_id, &node_id, &ev);
+    }
+    let _ = path;
+}
+
+
+fn index_github_workflow(builder: &mut GraphBuilder, rel: &str, path: &Path) {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let file_id = format!("node:workflow:{}", rel.replace('/', ":"));
+    let file_ev = builder.push_evidence("ast", rel, "workflow@0.1.0", None, None);
+    if !builder.has_node(&file_id) {
+        let label = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(rel);
+        builder.push_node(&file_id, "workflow", label, Some(rel), &file_ev);
+    }
+    // jobs.<name>:
+    let job_re = Regex::new(r#"(?m)^  ([A-Za-z_][\w-]*)\s*:\s*$"#).unwrap();
+    // crude: under jobs: section only roughly — also match "jobs:" then indented keys
+    let mut in_jobs = false;
+    for (line_no, line) in content.lines().enumerate() {
+        let line_number = (line_no + 1) as u32;
+        if line.starts_with("jobs:") {
+            in_jobs = true;
+            continue;
+        }
+        if in_jobs && !line.starts_with(' ') && !line.starts_with('\t') && !line.trim().is_empty() {
+            in_jobs = false;
+        }
+        if !in_jobs {
+            continue;
+        }
+        if let Some(cap) = job_re.captures(line) {
+            let name = cap[1].to_string();
+            if name == "runs-on" || name == "steps" || name == "needs" || name == "if" || name == "permissions" {
+                continue;
+            }
+            let node_id = format!("node:symbol:{}:job:{}", rel.replace('/', ":"), name);
+            if builder.has_node(&node_id) {
+                continue;
+            }
+            let ev = builder.push_evidence("ast", rel, "workflow@0.1.0", Some(line_number), Some(line_number));
+            builder.push_node(&node_id, "symbol", &name, Some(rel), &ev);
+            builder.push_edge("defines", &file_id, &node_id, &ev);
+        }
+    }
+    // needs: [job] dependencies between jobs
+    let needs_re = Regex::new(r#"(?m)^\s+needs:\s*\[([^\]]+)\]"#).unwrap();
+    for cap in needs_re.captures_iter(&content) {
+        let deps = cap[1].to_string();
+        let line = line_number_at(&content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        for dep in deps.split(',') {
+            let dep = dep.trim().trim_matches(|c| c == '\'' || c == '"');
+            if dep.is_empty() {
+                continue;
+            }
+            let dep_id = format!("node:symbol:{}:job:{}", rel.replace('/', ":"), dep);
+            // attach depends_on from each job that has needs — approximate: link workflow to dep job
+            if builder.has_node(&dep_id) {
+                let ev = builder.push_evidence("ast", rel, "workflow@0.1.0", Some(line), Some(line));
+                builder.push_edge("depends_on", &file_id, &dep_id, &ev);
+            }
+        }
     }
     let _ = path;
 }
@@ -2857,6 +2929,32 @@ main() {
         assert!(builder.edges.iter().any(|e| e.kind == "imports"));
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn workflow_extracts_jobs() {
+        let content = r#"
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+  test:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo test
+"#;
+        let tmp = tempfile_path("ci.yml", content);
+        let mut builder = GraphBuilder::default();
+        index_github_workflow(&mut builder, ".github/workflows/ci.yml", &tmp);
+        assert!(builder.nodes.iter().any(|n| n.kind == "workflow"));
+        assert!(builder.nodes.iter().any(|n| n.label == "build" || n.id.contains("job:build")));
+        assert!(builder.nodes.iter().any(|n| n.label == "test" || n.id.contains("job:test")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
 
 
 }

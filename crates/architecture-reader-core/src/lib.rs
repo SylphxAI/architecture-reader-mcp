@@ -274,6 +274,52 @@ mod tests {
     }
 
     #[test]
+    fn impact_includes_mermaid_diagrams() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "changedPaths": ["src/auth/token.ts"],
+                "maxDepth": 2
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let mermaid = answer.get("mermaid").expect("mermaid");
+        assert!(mermaid.get("incoming").and_then(|v| v.as_str()).unwrap_or("").contains("graph LR"));
+        assert!(mermaid.get("outgoing").and_then(|v| v.as_str()).unwrap_or("").contains("graph LR"));
+    }
+
+    #[test]
+    fn context_pack_includes_mermaid() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_context_pack",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "focus": "src/auth/token.ts",
+                "maxNeighbors": 8
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let mermaid = answer.get("mermaid").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        assert!(mermaid.contains("graph LR"), "mermaid={mermaid}");
+    }
+
+
+    #[test]
     fn impact_reports_direct_nodes_for_changed_path() {
         let _guard = fixture_index_lock().lock().expect("fixture index lock");
         let root = fixture_root();

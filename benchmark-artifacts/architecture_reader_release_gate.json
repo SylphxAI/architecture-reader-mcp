@@ -1,6 +1,6 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-31T18:33:01.353Z",
+  "generated_at": "2026-07-31T18:36:05.617Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
@@ -37,8 +37,8 @@
       "status": "passed",
       "message": "architecture_index returns a populated graph envelope from the Rust CLI",
       "evidence": {
-        "nodeCount": 81,
-        "edgeCount": 84
+        "nodeCount": 84,
+        "edgeCount": 87
       }
     },
     {
