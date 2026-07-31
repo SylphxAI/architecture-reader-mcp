@@ -30,24 +30,19 @@ jobs:
           set -euo pipefail
           TOKEN="${NODE_AUTH_TOKEN:-$NPM_TOKEN}"
           test -n "$TOKEN"
-          # Isolate package from monorepo root package.json / workspaces.
           STAGE=$(mktemp -d)
           cp -a packages/mcp-server/. "$STAGE/"
-          # Ensure no accidental workspace root is considered.
           cd "$STAGE"
+          # install only typescript for prepublish typecheck
+          npm install --no-save typescript@7 @types/node@26
           printf '//registry.npmjs.org/:_authToken=%s\nalways-auth=true\n' "$TOKEN" > "$HOME/.npmrc"
-          unset NPM_CONFIG_WORKSPACES || true
-          unset npm_config_workspaces || true
-          unset npm_config_workspace || true
           export NPM_CONFIG_USERCONFIG="$HOME/.npmrc"
           npm whoami
           NAME=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          echo "Publishing $NAME@$VER from isolated stage"
+          echo "Publishing $NAME@$VER"
           if npm view "$NAME@$VER" version >/dev/null 2>&1; then
-            echo already "$NAME@$VER"
-            npm view "$NAME" version dist-tags
-            exit 0
+            echo already "$NAME@$VER"; npm view "$NAME" version dist-tags; exit 0
           fi
           npm publish --access public
           npm view "$NAME@$VER" version

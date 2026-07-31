@@ -35,7 +35,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "prepublishOnly": "bun run typecheck"
+    "prepublishOnly": "npx --yes tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
