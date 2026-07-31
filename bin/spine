@@ -25,7 +25,7 @@ usage() {
 Spine — local architecture engine (Sylphx Instruments)
 
 Usage:
-  spine index [ROOT] [--mode auto|full] [--include P] [--exclude N]
+  spine index [ROOT] [--mode auto|full] [--include P] [--exclude N] [--max-file-bytes N]
   spine status [ROOT]
   spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
   spine search [ROOT] <query> [--limit N] [--neighbors] [--type KIND]
@@ -90,17 +90,23 @@ case "$cmd" in
     mode="auto"
     includes=()
     excludes=()
+    max_file_bytes=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --mode) mode="$2"; shift 2 ;;
         --include) includes+=("$2"); shift 2 ;;
         --exclude) excludes+=("$2"); shift 2 ;;
+        --max-file-bytes) max_file_bytes="$2"; shift 2 ;;
         *) shift ;;
       esac
     done
     include_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${includes[@]+"${includes[@]}"})
     exclude_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${excludes[@]+"${excludes[@]}"})
-    invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json}"
+    if [[ -n "$max_file_bytes" ]]; then
+      invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json,"maxFileBytes":$max_file_bytes}"
+    else
+      invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json}"
+    fi
     ;;
   status)
     invoke architecture_status "{"root":$(json_escape "$repo_root")}"
