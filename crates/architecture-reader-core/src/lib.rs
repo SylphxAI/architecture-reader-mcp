@@ -477,4 +477,39 @@ mod tests {
         assert!(answer["cycles"].is_array());
     }
 
+
+    #[test]
+    fn impact_unknown_path_is_honest() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_impact",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "changedPaths": ["src/auth/token.ts", "does/not/exist.ts"],
+                "maxDepth": 1
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        let unknown = answer["unknownImpact"].as_array().cloned().unwrap_or_default();
+        assert!(
+            unknown.iter().any(|u| u["path"] == "does/not/exist.ts"),
+            "expected unknownImpact for missing path, got {:?}",
+            unknown
+        );
+        let overview = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({ "root": root.to_string_lossy(), "depth": 2 }),
+        );
+        assert_eq!(overview.status, "ok");
+        let oans = overview.answer.expect("answer");
+        assert!(oans.get("topFanIn").is_some());
+        assert!(oans["topFanIn"].is_array());
+    }
+
 }

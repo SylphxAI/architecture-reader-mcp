@@ -164,6 +164,33 @@ fn find_short_cycles(graph: &ArchitectureGraph, max_cycles: usize, max_len: usiz
     cycles
 }
 
+
+fn top_fan_in_modules(graph: &ArchitectureGraph, limit: usize) -> Vec<serde_json::Value> {
+    use std::collections::HashMap;
+    let mut fan_in: HashMap<&str, u64> = HashMap::new();
+    for e in &graph.edges {
+        if matches!(e.kind.as_str(), "imports" | "calls" | "depends_on") {
+            *fan_in.entry(e.to.as_str()).or_default() += 1;
+        }
+    }
+    let mut ranked: Vec<_> = fan_in.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    ranked
+        .into_iter()
+        .take(limit.max(1))
+        .map(|(id, count)| {
+            let node = graph.nodes.iter().find(|n| n.id == id);
+            json!({
+                "id": id,
+                "fanIn": count,
+                "kind": node.map(|n| n.kind.clone()),
+                "label": node.map(|n| n.label.clone()),
+                "path": node.and_then(|n| n.path.clone()),
+            })
+        })
+        .collect()
+}
+
 fn architecture_index(input: serde_json::Value) -> ToolEnvelope {
     let started = Instant::now();
     let root = match resolve_root(&input) {
@@ -471,6 +498,7 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
             "extractors": graph.extractors,
             "languages": language_surface_stats(&graph),
             "cycles": find_short_cycles(&graph, 8, 5),
+            "topFanIn": top_fan_in_modules(&graph, depth * 4),
             "claims": graph.claims.iter().take(depth).map(|c| json!({ "id": c.id, "text": c.text })).collect::<Vec<_>>()
         }),
         graph.evidence.clone(),
@@ -785,10 +813,20 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
 
     let mut direct = Vec::new();
     let mut seed_ids = Vec::new();
+    let mut unknown = Vec::new();
     for path in &changed {
+        let mut found = false;
         for node in graph.nodes.iter().filter(|n| n.path.as_deref() == Some(path.as_str())) {
+            found = true;
             direct.push(json!({ "id": node.id, "path": node.path, "kind": node.kind, "label": node.label }));
             seed_ids.push(node.id.clone());
+        }
+        if !found {
+            unknown.push(json!({
+                "path": path,
+                "reason": "no_indexed_nodes_for_path",
+                "hint": "Path may be unindexed, excluded, binary, or outside extractors.",
+            }));
         }
     }
 
@@ -870,7 +908,18 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
         }
     }
 
-    // Back-compat: transitiveImpact = outgoing (prior field name)
+    // Deterministic edge ordering for stable agent answers / golden parity
+    let edge_key = |v: &serde_json::Value| -> String {
+        format!(
+            "{}:{}:{}:{}",
+            v.get("depth").and_then(|x| x.as_u64()).unwrap_or(0),
+            v.get("edge").and_then(|x| x.as_str()).unwrap_or(""),
+            v.get("from").and_then(|x| x.as_str()).unwrap_or(""),
+            v.get("to").and_then(|x| x.as_str()).unwrap_or(""),
+        )
+    };
+    outgoing.sort_by(|a, b| edge_key(a).cmp(&edge_key(b)));
+    incoming.sort_by(|a, b| edge_key(a).cmp(&edge_key(b)));
     let transitive = outgoing.clone();
 
     let repo = repository_state(&root, Some(&graph));
@@ -893,7 +942,7 @@ fn architecture_impact(input: serde_json::Value) -> ToolEnvelope {
             "outgoingImpact": outgoing,
             "incomingImpact": incoming,
             "transitiveImpact": transitive,
-            "unknownImpact": []
+            "unknownImpact": unknown
         }),
         graph.evidence.clone(),
         coverage_gaps(

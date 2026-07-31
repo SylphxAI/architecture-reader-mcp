@@ -181,6 +181,8 @@ Trace dependency or impact before editing:
 | Estimate diff blast radius (incoming dependents + outgoing deps) | `architecture_impact` |
 | Local neighborhood (Graphify-class) | `architecture_overview` focus=… or `architecture_search` `includeNeighbors:true` |
 | Short **import** cycles | `architecture_overview` → `cycles` (imports/depends only) |
+| Top fan-in modules | `architecture_overview` → `topFanIn` |
+| Unknown changed paths | `architecture_impact` → `unknownImpact` |
 | Fetch proof behind a claim | `architecture_evidence` |
 
 Every answer shares one evidence envelope: path, optional line range, extraction
