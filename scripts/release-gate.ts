@@ -214,6 +214,21 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
     maxDepth: 8,
   });
   const hopCount = (pathProbe.answer as { hopCount?: number } | undefined)?.hopCount ?? 0;
+  const overviewFocus = invokeEngine('architecture_overview', {
+    root: fixtureRoot,
+    focus: 'src/auth/token.ts',
+    depth: 3,
+  });
+  const neighbors =
+    (overviewFocus.answer as { neighbors?: unknown[] } | undefined)?.neighbors ?? [];
+  addCheck(
+    checks,
+    'boundary:architecture_overview_neighbors',
+    overviewFocus.status === 'ok' && neighbors.length > 0,
+    'architecture_overview focus returns Graphify-class neighbors for a fixture path',
+    { neighborCount: neighbors.length }
+  );
+
   addCheck(
     checks,
     'boundary:architecture_path',

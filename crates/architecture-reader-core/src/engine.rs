@@ -304,6 +304,36 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
     };
     let depth = input.get("depth").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
     let focus = input.get("focus").and_then(|v| v.as_str()).unwrap_or("all");
+    // Graphify-class local neighborhood without a 9th tool: overview focus=node/path/label
+    let focus_node = if focus != "all" {
+        resolve_node_id(&graph, focus)
+    } else {
+        None
+    };
+    let neighbors = if let Some(ref id) = focus_node {
+        let mut out = Vec::new();
+        for edge in graph.edges.iter().filter(|e| e.from == *id || e.to == *id) {
+            let other = if edge.from == *id { &edge.to } else { &edge.from };
+            let other_node = graph.nodes.iter().find(|n| n.id == *other);
+            out.push(json!({
+                "edge": edge.kind,
+                "direction": if edge.from == *id { "outgoing" } else { "incoming" },
+                "node": {
+                    "id": other,
+                    "kind": other_node.map(|n| n.kind.clone()),
+                    "label": other_node.map(|n| n.label.clone()),
+                    "path": other_node.and_then(|n| n.path.clone()),
+                },
+                "evidenceIds": edge.evidence_ids,
+            }));
+            if out.len() >= depth * 8 {
+                break;
+            }
+        }
+        out
+    } else {
+        vec![]
+    };
 
     let packages: Vec<_> = graph
         .nodes
@@ -332,6 +362,8 @@ fn architecture_overview(input: serde_json::Value) -> ToolEnvelope {
         repo,
         json!({
             "focus": focus,
+            "focusNodeId": focus_node,
+            "neighbors": neighbors,
             "packages": packages,
             "modules": modules,
             "documents": docs,
@@ -860,6 +892,8 @@ fn language_module_counts(graph: &ArchitectureGraph) -> std::collections::BTreeM
             "java"
         } else if path.ends_with(".cs") {
             "csharp"
+        } else if path.ends_with(".kt") || path.ends_with(".kts") {
+            "kotlin"
         } else if path.is_empty() {
             "external"
         } else {

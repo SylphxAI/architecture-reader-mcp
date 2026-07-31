@@ -1,11 +1,11 @@
 {
   "profile": "architecture_reader_release_gate",
-  "generated_at": "2026-07-31T17:19:49.582Z",
+  "generated_at": "2026-07-31T17:22:51.410Z",
   "artifact_dir": "/home/codex/src/github.com/SylphxAI/architecture-reader-mcp/benchmark-artifacts",
   "status": "passed",
   "summary": {
-    "total": 23,
-    "passed": 23,
+    "total": 24,
+    "passed": 24,
     "failed": 0
   },
   "checks": [
@@ -37,8 +37,8 @@
       "status": "passed",
       "message": "architecture_index returns a populated graph envelope from the Rust CLI",
       "evidence": {
-        "nodeCount": 50,
-        "edgeCount": 50
+        "nodeCount": 56,
+        "edgeCount": 57
       }
     },
     {
@@ -98,6 +98,14 @@
         "incoming": 2,
         "outgoing": 1,
         "maxDepth": 2
+      }
+    },
+    {
+      "id": "boundary:architecture_overview_neighbors",
+      "status": "passed",
+      "message": "architecture_overview focus returns Graphify-class neighbors for a fixture path",
+      "evidence": {
+        "neighborCount": 1
       }
     },
     {

@@ -397,4 +397,32 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn overview_returns_neighbors_for_focus() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_overview",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "focus": "src/auth/token.ts",
+                "depth": 3
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let answer = envelope.answer.expect("answer");
+        assert!(answer.get("focusNodeId").is_some());
+        let neighbors = answer["neighbors"].as_array().cloned().unwrap_or_default();
+        assert!(
+            !neighbors.is_empty(),
+            "expected neighbors for token.ts focus, answer={:?}",
+            answer
+        );
+    }
+
 }
