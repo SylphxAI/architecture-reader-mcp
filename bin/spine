@@ -25,10 +25,10 @@ usage() {
 Spine — local architecture engine (Sylphx Instruments)
 
 Usage:
-  spine index [ROOT] [--mode auto|full]
+  spine index [ROOT] [--mode auto|full] [--include P] [--exclude N]
   spine status [ROOT]
   spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
-  spine search [ROOT] <query> [--limit N] [--neighbors]
+  spine search [ROOT] <query> [--limit N] [--neighbors] [--type KIND]
   spine path [ROOT] <from> <to> [--relation any|imports|calls|...]
   spine trace [ROOT] <from> <to>
   spine impact [ROOT] <path> [<path>...] [--max-depth N]
@@ -88,23 +88,51 @@ case "$cmd" in
     ;;
   index)
     mode="auto"
+    includes=()
+    excludes=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --mode) mode="$2"; shift 2 ;;
+        --include) includes+=("$2"); shift 2 ;;
+        --exclude) excludes+=("$2"); shift 2 ;;
         *) shift ;;
       esac
     done
-    invoke architecture_index "{\"root\":$(json_escape "$repo_root"),\"mode\":$(json_escape "$mode")}"
+    include_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${includes[@]+"${includes[@]}"})
+    exclude_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${excludes[@]+"${excludes[@]}"})
+    invoke architecture_index "{"root":$(json_escape "$repo_root"),"mode":$(json_escape "$mode"),"include":$include_json,"exclude":$exclude_json}"
     ;;
   status)
-    invoke architecture_status "{\"root\":$(json_escape "$repo_root")}"
+    invoke architecture_status "{"root":$(json_escape "$repo_root")}"
     ;;
   overview)
-    invoke architecture_overview "{\"root\":$(json_escape "$repo_root")}"
+    focus="all"
+    depth=2
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --focus) focus="$2"; shift 2 ;;
+        --depth) depth="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    invoke architecture_overview "{"root":$(json_escape "$repo_root"),"focus":$(json_escape "$focus"),"depth":$depth}"
     ;;
   search)
     q="${1:-}"; [[ -n "$q" ]] || { echo "search requires query" >&2; exit 2; }
-    invoke architecture_search "{\"root\":$(json_escape "$repo_root"),\"query\":$(json_escape "$q"),\"limit\":10}"
+    shift || true
+    limit=10
+    neighbors=false
+    types=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --limit) limit="$2"; shift 2 ;;
+        --neighbors) neighbors=true; shift ;;
+        --type|--types) types+=("$2"); shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    types_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})
+    invoke architecture_search "{"root":$(json_escape "$repo_root"),"query":$(json_escape "$q"),"limit":$limit,"includeNeighbors":$neighbors,"types":$types_json}"
     ;;
   path)
     from="${1:-}"; to="${2:-}"

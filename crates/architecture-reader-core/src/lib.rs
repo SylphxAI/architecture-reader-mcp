@@ -662,4 +662,32 @@ mod tests {
         assert!(answer["coverage"]["symbols"].as_u64().unwrap_or(0) > 0);
     }
 
+
+    #[test]
+    fn search_types_filter_symbols() {
+        let _guard = fixture_index_lock().lock().expect("fixture index lock");
+        let root = fixture_root();
+        let _ = engine::handle_tool(
+            "architecture_index",
+            serde_json::json!({ "root": root.to_string_lossy(), "mode": "full", "useSynth": false }),
+        );
+        let envelope = engine::handle_tool(
+            "architecture_search",
+            serde_json::json!({
+                "root": root.to_string_lossy(),
+                "query": "token",
+                "types": ["symbol"],
+                "limit": 20
+            }),
+        );
+        assert_eq!(envelope.status, "ok", "{:?}", envelope.message);
+        let matches = envelope.answer.expect("answer")["matches"].as_array().cloned().unwrap_or_default();
+        assert!(!matches.is_empty());
+        assert!(
+            matches.iter().all(|m| m["kind"] == "symbol"),
+            "expected only symbols, got {:?}",
+            matches
+        );
+    }
+
 }

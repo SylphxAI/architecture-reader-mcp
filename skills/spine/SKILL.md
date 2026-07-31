@@ -9,10 +9,11 @@ Use Spine when you need **proof of repository structure**, not grep guesses.
 npx @sylphx/architecture-reader-mcp
 # CLI
 ./bin/spine doctor
-./bin/spine index .
-./bin/spine search auth
+./bin/spine index . --mode full --exclude target
+./bin/spine search auth --neighbors --type symbol
+./bin/spine overview --focus src/auth/token.ts
 ./bin/spine path src/auth/token.ts src/server/routes.ts
-./bin/spine impact --git-diff
+./bin/spine impact --git-diff --max-depth 2
 ```
 
 ## Tools (clear, not merged)
