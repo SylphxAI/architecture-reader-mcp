@@ -36,6 +36,7 @@ Usage:
   spine impact [ROOT] --git-diff [--base REF] [--max-depth N] [--mermaid]
   spine evidence [ROOT] <id> [<id>...]
   spine pack [ROOT] <focus> [--max-neighbors N] [--mermaid]
+  spine export [ROOT]   # compact status+overview summary JSON for agents
   spine mcp
   spine doctor
   spine help
@@ -55,7 +56,7 @@ shift || true
 
 repo_root="$(pwd)"
 case "$cmd" in
-  index|status|overview|search|browse|path|trace|impact|evidence|pack)
+  index|status|overview|search|browse|path|trace|impact|evidence|pack|export)
     if [[ -n "${1:-}" && -d "${1}" ]]; then
       repo_root="$(cd "$1" && pwd)"
       shift
@@ -243,6 +244,30 @@ print(m.get("incoming") or ""); print("---"); print(m.get("outgoing") or "")' <<
       printf '%s
 ' "$out"
     fi
+    ;;
+  export)
+    # Compact agent summary: status + overview counts/languages without full graph dump
+    status_json=$(invoke architecture_status "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1]}))' "$repo_root")")
+    overview_json=$(invoke architecture_overview "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":"all","depth":2}))' "$repo_root")")
+    python3 -c 'import json,sys
+st=json.loads(sys.argv[1]); ov=json.loads(sys.argv[2])
+sa=st.get("answer") or {}; oa=ov.get("answer") or {}
+out={
+  "product":"Spine",
+  "root": (st.get("repository") or {}).get("root"),
+  "status": st.get("status"),
+  "languages": sa.get("languages") or oa.get("languages"),
+  "relationKinds": sa.get("relationKinds"),
+  "topFanIn": sa.get("topFanIn") or oa.get("topFanIn"),
+  "topFanOut": sa.get("topFanOut") or oa.get("topFanOut"),
+  "orphans": sa.get("orphans") or oa.get("orphans"),
+  "cycles": sa.get("cycles") or oa.get("cycles"),
+  "counts": oa.get("counts"),
+  "extractors": sa.get("extractors") or oa.get("extractors"),
+  "packages": oa.get("packages"),
+}
+print(json.dumps(out, indent=2))
+' "$status_json" "$overview_json"
     ;;
   *)
     usage
