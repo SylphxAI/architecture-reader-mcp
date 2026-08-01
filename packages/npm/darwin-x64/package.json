@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/architecture-reader-mcp-darwin-x64",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Spine native MCP server for darwin-x64",
   "os": [
     "darwin"
