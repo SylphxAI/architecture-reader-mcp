@@ -1,276 +1,51 @@
 #!/usr/bin/env bash
-# Spine human CLI — isomorphic with MCP tools via architecture-reader-cli JSON bridge.
+# Spine MCP launcher — Rust rmcp only; optional platform natives first.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PACKAGE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# monorepo root when launched from packages/mcp-server/bin
+if [[ "$(basename "$PACKAGE_ROOT")" == "mcp-server" ]]; then
+  REPO_ROOT="$(cd "$PACKAGE_ROOT/../.." && pwd)"
+else
+  REPO_ROOT="$PACKAGE_ROOT"
+fi
 
-resolve_cli() {
-  if [[ -n "${ARCHITECTURE_READER_CLI_BIN:-}" && -x "${ARCHITECTURE_READER_CLI_BIN}" ]]; then
-    printf '%s\n' "${ARCHITECTURE_READER_CLI_BIN}"
-    return 0
+host_platform_key() {
+  local os arch
+  os="$(uname -s 2>/dev/null || echo unknown)"; arch="$(uname -m 2>/dev/null || echo unknown)"
+  case "$os" in Darwin) os=darwin;; Linux) os=linux;; *) os=$(printf '%s' "$os" | tr '[:upper:]' '[:lower:]');; esac
+  case "$arch" in x86_64|amd64) arch=x64;; aarch64|arm64) arch=arm64;; esac
+  printf '%s-%s\n' "$os" "$arch"
+}
+platform_package_name() {
+  case "$(host_platform_key)" in
+    darwin-arm64) echo '@sylphx/architecture-reader-mcp-darwin-arm64';;
+    darwin-x64) echo '@sylphx/architecture-reader-mcp-darwin-x64';;
+    linux-x64) echo '@sylphx/architecture-reader-mcp-linux-x64-gnu';;
+    linux-arm64) echo '@sylphx/architecture-reader-mcp-linux-arm64-gnu';;
+    *) return 1;;
+  esac
+}
+is_runnable() { [[ -n "${1:-}" && -f "$1" && -x "$1" ]]; }
+resolve() {
+  if [[ -n "${ARCHITECTURE_READER_MCP_RUST_BIN:-}" && -x "${ARCHITECTURE_READER_MCP_RUST_BIN}" ]]; then echo "$ARCHITECTURE_READER_MCP_RUST_BIN"; return 0; fi
+  if [[ -n "${SPINE_MCP_RUST_BIN:-}" && -x "${SPINE_MCP_RUST_BIN}" ]]; then echo "$SPINE_MCP_RUST_BIN"; return 0; fi
+  local pkg candidate
+  pkg="$(platform_package_name 2>/dev/null || true)"
+  if [[ -n "$pkg" ]]; then
+    for root in "$PACKAGE_ROOT/node_modules" "$REPO_ROOT/node_modules" "$PACKAGE_ROOT/../node_modules" "$PACKAGE_ROOT/../../node_modules"; do
+      candidate="$root/$pkg/architecture-reader-mcp-server"
+      if is_runnable "$candidate"; then echo "$candidate"; return 0; fi
+    done
   fi
   for candidate in \
-    "$ROOT/bin/native/architecture-reader-cli" \
-    "$ROOT/target/release/architecture-reader-cli" \
-    "$ROOT/target/debug/architecture-reader-cli"; do
-    if [[ -x "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
+    "$PACKAGE_ROOT/bin/native/architecture-reader-mcp-server" \
+    "$REPO_ROOT/bin/native/architecture-reader-mcp-server" \
+    "$REPO_ROOT/target/release/architecture-reader-mcp-server" \
+    "$REPO_ROOT/target/debug/architecture-reader-mcp-server"; do
+    if is_runnable "$candidate"; then echo "$candidate"; return 0; fi
   done
   return 1
 }
-
-usage() {
-  cat <<'USAGE'
-Spine — local architecture engine (Sylphx)
-
-Usage:
-  spine index [ROOT] [--mode auto|full] [--include P] [--exclude N] [--max-file-bytes N]
-  spine status [ROOT]
-  spine overview [ROOT] [--focus PATH|LABEL|ID] [--depth N]
-  spine search [ROOT] <query> [--limit N] [--neighbors] [--type KIND]
-  spine browse [ROOT] [--limit N] [--type KIND]   # empty-query fan-in browse
-  spine path [ROOT] <from> <to> [--relation any|imports|calls|...] [--mermaid]
-  spine trace [ROOT] <from> <to>
-  spine impact [ROOT] <path> [<path>...] [--max-depth N] [--mermaid]
-  spine impact [ROOT] --git-diff [--base REF] [--max-depth N] [--mermaid]
-  spine evidence [ROOT] <id> [<id>...]
-  spine pack [ROOT] <focus> [--max-neighbors N] [--mermaid]
-  spine export [ROOT]   # compact status+overview summary JSON for agents
-  spine mcp
-  spine doctor
-  spine help
-
-ROOT defaults to the current working directory.
-Requires: cargo/bun build producing architecture-reader-cli (bun run build:rust).
-USAGE
-}
-
-if ! CLI="$(resolve_cli)"; then
-  echo "[spine] architecture-reader-cli not built. Run: bun run build:rust" >&2
-  exit 1
-fi
-
-cmd="${1:-help}"
-shift || true
-
-repo_root="$(pwd)"
-case "$cmd" in
-  index|status|overview|search|browse|path|trace|impact|evidence|pack|export)
-    if [[ -n "${1:-}" && -d "${1}" ]]; then
-      repo_root="$(cd "$1" && pwd)"
-      shift
-    fi
-    ;;
-esac
-
-# Always emit valid JSON via Python (shell-quoted object literals are unsafe).
-invoke() {
-  local tool="$1"
-  local input_json="$2"
-  python3 -c 'import json,sys; print(json.dumps({"tool": sys.argv[1], "input": json.loads(sys.argv[2])}))' \
-    "$tool" "$input_json" | "$CLI"
-}
-
-json_obj() {
-  python3 - "$@" <<'PY'
-import json, sys
-print(json.dumps(json.loads(sys.argv[1])))
-PY
-}
-
-case "$cmd" in
-  help|-h|--help) usage; exit 0 ;;
-  mcp)
-    exec "$ROOT/bin/architecture-reader-mcp"
-    ;;
-  doctor)
-    if command -v bun >/dev/null 2>&1; then
-      exec bun run "$ROOT/packages/mcp-server/src/doctor.ts"
-    fi
-    echo "[spine] doctor requires bun" >&2
-    exit 1
-    ;;
-  index)
-    mode="auto"
-    includes=()
-    excludes=()
-    max_file_bytes=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --mode) mode="$2"; shift 2 ;;
-        --include) includes+=("$2"); shift 2 ;;
-        --exclude) excludes+=("$2"); shift 2 ;;
-        --max-file-bytes) max_file_bytes="$2"; shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    input=$(python3 - "$repo_root" "$mode" "$max_file_bytes" ${includes[@]+"${includes[@]}"} -- ${excludes[@]+"${excludes[@]}"} <<'PY'
-import json, sys
-root, mode, max_b = sys.argv[1], sys.argv[2], sys.argv[3]
-args = sys.argv[4:]
-if "--" in args:
-    i = args.index("--")
-    includes, excludes = args[:i], args[i+1:]
-else:
-    includes, excludes = args, []
-obj = {"root": root, "mode": mode, "include": includes, "exclude": excludes}
-if max_b:
-    obj["maxFileBytes"] = int(max_b)
-print(json.dumps(obj))
-PY
-)
-    invoke architecture_index "$input"
-    ;;
-  status)
-    invoke architecture_status "$(python3 -c 'import json,sys; print(json.dumps({"root": sys.argv[1]}))' "$repo_root")"
-    ;;
-  overview)
-    focus="all"
-    depth=2
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --focus) focus="$2"; shift 2 ;;
-        --depth) depth="$2"; shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    invoke architecture_overview "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"depth":int(sys.argv[3])}))' "$repo_root" "$focus" "$depth")"
-    ;;
-  search)
-    q="${1:-}"; [[ -n "$q" ]] || { echo "search requires query" >&2; exit 2; }
-    shift || true
-    limit=10
-    neighbors=false
-    types=()
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --limit) limit="$2"; shift 2 ;;
-        --neighbors) neighbors=true; shift ;;
-        --type|--types) types+=("$2"); shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    invoke architecture_search "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"query":sys.argv[2],"limit":int(sys.argv[3]),"includeNeighbors":sys.argv[4]=="true","types":json.loads(sys.argv[5])}))' "$repo_root" "$q" "$limit" "$neighbors" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})")"
-    ;;
-  browse)
-    limit=15
-    types=()
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --limit) limit="$2"; shift 2 ;;
-        --type|--types) types+=("$2"); shift 2 ;;
-        *) shift ;;
-      esac
-    done
-    invoke architecture_search "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"query":"","limit":int(sys.argv[2]),"includeNeighbors":True,"types":json.loads(sys.argv[3])}))' "$repo_root" "$limit" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' ${types[@]+"${types[@]}"})")"
-    ;;
-  path)
-    from="${1:-}"; to="${2:-}"
-    [[ -n "$from" && -n "$to" ]] || { echo "path requires from to" >&2; exit 2; }
-    shift 2 || true
-    relation="any"
-    mermaid=false
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --relation) relation="$2"; shift 2 ;;
-        --mermaid) mermaid=true; shift ;;
-        *) shift ;;
-      esac
-    done
-    out=$(invoke architecture_path "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3],"relation":sys.argv[4]}))' "$repo_root" "$from" "$to" "$relation")")
-    if [[ "$mermaid" == true ]]; then
-      python3 -c 'import json,sys; a=json.load(sys.stdin); print((a.get("answer") or {}).get("mermaid") or "")' <<<"$out"
-    else
-      printf '%s
-' "$out"
-    fi
-    ;;
-  trace)
-    from="${1:-}"; to="${2:-}"
-    [[ -n "$from" && -n "$to" ]] || { echo "trace requires from to" >&2; exit 2; }
-    invoke architecture_trace "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"from":sys.argv[2],"to":sys.argv[3]}))' "$repo_root" "$from" "$to")"
-    ;;
-  impact)
-    max_depth=2
-    use_git=false
-    git_base=""
-    mermaid=false
-    paths=()
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --max-depth) max_depth="$2"; shift 2 ;;
-        --git-diff) use_git=true; shift ;;
-        --base) git_base="$2"; shift 2 ;;
-        --mermaid) mermaid=true; shift ;;
-        *) paths+=("$1"); shift ;;
-      esac
-    done
-    if [[ "$use_git" == true ]]; then
-      out=$(invoke architecture_impact "$(python3 -c 'import json,sys; o={"root":sys.argv[1],"useGitDiff":True,"maxDepth":int(sys.argv[2])}; b=sys.argv[3];
-o.update({"gitBase":b} if b else {}); print(json.dumps(o))' "$repo_root" "$max_depth" "$git_base")")
-    else
-      [[ ${#paths[@]} -gt 0 ]] || { echo "impact requires paths or --git-diff" >&2; exit 2; }
-      out=$(invoke architecture_impact "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"changedPaths":json.loads(sys.argv[2]),"maxDepth":int(sys.argv[3])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${paths[@]}")" "$max_depth")")
-    fi
-    if [[ "$mermaid" == true ]]; then
-      python3 -c 'import json,sys; a=json.load(sys.stdin).get("answer") or {}; m=a.get("mermaid") or {};
-print(m.get("incoming") or ""); print("---"); print(m.get("outgoing") or "")' <<<"$out"
-    else
-      printf '%s
-' "$out"
-    fi
-    ;;
-  evidence)
-    [[ $# -gt 0 ]] || { echo "evidence requires id(s)" >&2; exit 2; }
-    invoke architecture_evidence "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"ids":json.loads(sys.argv[2])}))' "$repo_root" "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@")")"
-    ;;
-  pack)
-    focus="${1:-}"; [[ -n "$focus" ]] || { echo "pack requires focus path/label/id" >&2; exit 2; }
-    shift || true
-    maxn=12
-    mermaid=false
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --max-neighbors) maxn="$2"; shift 2 ;;
-        --mermaid) mermaid=true; shift ;;
-        *) shift ;;
-      esac
-    done
-    out=$(invoke architecture_context_pack "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":sys.argv[2],"maxNeighbors":int(sys.argv[3])}))' "$repo_root" "$focus" "$maxn")")
-    if [[ "$mermaid" == true ]]; then
-      python3 -c 'import json,sys; a=json.load(sys.stdin); print((a.get("answer") or {}).get("mermaid") or "")' <<<"$out"
-    else
-      printf '%s
-' "$out"
-    fi
-    ;;
-  export)
-    # Compact agent summary: status + overview counts/languages without full graph dump
-    status_json=$(invoke architecture_status "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1]}))' "$repo_root")")
-    overview_json=$(invoke architecture_overview "$(python3 -c 'import json,sys; print(json.dumps({"root":sys.argv[1],"focus":"all","depth":2}))' "$repo_root")")
-    python3 -c 'import json,sys
-st=json.loads(sys.argv[1]); ov=json.loads(sys.argv[2])
-sa=st.get("answer") or {}; oa=ov.get("answer") or {}
-out={
-  "product":"Spine",
-  "root": (st.get("repository") or {}).get("root"),
-  "status": st.get("status"),
-  "languages": sa.get("languages") or oa.get("languages"),
-  "relationKinds": sa.get("relationKinds"),
-  "topFanIn": sa.get("topFanIn") or oa.get("topFanIn"),
-  "topFanOut": sa.get("topFanOut") or oa.get("topFanOut"),
-  "orphans": sa.get("orphans") or oa.get("orphans"),
-  "cycles": sa.get("cycles") or oa.get("cycles"),
-  "counts": oa.get("counts"),
-  "extractors": sa.get("extractors") or oa.get("extractors"),
-  "packages": oa.get("packages"),
-}
-print(json.dumps(out, indent=2))
-' "$status_json" "$overview_json"
-    ;;
-  *)
-    usage
-    exit 2
-    ;;
-esac
+if bin="$(resolve)"; then exec "$bin" "$@"; fi
+echo "[spine] Rust MCP server not found. Install @sylphx/architecture-reader-mcp-<platform> or build from product repo." >&2
+exit 1

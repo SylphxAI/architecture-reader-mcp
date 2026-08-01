@@ -18,7 +18,7 @@ Transitional package/repo: `@sylphx/architecture-reader-mcp` / `architecture-rea
 [![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
 
-**Beta 0.1** · **Rust core + Bun MCP adapter** · **8 typed MCP tools** · **Evidence envelope** · **Rust/Go/Python/TS extractors**
+**Beta 0.1** · **Rust core + Bun MCP adapter** · **6 primary MCP tools (+ advanced trace/evidence/context_pack)** · **Evidence envelope** · **Rust/Go/Python/TS extractors**
 
 [⭐ Star this repo](https://github.com/SylphxAI/architecture-reader-mcp) if agents should answer architecture questions with proof, not graphviz guesses.
 · [Quick start](#quick-start) · [Tool contract](#tool-contract) · [Why not grep or a dashboard?](#why-not-grep-or-a-dashboard)

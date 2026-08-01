@@ -1,0 +1,11 @@
+{
+  "name": "@sylphx/architecture-reader-mcp-linux-arm64-gnu",
+  "version": "0.2.2",
+  "description": "Spine native MCP server for linux-arm64-gnu",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "libc":["glibc"],
+  "files": ["architecture-reader-mcp-server"],
+  "license": "MIT",
+  "publishConfig": {"access":"public"}
+}

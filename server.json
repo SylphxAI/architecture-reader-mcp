@@ -2,18 +2,18 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.SylphxAI/architecture-reader-mcp",
   "title": "Spine",
-  "description": "Spine \u2014 local architecture engine for agents. Index, search, path, trace, impact with file:line evidence. SDK \u00b7 CLI \u00b7 MCP.",
+  "description": "Spine — local architecture engine for agents. Index, search, path, trace, impact with file:line evidence. SDK · CLI · MCP.",
   "repository": {
     "url": "https://github.com/SylphxAI/architecture-reader-mcp",
     "source": "github"
   },
-  "version": "0.2.1",
+  "version": "0.2.2",
   "websiteUrl": "https://github.com/SylphxAI/architecture-reader-mcp#readme",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sylphx/architecture-reader-mcp",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "transport": {
         "type": "stdio"
       }

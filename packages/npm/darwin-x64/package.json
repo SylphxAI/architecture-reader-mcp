@@ -1,0 +1,11 @@
+{
+  "name": "@sylphx/architecture-reader-mcp-darwin-x64",
+  "version": "0.2.2",
+  "description": "Spine native MCP server for darwin-x64",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  
+  "files": ["architecture-reader-mcp-server"],
+  "license": "MIT",
+  "publishConfig": {"access":"public"}
+}

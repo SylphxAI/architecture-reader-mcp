@@ -1,31 +1,51 @@
 #!/usr/bin/env bash
+# Spine MCP launcher — Rust rmcp only; optional platform natives first.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
-PKG_ROOT="$(cd "$HERE/.." && pwd)"
+PACKAGE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# monorepo root when launched from packages/mcp-server/bin
+if [[ "$(basename "$PACKAGE_ROOT")" == "mcp-server" ]]; then
+  REPO_ROOT="$(cd "$PACKAGE_ROOT/../.." && pwd)"
+else
+  REPO_ROOT="$PACKAGE_ROOT"
+fi
 
-resolve_rust_bin() {
-  if [[ -n "${ARCHITECTURE_READER_MCP_RUST_BIN:-}" && -x "${ARCHITECTURE_READER_MCP_RUST_BIN}" ]]; then
-    printf '%s\n' "${ARCHITECTURE_READER_MCP_RUST_BIN}"
-    return 0
+host_platform_key() {
+  local os arch
+  os="$(uname -s 2>/dev/null || echo unknown)"; arch="$(uname -m 2>/dev/null || echo unknown)"
+  case "$os" in Darwin) os=darwin;; Linux) os=linux;; *) os=$(printf '%s' "$os" | tr '[:upper:]' '[:lower:]');; esac
+  case "$arch" in x86_64|amd64) arch=x64;; aarch64|arm64) arch=arm64;; esac
+  printf '%s-%s\n' "$os" "$arch"
+}
+platform_package_name() {
+  case "$(host_platform_key)" in
+    darwin-arm64) echo '@sylphx/architecture-reader-mcp-darwin-arm64';;
+    darwin-x64) echo '@sylphx/architecture-reader-mcp-darwin-x64';;
+    linux-x64) echo '@sylphx/architecture-reader-mcp-linux-x64-gnu';;
+    linux-arm64) echo '@sylphx/architecture-reader-mcp-linux-arm64-gnu';;
+    *) return 1;;
+  esac
+}
+is_runnable() { [[ -n "${1:-}" && -f "$1" && -x "$1" ]]; }
+resolve() {
+  if [[ -n "${ARCHITECTURE_READER_MCP_RUST_BIN:-}" && -x "${ARCHITECTURE_READER_MCP_RUST_BIN}" ]]; then echo "$ARCHITECTURE_READER_MCP_RUST_BIN"; return 0; fi
+  if [[ -n "${SPINE_MCP_RUST_BIN:-}" && -x "${SPINE_MCP_RUST_BIN}" ]]; then echo "$SPINE_MCP_RUST_BIN"; return 0; fi
+  local pkg candidate
+  pkg="$(platform_package_name 2>/dev/null || true)"
+  if [[ -n "$pkg" ]]; then
+    for root in "$PACKAGE_ROOT/node_modules" "$REPO_ROOT/node_modules" "$PACKAGE_ROOT/../node_modules" "$PACKAGE_ROOT/../../node_modules"; do
+      candidate="$root/$pkg/architecture-reader-mcp-server"
+      if is_runnable "$candidate"; then echo "$candidate"; return 0; fi
+    done
   fi
   for candidate in \
-    "$PKG_ROOT/bin/native/architecture-reader-mcp-server" \
-    "$PKG_ROOT/native/architecture-reader-mcp-server" \
-    "$PKG_ROOT/../../bin/native/architecture-reader-mcp-server" \
-    "$PKG_ROOT/../../target/release/architecture-reader-mcp-server" \
-    "$PKG_ROOT/../../target/debug/architecture-reader-mcp-server"; do
-    if [[ -x "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
+    "$PACKAGE_ROOT/bin/native/architecture-reader-mcp-server" \
+    "$REPO_ROOT/bin/native/architecture-reader-mcp-server" \
+    "$REPO_ROOT/target/release/architecture-reader-mcp-server" \
+    "$REPO_ROOT/target/debug/architecture-reader-mcp-server"; do
+    if is_runnable "$candidate"; then echo "$candidate"; return 0; fi
   done
   return 1
 }
-
-if bin="$(resolve_rust_bin)"; then
-  exec "$bin" "$@"
-fi
-
-echo "[@sylphx/architecture-reader-mcp] Rust MCP server not found." >&2
-echo "Build from the product repo (bun run build:rust) or set ARCHITECTURE_READER_MCP_RUST_BIN." >&2
+if bin="$(resolve)"; then exec "$bin" "$@"; fi
+echo "[spine] Rust MCP server not found. Install @sylphx/architecture-reader-mcp-<platform> or build from product repo." >&2
 exit 1

@@ -1,9 +1,9 @@
 {
   "name": "@sylphx/architecture-reader-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "mcpName": "io.github.SylphxAI/architecture-reader-mcp",
   "type": "module",
-  "description": "Spine \u2014 local architecture engine for agents (SDK \u00b7 CLI \u00b7 MCP). Transitional package name architecture-reader-mcp.",
+  "description": "Spine — local architecture engine for agents (SDK · CLI · MCP). Transitional package name architecture-reader-mcp.",
   "publishConfig": {
     "access": "public"
   },
@@ -16,7 +16,8 @@
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "bin/",
+    "bin/architecture-reader-mcp",
+    "bin/spine",
     "src/"
   ],
   "exports": {
@@ -46,5 +47,11 @@
     "@types/node": "^26.1.2",
     "typescript": "^7.0.2"
   },
-  "private": false
+  "private": false,
+  "optionalDependencies": {
+    "@sylphx/architecture-reader-mcp-darwin-arm64": "0.2.2",
+    "@sylphx/architecture-reader-mcp-darwin-x64": "0.2.2",
+    "@sylphx/architecture-reader-mcp-linux-x64-gnu": "0.2.2",
+    "@sylphx/architecture-reader-mcp-linux-arm64-gnu": "0.2.2"
+  }
 }
