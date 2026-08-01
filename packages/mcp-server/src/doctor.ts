@@ -73,16 +73,20 @@ const probeFixture = (): DoctorCheck => {
 };
 
 const probeToolSurface = (): DoctorCheck => {
-  const required = [
+  const primary = [
     'architecture_index',
     'architecture_status',
     'architecture_overview',
     'architecture_search',
     'architecture_path',
-    'architecture_trace',
     'architecture_impact',
-    'architecture_evidence',
   ];
+  const advanced = [
+    'architecture_trace',
+    'architecture_evidence',
+    'architecture_context_pack',
+  ];
+  const required = [...primary, ...advanced];
 
   const routesPath = join(here, '../../../crates/architecture-reader-mcp-server/src/tool_routes.rs');
   const enginePath = join(here, '../../../crates/architecture-reader-core/src/engine.rs');

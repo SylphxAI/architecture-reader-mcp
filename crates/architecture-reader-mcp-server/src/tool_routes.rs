@@ -1,4 +1,4 @@
-//! Explicit shipped routing table for architecture-reader-mcp primary tools.
+//! Explicit shipped routing table for architecture-reader-mcp tools.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolRoute {
@@ -25,19 +25,22 @@ pub fn is_rust_core_tool(tool: &str) -> bool {
     matches!(route_for_tool(tool), Some(ToolRoute::RustCore))
 }
 
-pub const PRIMARY_TOOLS: [&str; 8] = [
+/// Agent default path — keep small and obvious.
+pub const PRIMARY_TOOLS: [&str; 6] = [
     "architecture_index",
     "architecture_status",
     "architecture_overview",
     "architecture_search",
     "architecture_path",
-    "architecture_trace",
     "architecture_impact",
-    "architecture_evidence",
 ];
 
-/// Advanced tools (not required for Phase A surface bar).
-pub const ADVANCED_TOOLS: [&str; 1] = ["architecture_context_pack"];
+/// Advanced tools (use when primary path is insufficient).
+pub const ADVANCED_TOOLS: [&str; 3] = [
+    "architecture_trace",
+    "architecture_evidence",
+    "architecture_context_pack",
+];
 
 #[cfg(test)]
 mod tests {
@@ -46,6 +49,9 @@ mod tests {
     #[test]
     fn maps_all_primary_tools_to_rust_core() {
         for tool in PRIMARY_TOOLS {
+            assert_eq!(route_for_tool(tool), Some(ToolRoute::RustCore));
+        }
+        for tool in ADVANCED_TOOLS {
             assert_eq!(route_for_tool(tool), Some(ToolRoute::RustCore));
         }
     }
