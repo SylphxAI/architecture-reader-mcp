@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/architecture-reader-mcp-linux-x64-gnu",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Spine native MCP server for linux-x64-gnu",
   "os": [
     "linux"
