@@ -120,8 +120,9 @@ First npm publish is workflow-owned via Changesets on `main` — see
 | Generic chunk search | Purpose-built `architecture_*` tools with shared envelope |
 | Ship and pray | Deterministic extraction first; inference explicitly labeled |
 
-Generic code search stays in [CodeRAG](https://github.com/SylphxAI/coderag). Synth
-AST extraction is opt-in for TypeScript/JavaScript modules — see
+Generic **code chunk** search stays in **[Locus](https://github.com/SylphxAI/coderag)**
+(transitional CodeRAG / `@sylphx/locus`). Spine owns architecture path/trace/impact — not hybrid chunk retrieval.
+Synth AST extraction is opt-in for TypeScript/JavaScript modules — see
 [integration spec](./docs/specs/synth-coderag-integration.md).
 
 ## See it work

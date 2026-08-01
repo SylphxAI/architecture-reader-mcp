@@ -42,3 +42,10 @@ See [COMPETITIVE.md](./COMPETITIVE.md).
 ## Completion bar
 
 See [IPPB.md](./IPPB.md).
+
+## Not Locus
+
+| Product | Job |
+| --- | --- |
+| **Spine** | Architecture path / trace / impact |
+| **Locus** (`coderag`) | Hybrid **code chunk** retrieval (`codebase_search`) |
