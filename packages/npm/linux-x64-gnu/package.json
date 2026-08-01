@@ -1,11 +1,21 @@
 {
   "name": "@sylphx/architecture-reader-mcp-linux-x64-gnu",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Spine native MCP server for linux-x64-gnu",
-  "os": ["linux"],
-  "cpu": ["x64"],
-  "libc":["glibc"],
-  "files": ["architecture-reader-mcp-server"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "architecture-reader-mcp-server"
+  ],
   "license": "MIT",
-  "publishConfig": {"access":"public"}
+  "publishConfig": {
+    "access": "public"
+  }
 }
