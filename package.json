@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Spine — local architecture engine for agents. Index, search, path, impact with file:line evidence. SDK · CLI · MCP.",
+  "description": "Spine monorepo (publishable package: packages/mcp-server → @sylphx/spine).",
   "packageManager": "bun@1.3.14",
   "workspaces": [
     "packages/*"
