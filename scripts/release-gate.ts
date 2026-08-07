@@ -307,7 +307,7 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
 
   const goldenParityProbe = spawnSync(
     'cargo',
-    ['test', '-p', 'spine-mcp-server', '--test', 'golden_parity'],
+    ['test', '-p', 'architecture-reader-mcp-server', '--test', 'golden_parity'],
     {
       cwd: repoRoot,
       encoding: 'utf8',
