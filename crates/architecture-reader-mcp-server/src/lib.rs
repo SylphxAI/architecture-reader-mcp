@@ -22,7 +22,7 @@ impl FreeformToolArgs {
     }
 }
 
-pub const SERVER_NAME: &str = "architecture-reader-mcp";
+pub const SERVER_NAME: &str = "spine";
 pub const SERVER_VERSION: &str = "0.1.0";
 pub const SERVER_INSTRUCTIONS: &str =
     "Architecture Reader MCP server (Rust rmcp transport). Index, search, path, trace, impact, and evidence tools run through the Rust evidence-graph engine.";
