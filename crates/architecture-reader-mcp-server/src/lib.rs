@@ -127,9 +127,9 @@ impl ServerHandler for ArchitectureReaderMcp {
             .with_server_info(
                 Implementation::new(SERVER_NAME, SERVER_VERSION)
                     .with_description(
-                        "Rust-native MCP server for architecture-reader-mcp (modelcontextprotocol/rust-sdk rmcp)",
+                        "Rust-native MCP server for spine (@sylphx/spine) (modelcontextprotocol/rust-sdk rmcp)",
                     )
-                    .with_website_url("https://github.com/SylphxAI/architecture-reader-mcp"),
+                    .with_website_url("https://github.com/SylphxAI/spine (@sylphx/spine)"),
             )
             .with_instructions(SERVER_INSTRUCTIONS)
     }
