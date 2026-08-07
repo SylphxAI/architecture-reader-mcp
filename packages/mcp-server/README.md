@@ -1,37 +1,22 @@
-# @sylphx/architecture-reader-mcp (Spine)
+# Spine (`@sylphx/spine`)
 
-Local architecture engine for agents — **SDK · CLI · MCP**.
+Canonical package: **`@sylphx/spine`** · bin **`spine`** · MCP `io.github.SylphxAI/spine`
 
-Product repository (SSOT): https://github.com/SylphxAI/architecture-reader-mcp
-
-## Install
+Deprecated transitional id: `@sylphx/architecture-reader-mcp` (do not use as install CTA).
 
 ```bash
-npm i -g @sylphx/architecture-reader-mcp
-# or from git SSOT
-git clone https://github.com/SylphxAI/architecture-reader-mcp.git
-cd architecture-reader-mcp && bun install && bun run build:rust
+npm i -g @sylphx/spine
+# or
+npx @sylphx/spine
 ```
 
 ## Surfaces
 
 | Surface | Entry |
 | --- | --- |
-| CLI | `spine` / `architecture-reader-mcp` |
-| MCP | stdio via package bin (Rust rmcp when built) |
-| SDK | `@sylphx/architecture-reader-mcp/sdk` |
+| CLI / MCP | `spine` |
+| SDK | `@sylphx/spine/sdk` |
 
-## Native binary
+Native optionalDependencies may still use historical `@sylphx/architecture-reader-mcp-<platform>` names; versions match this package.
 
-The MCP/CLI engines are **Rust**. After install from npm, set:
-
-- `ARCHITECTURE_READER_MCP_RUST_BIN` — path to `architecture-reader-mcp-server`
-- `ARCHITECTURE_READER_CLI_BIN` — path to `architecture-reader-cli`
-
-Or install from git and run `bun run build:rust` so `bin/native/*` is populated.
-
-Doctor: `spine doctor` (when CLI bin available) or use package doctor helper.
-
-## Independence
-
-This package is one product. No multi-product monorepo; no central Instruments hub.
+Family law: SylphxAI/skills `apply-instrument-family`.
