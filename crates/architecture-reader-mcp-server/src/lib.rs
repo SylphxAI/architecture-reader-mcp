@@ -22,7 +22,7 @@ impl FreeformToolArgs {
     }
 }
 
-pub const SERVER_NAME: &str = "architecture-reader-mcp";
+pub const SERVER_NAME: &str = "spine";
 pub const SERVER_VERSION: &str = "0.1.0";
 pub const SERVER_INSTRUCTIONS: &str =
     "Architecture Reader MCP server (Rust rmcp transport). Index, search, path, trace, impact, and evidence tools run through the Rust evidence-graph engine.";
@@ -127,7 +127,7 @@ impl ServerHandler for ArchitectureReaderMcp {
             .with_server_info(
                 Implementation::new(SERVER_NAME, SERVER_VERSION)
                     .with_description(
-                        "Rust-native MCP server for architecture-reader-mcp (modelcontextprotocol/rust-sdk rmcp)",
+                        "Rust-native MCP server for Spine / @sylphx/spine (modelcontextprotocol/rust-sdk rmcp)",
                     )
                     .with_website_url("https://github.com/SylphxAI/architecture-reader-mcp"),
             )

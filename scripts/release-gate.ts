@@ -352,7 +352,7 @@ export async function buildReleaseGateReport(artifactDir: string): Promise<Relea
   addCheck(
     checks,
     'publish:registry_metadata',
-    server.packages?.[0]?.identifier === '@sylphx/architecture-reader-mcp',
+    server.packages?.[0]?.identifier === '@sylphx/spine',
     'server.json documents the publishable npm package identifier'
   );
 

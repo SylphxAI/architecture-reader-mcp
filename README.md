@@ -2,6 +2,8 @@
 
 # Spine
 
+Canonical package: **`@sylphx/spine`** · bin **`spine`**
+
 ### Your agent mapped the repo. **Did it trace the right boundary?**
 
 **Spine** is a local-first architecture evidence product for agents —
@@ -11,9 +13,9 @@ Agent-native **repository architecture evidence graphs** — boundaries,
 dependencies, routes, schemas, and impact radius with file-level provenance — not
 dashboard screenshots, not required LLM multi-agent burns, not keyword grep.
 
-Transitional package/repo: `@sylphx/architecture-reader-mcp` / `architecture-reader-mcp`.
+Transitional package/repo: `@sylphx/spine` / `architecture-reader-mcp`.
 
-[![npm version](https://img.shields.io/npm/v/@sylphx/architecture-reader-mcp?style=flat-square)](https://www.npmjs.com/package/@sylphx/architecture-reader-mcp)
+[![npm version](https://img.shields.io/npm/v/@sylphx/spine?style=flat-square)](https://www.npmjs.com/package/@sylphx/spine)
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/SylphxAI/architecture-reader-mcp/ci.yml?style=flat-square&label=CI/CD)](https://github.com/SylphxAI/architecture-reader-mcp/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/Rust-core-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-MCP%20adapter-blue?style=flat-square)](https://www.typescriptlang.org/)
@@ -224,7 +226,7 @@ source, freshness, confidence, and known gaps.
 ### Claude Code
 
 ```bash
-claude mcp add architecture-reader -- npx @sylphx/architecture-reader-mcp
+claude mcp add architecture-reader -- npx @sylphx/spine
 ```
 
 ### Claude Desktop / any MCP host
@@ -234,7 +236,7 @@ claude mcp add architecture-reader -- npx @sylphx/architecture-reader-mcp
   "mcpServers": {
     "architecture-reader": {
       "command": "npx",
-      "args": ["-y", "@sylphx/architecture-reader-mcp"]
+      "args": ["-y", "@sylphx/spine"]
     }
   }
 }
@@ -361,7 +363,7 @@ bun run build:rust
 
 TypeScript:
 ```ts
-import { Spine } from '@sylphx/architecture-reader-mcp/sdk'
+import { Spine } from '@sylphx/spine/sdk'
 const spine = Spine.create({ root: process.cwd() })
 await spine.index({ mode: 'full' })
 const path = await spine.path('authMiddleware', 'validateToken', { relation: 'calls' })
