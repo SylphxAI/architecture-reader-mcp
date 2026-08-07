@@ -29,6 +29,10 @@ pub fn handle_tool(tool: &str, input: serde_json::Value) -> ToolEnvelope {
         _ => ToolEnvelope::error("UNSUPPORTED_QUERY", &format!("Unknown tool: {tool}"), None),
     };
     let _ = started;
+    let mut result = result;
+    result.tool = Some(tool.to_string());
+    // Family route path uses tool name for progressive disclosure.
+    result.route = serde_json::json!({ "engine": "rust-core", "path": tool });
     result
 }
 
