@@ -1,9 +1,9 @@
-//! Explicit shipped routing table for architecture-reader-mcp tools.
+//! Explicit shipped routing table for Spine tools.
+//! Progressive disclosure: PRIMARY_TOOLS are the agent default path.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolRoute {
     RustCore,
-    LegacyOptIn,
 }
 
 pub fn route_for_tool(tool: &str) -> Option<ToolRoute> {
@@ -54,5 +54,6 @@ mod tests {
         for tool in ADVANCED_TOOLS {
             assert_eq!(route_for_tool(tool), Some(ToolRoute::RustCore));
         }
+        assert_eq!(route_for_tool("not_a_tool"), None);
     }
 }
