@@ -9,7 +9,7 @@ description = "Rust-native MCP server for architecture-reader-mcp (rmcp)"
 path = "src/lib.rs"
 
 [[bin]]
-name = "architecture-reader-mcp-server"
+name = "spine-mcp-server"
 path = "src/main.rs"
 
 [dependencies]
