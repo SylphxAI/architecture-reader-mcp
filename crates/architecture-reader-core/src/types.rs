@@ -109,11 +109,27 @@ pub struct Metrics {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolEnvelope {
+    /// Family evidence envelope v1.
+    #[serde(default = "default_envelope_version")]
+    pub envelope_version: String,
+    #[serde(default = "default_product")]
+    pub product: String,
+    #[serde(default = "default_product_version")]
+    pub product_version: String,
+    #[serde(default = "default_family_route")]
+    pub route: serde_json::Value,
+    #[serde(default)]
+    pub warnings: Vec<String>,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<RepositoryState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answer: Option<serde_json::Value>,
+    /// Family payload alias for `answer` when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
     #[serde(default)]
     pub evidence: Vec<EvidenceRef>,
     #[serde(default)]
@@ -128,6 +144,13 @@ pub struct ToolEnvelope {
     pub next_action: Option<String>,
 }
 
+fn default_envelope_version() -> String { "1".into() }
+fn default_product() -> String { "spine".into() }
+fn default_product_version() -> String { env!("CARGO_PKG_VERSION").into() }
+fn default_family_route() -> serde_json::Value {
+    serde_json::json!({ "engine": "rust-core", "path": "architecture-graph" })
+}
+
 impl ToolEnvelope {
     pub fn ok(
         repository: RepositoryState,
@@ -137,9 +160,16 @@ impl ToolEnvelope {
         metrics: Metrics,
     ) -> Self {
         Self {
+            envelope_version: default_envelope_version(),
+            product: default_product(),
+            product_version: default_product_version(),
+            route: default_family_route(),
+            warnings: vec![],
             status: "ok".into(),
+            tool: None,
             repository: Some(repository),
-            answer: Some(answer),
+            answer: Some(answer.clone()),
+            payload: Some(answer),
             evidence,
             gaps,
             metrics: Some(metrics),
@@ -151,9 +181,16 @@ impl ToolEnvelope {
 
     pub fn error(code: &str, message: &str, next_action: Option<&str>) -> Self {
         Self {
+            envelope_version: default_envelope_version(),
+            product: default_product(),
+            product_version: default_product_version(),
+            route: default_family_route(),
+            warnings: vec![],
             status: "error".into(),
+            tool: None,
             repository: None,
             answer: None,
+            payload: None,
             evidence: vec![],
             gaps: vec![],
             metrics: None,
