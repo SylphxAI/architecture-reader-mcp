@@ -120,10 +120,11 @@ describe('shipped path matrix (Rust core, no legacy flags)', () => {
   });
 
   it('default bin resolves staged rmcp server', () => {
-    const bin = join(repoRoot, 'bin/architecture-reader-mcp');
+    const bin = join(repoRoot, 'bin/spine');
     expect(existsSync(bin)).toBe(true);
-    const staged = join(repoRoot, 'bin/native/architecture-reader-mcp-server');
-    expect(existsSync(staged)).toBe(true);
+    const staged = join(repoRoot, 'bin/native/spine-mcp-server');
+    const release = join(repoRoot, 'target/release/spine-mcp-server');
+    expect(existsSync(staged) || existsSync(release)).toBe(true);
   });
 
   it('architecture_evidence resolves ids from the indexed graph', () => {

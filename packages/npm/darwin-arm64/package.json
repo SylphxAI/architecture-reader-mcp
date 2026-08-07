@@ -1,7 +1,7 @@
 {
-  "name": "@sylphx/architecture-reader-mcp-darwin-arm64",
+  "name": "@sylphx/spine-darwin-arm64",
   "version": "0.3.0",
-  "description": "Spine native MCP server for darwin-arm64",
+  "description": "Spine native MCP server binary for darwin-arm64",
   "os": [
     "darwin"
   ],
@@ -9,7 +9,7 @@
     "arm64"
   ],
   "files": [
-    "architecture-reader-mcp-server"
+    "spine-mcp-server"
   ],
   "license": "MIT",
   "publishConfig": {

@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Spine monorepo (publishable package: packages/mcp-server → @sylphx/spine).",
+  "description": "Spine monorepo (publishable package: packages/mcp-server \u2192 @sylphx/spine).",
   "packageManager": "bun@1.3.14",
   "workspaces": [
     "packages/*"
@@ -34,7 +34,6 @@
   },
   "mcpName": "io.github.SylphxAI/spine",
   "bin": {
-    "spine": "./bin/architecture-reader-mcp",
-    "architecture-reader-mcp": "./bin/architecture-reader-mcp"
+    "spine": "./bin/spine"
   }
 }

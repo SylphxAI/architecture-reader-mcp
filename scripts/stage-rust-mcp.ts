@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
-const source = path.join(repoRoot, 'target/release/architecture-reader-mcp-server');
+const source = path.join(repoRoot, 'target/release/spine-mcp-server');
 const targetDir = path.join(repoRoot, 'bin/native');
-const target = path.join(targetDir, 'architecture-reader-mcp-server');
+const target = path.join(targetDir, 'spine-mcp-server');
 
 if (!fs.existsSync(source)) {
   console.error(
