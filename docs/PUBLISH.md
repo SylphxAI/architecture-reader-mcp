@@ -18,3 +18,11 @@ npm i -g @sylphx/architecture-reader-mcp
 ```
 
 Workflows: `publish-npm-package.yml`, `publish-brand-alias.yml`.
+
+## Zero-config CTA
+
+```bash
+npx -y @sylphx/spine
+```
+
+Live **@sylphx/spine@0.3.1**. Bare MCP stdio for agents.

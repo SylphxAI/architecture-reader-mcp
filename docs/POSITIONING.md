@@ -49,3 +49,11 @@ See [IPPB.md](./IPPB.md).
 | --- | --- |
 | **Spine** | Architecture path / trace / impact |
 | **Locus** (`coderag`) | Hybrid **code chunk** retrieval (`codebase_search`) |
+
+## Zero-config CTA
+
+```bash
+npx -y @sylphx/spine
+```
+
+Live **@sylphx/spine@0.3.1**. Bare MCP stdio for agents.

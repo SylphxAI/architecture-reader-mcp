@@ -2,13 +2,21 @@
 
 # Spine
 
+## Why Spine wins for agents
+
+1. **Architecture answers with path/impact** — not “here are 40 files that match a string”.
+2. **Zero-config** — `npx -y @sylphx/spine`.
+3. **Pairs with Locus** — Locus finds the *chunk*; Spine maps the *system*.
+4. **Local graph** — no required cloud code-intel SaaS.
+
 ## Zero-config (no install)
 
 ```bash
 npx -y @sylphx/spine
 ```
 
-Starts the MCP server on stdio.
+Starts the MCP server on stdio. **Live `@sylphx/spine@0.3.1`** · portable linux natives (GLIBC≤2.35) · brand-sole `serverInfo.name=spine`.
+
 
 
 Canonical package: **`@sylphx/spine`** · bin **`spine`**
