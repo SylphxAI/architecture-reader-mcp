@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/spine",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Spine monorepo (publishable package: packages/mcp-server \u2192 @sylphx/spine).",

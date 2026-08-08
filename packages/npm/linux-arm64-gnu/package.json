@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/spine-linux-arm64-gnu",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Spine native MCP server binary for linux-arm64-gnu",
   "os": [
     "linux"
