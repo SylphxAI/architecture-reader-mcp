@@ -2,6 +2,15 @@
 
 # Spine
 
+## Zero-config (no install)
+
+```bash
+npx -y @sylphx/spine
+```
+
+Starts the MCP server on stdio.
+
+
 Canonical package: **`@sylphx/spine`** · bin **`spine`**
 
 ### Your agent mapped the repo. **Did it trace the right boundary?**
