@@ -226,7 +226,7 @@ source, freshness, confidence, and known gaps.
 ### Claude Code
 
 ```bash
-claude mcp add architecture-reader -- npx @sylphx/spine
+claude mcp add spine -- npx @sylphx/spine
 ```
 
 ### Claude Desktop / any MCP host
@@ -234,7 +234,7 @@ claude mcp add architecture-reader -- npx @sylphx/spine
 ```json
 {
   "mcpServers": {
-    "architecture-reader": {
+    "spine": {
       "command": "npx",
       "args": ["-y", "@sylphx/spine"]
     }
