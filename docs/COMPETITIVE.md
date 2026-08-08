@@ -25,3 +25,11 @@ Indexes local repo roots; no cloud graph service required.
 - Becoming a cloud SaaS wrapper as the default path
 - Multi-product monorepo for star aggregation
 - Generative summaries as the sole evidence authority
+
+## Zero-config CTA
+
+```bash
+npx -y @sylphx/spine
+```
+
+Live **@sylphx/spine@0.3.1**. Bare MCP stdio for agents.
