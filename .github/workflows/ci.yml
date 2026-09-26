@@ -1,7 +1,8 @@
 name: ci
 
 # One build per pull request, shared by every job that needs the binary.
-# The merge queue runs only what the queue adds (Windows tests, under wine),
+# The merge queue runs only what the queue adds (macOS tests on our macOS pool,
+# Windows tests under wine),
 # never the pull request checks a second time. `ci` is the one required check.
 
 on:
@@ -246,9 +247,19 @@ jobs:
           fetch-depth: 0
       - uses: SylphxAI/.github/.github/actions/plain-language@f9176dad2e49c6b99d75f1506fafac84632fe870
 
-  # Queue-only, and on demand: Windows. The tests are cross-compiled to MSVC
-  # on Linux and run under wine. No macOS lane: we host no Apple hardware yet,
-  # and the release workflow checks the Apple binaries.
+  # Queue-only, and on demand: macOS on our macOS pool; Windows, which we do
+  # not host, cross-compiled to MSVC on Linux and run under wine.
+  macos:
+    if: github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch'
+    name: test macos
+    runs-on: [self-hosted, sylphx, macos, standard]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo test --locked --workspace
+
   windows:
     if: github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch'
     name: test windows (wine)
@@ -290,7 +301,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [changes, build, checks, action, live-db, docker, plain-language, windows]
+    needs: [changes, build, checks, action, live-db, docker, plain-language, macos, windows]
     runs-on: sylphx-linux-standard
     timeout-minutes: 5
     steps:
