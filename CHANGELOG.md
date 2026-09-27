@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - **Django models as a schema source for `db`.** `repomap db` now reads `models.py` and `models/` packages alongside the existing sources:
   - classes subclassing `models.Model` directly, through an abstract base in the repository, or through a library base (`AbstractUser`, `TimeStampedModel`); abstract and proxy models emit no table, and multi-table inheritance gives the child a `<parent>_ptr_id` primary key and only its own columns;

@@ -1,6 +1,6 @@
 {
   "name": "@sylphx/repomap-darwin-arm64",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "repomap native binary for darwin-arm64",
   "os": [
     "darwin"
