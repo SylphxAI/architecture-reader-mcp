@@ -1,9 +1,10 @@
 //! Database map: tables, columns, foreign keys and indexes, from a live
 //! database (introspected by the binary) or from schema sources in the repo:
-//! SQL migrations, Prisma, Drizzle, SQLAlchemy and Diesel. Tables are linked
-//! to the code that queries them.
+//! SQL migrations, Prisma, Drizzle, SQLAlchemy, Diesel and Django models.
+//! Tables are linked to the code that queries them.
 
 use crate::index::Index;
+use crate::lang::Lang;
 use regex::Regex;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -800,6 +801,831 @@ pub fn parse_sqlalchemy(schema: &mut DbSchema, path: &str, src: &str) {
     }
 }
 
+// ---------------------------------------------------------------- Django
+
+/// True for `models.py` and for modules inside a `models/` package.
+fn is_django_models_file(lower: &str) -> bool {
+    let name = lower.rsplit('/').next().unwrap_or(lower);
+    name == "models.py" || lower.contains("/models/")
+}
+
+/// The app label of a models file: the Django app directory it sits in.
+fn django_app_label(path: &str) -> String {
+    let segs: Vec<&str> = path.split('/').collect();
+    match segs.iter().rposition(|s| *s == "models.py" || *s == "models") {
+        Some(i) if i > 0 => segs[i - 1].to_string(),
+        _ => String::new(),
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct DjangoField {
+    /// Attribute name (`author`).
+    name: String,
+    /// Column name: `db_column=`, else the attribute name (`author_id` for a relation).
+    column: String,
+    /// Field class as written: `CharField`, `ForeignKey`, …
+    type_name: String,
+    primary_key: bool,
+    nullable: bool,
+    unique: bool,
+    db_index: bool,
+    /// Relation target as written: `"auth.User"`, `self`, `settings.AUTH_USER_MODEL` or a class name.
+    target: Option<String>,
+    to_field: Option<String>,
+    /// `ManyToManyField`: this model has no column; Django owns a join table.
+    many_to_many: bool,
+    /// `through=` model: the join table is a model of its own, so nothing is implied.
+    through: Option<String>,
+    /// `db_table=` on the join table.
+    join_table: Option<String>,
+}
+
+/// One `class Meta` body. Every attribute is optional, so a
+/// `class Meta(Base.Meta)` chain resolves the way Django's attribute lookup
+/// does: the nearest declaration wins.
+#[derive(Debug, Default, Clone)]
+struct DjangoMeta {
+    app_label: Option<String>,
+    db_table: Option<String>,
+    indexes: Option<Vec<IndexDef>>,
+    /// `Meta.constraints`, resolved separately: a model that declares
+    /// constraints still inherits its base's `indexes`.
+    constraints: Option<Vec<IndexDef>>,
+    /// `indexes = [*Base.Meta.indexes, …]` / `indexes.extend(Base.Meta.indexes)`:
+    /// the base names spliced in.
+    index_splats: Vec<String>,
+    constraint_splats: Vec<String>,
+    unique_together: Option<Vec<Vec<String>>>,
+    index_together: Option<Vec<Vec<String>>>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct DjangoClass {
+    name: String,
+    bases: Vec<String>,
+    line: u32,
+    fields: Vec<DjangoField>,
+    /// `class Meta`: `abstract` and `proxy` are never inherited (Django resets
+    /// `abstract` before installing an abstract base's Meta).
+    has_meta: bool,
+    is_abstract: bool,
+    proxy: bool,
+    /// `class Meta(Base.Meta)`: the `Base` names whose Meta is extended.
+    meta_bases: Vec<String>,
+    meta: DjangoMeta,
+}
+
+/// One Django models file: its path, app label and classes.
+struct DjangoFile {
+    path: String,
+    app: String,
+    classes: Vec<DjangoClass>,
+}
+
+fn py_text<'a>(src: &'a str, node: tree_sitter::Node) -> &'a str {
+    node.utf8_text(src.as_bytes()).unwrap_or("")
+}
+
+/// A Python string without its quotes; any other node verbatim.
+fn py_value(src: &str, node: tree_sitter::Node) -> String {
+    let t = py_text(src, node).trim();
+    if node.kind() == "string" {
+        t.trim_matches(|c| c == '"' || c == '\'').to_string()
+    } else {
+        t.to_string()
+    }
+}
+
+fn py_true(src: &str, node: tree_sitter::Node) -> bool {
+    matches!(py_text(src, node).trim(), "True" | "true")
+}
+
+/// Last segment of a (possibly dotted) Python name: `models.CharField` -> `CharField`.
+fn py_name(text: &str) -> &str {
+    text.trim().rsplit('.').next().unwrap_or(text).trim()
+}
+
+/// Positional and keyword arguments of a call.
+fn py_args<'a>(src: &str, call: tree_sitter::Node<'a>) -> (Vec<tree_sitter::Node<'a>>, HashMap<String, tree_sitter::Node<'a>>) {
+    let mut positional = Vec::new();
+    let mut kw = HashMap::new();
+    if let Some(args) = call.child_by_field_name("arguments") {
+        let mut cur = args.walk();
+        for a in args.named_children(&mut cur) {
+            if a.kind() == "keyword_argument" {
+                if let (Some(n), Some(v)) = (a.child_by_field_name("name"), a.child_by_field_name("value")) {
+                    kw.insert(py_text(src, n).to_string(), v);
+                }
+            } else {
+                positional.push(a);
+            }
+        }
+    }
+    (positional, kw)
+}
+
+/// String entries of a list/tuple.
+fn py_string_list(src: &str, node: tree_sitter::Node) -> Vec<String> {
+    if node.kind() == "string" {
+        return vec![py_value(src, node)];
+    }
+    if !matches!(node.kind(), "list" | "tuple" | "set") {
+        return Vec::new();
+    }
+    let mut cur = node.walk();
+    node.named_children(&mut cur).filter(|e| e.kind() == "string").map(|e| py_value(src, e)).collect()
+}
+
+/// `unique_together` / `index_together`: one group of column names per constraint.
+fn py_string_groups(src: &str, node: tree_sitter::Node) -> Vec<Vec<String>> {
+    if !matches!(node.kind(), "list" | "tuple" | "set") {
+        return Vec::new();
+    }
+    let mut cur = node.walk();
+    let kids: Vec<tree_sitter::Node> = node.named_children(&mut cur).collect();
+    if kids.iter().all(|k| k.kind() == "string") {
+        return vec![kids.iter().map(|k| py_value(src, *k)).collect()];
+    }
+    kids.iter().map(|k| py_string_list(src, *k)).filter(|g| !g.is_empty()).collect()
+}
+
+/// `Meta.indexes` / `Meta.constraints`: `models.Index(...)` and `models.UniqueConstraint(...)`.
+fn py_indexes(src: &str, node: tree_sitter::Node) -> Vec<IndexDef> {
+    let mut out = Vec::new();
+    if !matches!(node.kind(), "list" | "tuple" | "set") {
+        return out;
+    }
+    let mut cur = node.walk();
+    for e in node.named_children(&mut cur) {
+        if e.kind() != "call" {
+            continue;
+        }
+        let Some(callee) = e.child_by_field_name("function") else { continue };
+        let ty = py_name(py_text(src, callee));
+        // `Index`, `UniqueConstraint` and the backend index classes that end in
+        // `Index` (`GinIndex`, `BTreeIndex`, `SpGistIndex`, …).
+        if ty != "UniqueConstraint" && !ty.ends_with("Index") {
+            continue;
+        }
+        let (pos, kw) = py_args(src, e);
+        // `Index(fields=["a", "-b"], name=…)` or `Index("a", name=…)`.
+        let columns: Vec<String> = match kw.get("fields") {
+            Some(f) => py_string_list(src, *f),
+            None => pos.iter().filter(|n| n.kind() == "string").map(|n| py_value(src, *n)).collect(),
+        };
+        let columns: Vec<String> = columns.into_iter().map(|c| c.trim_start_matches('-').to_string()).filter(|c| !c.is_empty()).collect();
+        if columns.is_empty() {
+            continue;
+        }
+        out.push(IndexDef { name: kw.get("name").map(|n| py_value(src, *n)).unwrap_or_default(), columns, unique: ty == "UniqueConstraint" });
+    }
+    out
+}
+
+/// One assignment in a class body, as (left, right).
+fn py_assignment<'a>(stmt: tree_sitter::Node<'a>) -> Option<(tree_sitter::Node<'a>, tree_sitter::Node<'a>)> {
+    let inner = if stmt.kind() == "expression_statement" { stmt.named_child(0)? } else { return None };
+    if inner.kind() != "assignment" {
+        return None;
+    }
+    Some((inner.child_by_field_name("left")?, inner.child_by_field_name("right")?))
+}
+
+/// `indexes.extend(Base.Meta.indexes)` inside a Meta body, as
+/// (attribute, base class name).
+fn py_meta_extends(src: &str, stmt: tree_sitter::Node) -> Option<(String, String)> {
+    if stmt.kind() != "expression_statement" {
+        return None;
+    }
+    let call = stmt.named_child(0)?;
+    if call.kind() != "call" {
+        return None;
+    }
+    let target = py_text(src, call.child_by_field_name("function")?).trim();
+    let (attr, _) = target.rsplit_once(".extend")?;
+    if !attr.ends_with("indexes") && !attr.ends_with("constraints") {
+        return None;
+    }
+    let args = call.child_by_field_name("arguments")?;
+    let mut cur = args.walk();
+    let text = py_text(src, args.named_children(&mut cur).next()?).trim();
+    for suffix in [".Meta.indexes", ".Meta.constraints"] {
+        if let Some(name) = text.strip_suffix(suffix) {
+            return Some((attr.to_string(), name.trim().to_string()));
+        }
+    }
+    None
+}
+
+/// A field declaration: `name = models.CharField(...)`.
+fn django_field(src: &str, attr: &str, call: tree_sitter::Node) -> Option<DjangoField> {
+    let ty = py_name(py_text(src, call.child_by_field_name("function")?));
+    let relation = matches!(ty, "ForeignKey" | "OneToOneField" | "ManyToManyField");
+    // Fields end in `Field`, relations in `Key`/`Relation`; `Manager()`, `Index()`,
+    // `Q()` and the virtual `GenericForeignKey` are none of them.
+    if !relation && !ty.ends_with("Field") {
+        return None;
+    }
+    let (pos, kw) = py_args(src, call);
+    let mut f = DjangoField { name: attr.to_string(), type_name: ty.to_string(), ..Default::default() };
+    f.primary_key = kw.get("primary_key").map(|n| py_true(src, *n)).unwrap_or(false);
+    f.nullable = kw.get("null").map(|n| py_true(src, *n)).unwrap_or(false) && !f.primary_key;
+    f.unique = kw.get("unique").map(|n| py_true(src, *n)).unwrap_or(false) || ty == "OneToOneField";
+    // Django indexes relation columns unless told otherwise.
+    f.db_index = match kw.get("db_index") {
+        Some(n) => py_true(src, *n),
+        None => relation && ty != "ManyToManyField",
+    };
+    let column = kw.get("db_column").map(|n| py_value(src, *n)).filter(|s| !s.is_empty());
+    f.column = column.unwrap_or_else(|| if relation && ty != "ManyToManyField" { format!("{attr}_id") } else { attr.to_string() });
+    if ty == "ManyToManyField" {
+        f.many_to_many = true;
+        f.through = kw.get("through").map(|n| py_value(src, *n)).filter(|s| !s.is_empty());
+        f.join_table = kw.get("db_table").map(|n| py_value(src, *n)).filter(|s| !s.is_empty());
+    }
+    if relation {
+        f.target = kw.get("to").map(|n| py_value(src, *n)).or_else(|| pos.first().map(|n| py_value(src, *n))).filter(|s| !s.is_empty());
+        f.to_field = kw.get("to_field").map(|n| py_value(src, *n)).filter(|s| !s.is_empty());
+    }
+    Some(f)
+}
+
+fn django_meta(src: &str, class: tree_sitter::Node, c: &mut DjangoClass) {
+    c.has_meta = true;
+    if let Some(sup) = class.child_by_field_name("superclasses") {
+        let mut cur = sup.walk();
+        for b in sup.named_children(&mut cur) {
+            // `class Meta(Base.Meta)` extends the base's Meta.
+            if let Some(name) = py_text(src, b).trim().strip_suffix(".Meta") {
+                if !name.is_empty() {
+                    c.meta_bases.push(name.to_string());
+                }
+            }
+        }
+    }
+    let Some(body) = class.child_by_field_name("body") else { return };
+    let mut cur = body.walk();
+    for stmt in body.named_children(&mut cur) {
+        let Some((left, right)) = py_assignment(stmt) else {
+            if let Some((attr, name)) = py_meta_extends(src, stmt) {
+                if attr.ends_with("constraints") {
+                    c.meta.constraint_splats.push(name);
+                } else {
+                    c.meta.index_splats.push(name);
+                }
+            }
+            continue;
+        };
+        if left.kind() != "identifier" {
+            continue;
+        }
+        match py_text(src, left) {
+            "abstract" => c.is_abstract = py_true(src, right),
+            "proxy" => c.proxy = py_true(src, right),
+            "db_table" => c.meta.db_table = Some(py_value(src, right)),
+            "app_label" => c.meta.app_label = Some(py_value(src, right)),
+            "indexes" | "constraints" => {
+                let constraints = py_text(src, left) == "constraints";
+                // `[*Base.Meta.indexes, Index(…)]` splices the base's list in.
+                let mut cur = right.walk();
+                for e in right.named_children(&mut cur) {
+                    if e.kind() != "list_splat" {
+                        continue;
+                    }
+                    let text = py_text(src, e).trim().trim_start_matches('*');
+                    for suffix in [".Meta.indexes", ".Meta.constraints"] {
+                        if let Some(name) = text.strip_suffix(suffix) {
+                            let name = name.trim().to_string();
+                            let is_constraint = suffix.ends_with("constraints");
+                            if is_constraint {
+                                c.meta.constraint_splats.push(name);
+                            } else {
+                                c.meta.index_splats.push(name);
+                            }
+                        }
+                    }
+                }
+                let parsed = py_indexes(src, right);
+                let slot = if constraints { &mut c.meta.constraints } else { &mut c.meta.indexes };
+                let mut v = slot.take().unwrap_or_default();
+                v.extend(parsed);
+                *slot = Some(v);
+            }
+            "unique_together" => {
+                let mut v = c.meta.unique_together.take().unwrap_or_default();
+                v.extend(py_string_groups(src, right));
+                c.meta.unique_together = Some(v);
+            }
+            "index_together" => {
+                let mut v = c.meta.index_together.take().unwrap_or_default();
+                v.extend(py_string_groups(src, right));
+                c.meta.index_together = Some(v);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// One top-level `class X(...)` in a models file.
+fn django_class(src: &str, node: tree_sitter::Node) -> Option<DjangoClass> {
+    let name = py_text(src, node.child_by_field_name("name")?).to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let mut c = DjangoClass { name, line: line_at(src, node.start_byte()), ..Default::default() };
+    if let Some(sup) = node.child_by_field_name("superclasses") {
+        let mut cur = sup.walk();
+        for b in sup.named_children(&mut cur) {
+            let t = py_text(src, b).trim();
+            if !t.is_empty() {
+                c.bases.push(t.to_string());
+            }
+        }
+    }
+    let Some(body) = node.child_by_field_name("body") else { return Some(c) };
+    let mut cur = body.walk();
+    for stmt in body.named_children(&mut cur) {
+        if stmt.kind() == "class_definition" {
+            let inner = stmt.child_by_field_name("name").map(|n| py_text(src, n));
+            if inner == Some("Meta") {
+                django_meta(src, stmt, &mut c);
+            }
+            continue;
+        }
+        let Some((left, right)) = py_assignment(stmt) else { continue };
+        if left.kind() != "identifier" || right.kind() != "call" {
+            continue;
+        }
+        if let Some(f) = django_field(src, py_text(src, left), right) {
+            c.fields.push(f);
+        }
+    }
+    Some(c)
+}
+
+/// Every top-level class in one models file, parsed with the tree-sitter Python grammar.
+fn django_classes(src: &str) -> Vec<DjangoClass> {
+    let mut parser = tree_sitter::Parser::new();
+    if parser.set_language(&Lang::Python.grammar()).is_err() {
+        return Vec::new();
+    }
+    let Some(tree) = parser.parse(src, None) else { return Vec::new() };
+    let root = tree.root_node();
+    let mut cur = root.walk();
+    root.named_children(&mut cur).filter(|n| n.kind() == "class_definition").filter_map(|n| django_class(src, n)).collect()
+}
+
+/// A class is a Django model when a base is `Model` (`models.Model`,
+/// `django.db.models.Model`) or another model class in the repository.
+fn django_is_model(name: &str, by_name: &HashMap<&str, &DjangoClass>, memo: &mut HashMap<String, bool>, depth: u32) -> bool {
+    if depth > 16 {
+        return false;
+    }
+    if let Some(v) = memo.get(name) {
+        return *v;
+    }
+    let Some(c) = by_name.get(name) else { return false };
+    memo.insert(name.to_string(), false); // break inheritance cycles
+    let ok = c.bases.iter().any(|b| {
+        let last = py_name(b);
+        // `models.Model`, an abstract base in the repository, or one that comes
+        // from a library (`AbstractUser`, `TimeStampedModel`, `BaseModel`).
+        last == "Model"
+            || last.starts_with("Abstract")
+            || last.ends_with("Model")
+            || django_is_model(last, by_name, memo, depth + 1)
+    });
+    memo.insert(name.to_string(), ok);
+    ok
+}
+
+/// `Meta.db_table`, or Django's default `<app_label>_<modelname lower>`.
+/// `%(app_label)s` and `%(class)s` are filled in, as Django does.
+fn django_table_name(app: &str, name: &str, db_table: Option<&str>) -> String {
+    let lower = name.to_lowercase();
+    let table = db_table.filter(|s| !s.is_empty()).map(str::to_string).unwrap_or_else(|| {
+        if app.is_empty() {
+            lower.clone()
+        } else {
+            format!("{app}_{lower}")
+        }
+    });
+    if table.contains('%') {
+        table.replace("%(app_label)s", app).replace("%(class)s", &lower)
+    } else {
+        table
+    }
+}
+
+/// Resolution context: every models file in the repository at once, so an
+/// abstract base in another app, a class-valued `ForeignKey` and a
+/// `"app.Model"` string all land on the right table.
+struct DjangoCtx<'a> {
+    by_name: HashMap<&'a str, &'a DjangoClass>,
+    /// Class name -> is a concrete model (a table).
+    concrete: HashMap<String, bool>,
+    /// `"Model"` and `"app.Model"` -> table name.
+    table_of: HashMap<String, String>,
+    auth_user_model: Option<&'a str>,
+}
+
+impl<'a> DjangoCtx<'a> {
+    fn new(files: &'a [DjangoFile], auth_user_model: Option<&'a str>) -> DjangoCtx<'a> {
+        let mut by_name: HashMap<&str, &DjangoClass> = HashMap::new();
+        for f in files {
+            for c in &f.classes {
+                by_name.entry(c.name.as_str()).or_insert(c);
+            }
+        }
+        let mut memo = HashMap::new();
+        let mut concrete = HashMap::new();
+        for f in files {
+            for c in &f.classes {
+                let is_model = django_is_model(&c.name, &by_name, &mut memo, 0);
+                concrete.insert(c.name.clone(), is_model && !c.is_abstract && !c.proxy);
+            }
+        }
+        let mut table_of: HashMap<String, String> = HashMap::new();
+        for f in files {
+            for c in &f.classes {
+                if !concrete.get(&c.name).copied().unwrap_or(false) {
+                    continue;
+                }
+                let app = c.meta.app_label.clone().unwrap_or_else(|| f.app.clone());
+                let table = django_table_name(&app, &c.name, c.meta.db_table.as_deref());
+                table_of.entry(format!("{app}.{}", c.name)).or_insert(table.clone());
+                table_of.entry(c.name.clone()).or_insert(table);
+            }
+        }
+        DjangoCtx { by_name, concrete, table_of, auth_user_model }
+    }
+
+    /// The `class Meta` a model uses: its own, or the nearest base that
+    /// declares one (Django's `getattr(cls, "Meta")`).
+    fn nearest_meta(&self, c: &'a DjangoClass, depth: u32) -> Option<&'a DjangoClass> {
+        if c.has_meta {
+            return Some(c);
+        }
+        if depth > 16 {
+            return None;
+        }
+        for b in &c.bases {
+            if let Some(base) = self.by_name.get(py_name(b)) {
+                if let Some(m) = self.nearest_meta(base, depth + 1) {
+                    return Some(m);
+                }
+            }
+        }
+        None
+    }
+
+    /// Meta declarations in lookup order: the model's own (or the nearest
+    /// base's), then the ones it extends with `class Meta(Base.Meta)`.
+    fn meta_chain(&self, c: &'a DjangoClass, out: &mut Vec<&'a DjangoClass>, depth: u32) {
+        if depth > 16 {
+            return;
+        }
+        let Some(owner) = self.nearest_meta(c, 0) else { return };
+        out.push(owner);
+        for b in &owner.meta_bases {
+            if let Some(base) = self.by_name.get(py_name(b)) {
+                self.meta_chain(base, out, depth + 1);
+            }
+        }
+    }
+
+    /// The Meta attributes a model ends up with: the first declaration of each
+    /// wins, like Python attribute lookup on the Meta class.
+    fn meta_of(&self, c: &'a DjangoClass) -> DjangoMeta {
+        self.meta_at(c, 0)
+    }
+
+    fn meta_at(&self, c: &'a DjangoClass, depth: u32) -> DjangoMeta {
+        let mut chain: Vec<&DjangoClass> = Vec::new();
+        self.meta_chain(c, &mut chain, 0);
+        let mut m = DjangoMeta::default();
+        for owner in chain {
+            let o = &owner.meta;
+            if m.app_label.is_none() {
+                m.app_label.clone_from(&o.app_label);
+            }
+            if m.db_table.is_none() {
+                m.db_table.clone_from(&o.db_table);
+            }
+            if m.indexes.is_none() && (o.indexes.is_some() || !o.index_splats.is_empty()) {
+                let mut v: Vec<IndexDef> = Vec::new();
+                for s in &o.index_splats {
+                    if depth > 16 {
+                        break;
+                    }
+                    if let Some(base) = self.by_name.get(py_name(s)) {
+                        v.extend(self.meta_at(base, depth + 1).indexes.unwrap_or_default());
+                    }
+                }
+                v.extend(o.indexes.clone().unwrap_or_default());
+                m.indexes = Some(v);
+            }
+            if m.constraints.is_none() && (o.constraints.is_some() || !o.constraint_splats.is_empty()) {
+                let mut v: Vec<IndexDef> = Vec::new();
+                for s in &o.constraint_splats {
+                    if depth > 16 {
+                        break;
+                    }
+                    if let Some(base) = self.by_name.get(py_name(s)) {
+                        v.extend(self.meta_at(base, depth + 1).constraints.unwrap_or_default());
+                    }
+                }
+                v.extend(o.constraints.clone().unwrap_or_default());
+                m.constraints = Some(v);
+            }
+            if m.unique_together.is_none() {
+                m.unique_together.clone_from(&o.unique_together);
+            }
+            if m.index_together.is_none() {
+                m.index_together.clone_from(&o.index_together);
+            }
+        }
+        m
+    }
+
+    /// Model ancestors of `c`, nearest first, resolved through class names.
+    fn ancestors(&self, c: &DjangoClass) -> Vec<&'a DjangoClass> {
+        let mut out: Vec<&'a DjangoClass> = Vec::new();
+        let mut seen: HashSet<&str> = HashSet::new();
+        let mut stack: Vec<&'a DjangoClass> = c.bases.iter().filter_map(|b| self.by_name.get(py_name(b)).copied()).collect();
+        while let Some(p) = stack.pop() {
+            if !seen.insert(p.name.as_str()) {
+                continue;
+            }
+            out.push(p);
+            stack.extend(p.bases.iter().filter_map(|b| self.by_name.get(py_name(b)).copied()));
+        }
+        out
+    }
+
+    /// Columns of a concrete model: its own fields plus the ones Django copies
+    /// from abstract bases (a subclass inherits their columns).
+    fn fields(&self, c: &'a DjangoClass) -> Vec<&'a DjangoField> {
+        let mut out: Vec<&'a DjangoField> = Vec::new();
+        let mut seen: HashSet<&str> = HashSet::new();
+        self.abstract_fields(c, &mut out, &mut seen, 0);
+        for f in &c.fields {
+            if seen.insert(f.name.as_str()) {
+                out.push(f);
+            }
+        }
+        out
+    }
+
+    /// Fields the abstract bases of `c` contribute, deepest base first. A
+    /// concrete model ancestor stops the walk: under multi-table inheritance
+    /// its columns (including the ones it copied from abstract bases) live in
+    /// its own table, which the child reaches through its parent link.
+    fn abstract_fields(&self, c: &'a DjangoClass, out: &mut Vec<&'a DjangoField>, seen: &mut HashSet<&'a str>, depth: u32) {
+        if depth > 16 {
+            return;
+        }
+        for b in &c.bases {
+            let Some(base) = self.by_name.get(py_name(b)) else { continue };
+            if base.is_abstract && !self.concrete.get(&base.name).copied().unwrap_or(false) {
+                self.abstract_fields(base, out, seen, depth + 1);
+                for f in &base.fields {
+                    if seen.insert(f.name.as_str()) {
+                        out.push(f);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Concrete model ancestors: multi-table inheritance, where the child's
+    /// primary key is a one-to-one link to the parent.
+    fn concrete_bases(&self, c: &DjangoClass) -> Vec<&'a DjangoClass> {
+        self.ancestors(c).into_iter().filter(|a| self.concrete.get(&a.name).copied().unwrap_or(false)).collect()
+    }
+
+    fn table_of_class(&self, name: &str) -> Option<&str> {
+        self.table_of.get(name).map(|s| s.as_str())
+    }
+
+    /// The table a relation points at: `self`, a class name, `"app.Model"`, or
+    /// the `AUTH_USER_MODEL` setting when the repository defines one.
+    fn ref_table(&self, own: &str, target: &str) -> String {
+        let t = target.trim();
+        if t == "self" {
+            return own.to_string();
+        }
+        if t == "settings.AUTH_USER_MODEL" {
+            return match self.auth_user_model {
+                Some(m) => self.ref_table(own, m),
+                None => t.to_string(),
+            };
+        }
+        if let Some((app, model)) = t.rsplit_once('.') {
+            // Django's default name for `"app.Model"` when the model is not in this repository.
+            return self.table_of_class(t).map(|s| s.to_string()).unwrap_or_else(|| format!("{app}_{}", model.to_lowercase()));
+        }
+        self.table_of_class(t).map(|s| s.to_string()).unwrap_or_else(|| t.to_string())
+    }
+
+    /// Model name a relation target stands for: `"auth.User"` and
+    /// `settings.AUTH_USER_MODEL` both end up as `user`.
+    fn target_model_name(&self, target: &str) -> String {
+        let t = if target.trim() == "settings.AUTH_USER_MODEL" {
+            self.auth_user_model.unwrap_or("").to_string()
+        } else {
+            target.trim().to_string()
+        };
+        if t.is_empty() || t == "self" {
+            return String::new();
+        }
+        py_name(&t).to_lowercase()
+    }
+
+    /// Columns a relation points at: `to_field` (as its column), else the
+    /// target's primary key.
+    fn ref_columns(&self, own: &'a DjangoClass, target: &str, to_field: Option<&str>) -> Vec<String> {
+        let t = if target.trim() == "settings.AUTH_USER_MODEL" {
+            self.auth_user_model.unwrap_or(target)
+        } else {
+            target
+        };
+        if let Some(f) = to_field {
+            // `to_field="name"` points at the `name` field's column
+            // (`db_column="author_name"`).
+            if target.trim() == "self" {
+                return vec![self.column_of(&self.fields(own), f)];
+            }
+            if let Some(c) = self.by_name.get(py_name(t)) {
+                return vec![self.column_of(&self.fields(c), f)];
+            }
+            return vec![f.to_string()];
+        }
+        if target.trim() == "self" {
+            return vec![self.pk_column(own)];
+        }
+        match self.by_name.get(py_name(t)) {
+            Some(c) => vec![self.pk_column(c)],
+            None => vec!["id".to_string()],
+        }
+    }
+
+    /// Primary key column of a model: its `primary_key=True` field, else `id`
+    /// (or the parent link under multi-table inheritance).
+    fn pk_column(&self, c: &DjangoClass) -> String {
+        if let Some(f) = self.fields(c).into_iter().find(|f| f.primary_key) {
+            return f.column.clone();
+        }
+        if let Some(p) = self.concrete_bases(c).first() {
+            return format!("{}_ptr_id", p.name.to_lowercase());
+        }
+        "id".to_string()
+    }
+
+    /// Field name -> column, for `unique_together` and `index_together`.
+    fn column_of(&self, fields: &[&DjangoField], name: &str) -> String {
+        fields.iter().find(|f| f.name == name).map(|f| f.column.clone()).unwrap_or_else(|| name.to_string())
+    }
+}
+
+fn django_file_table(ctx: &DjangoCtx, f: &DjangoFile, c: &DjangoClass) -> String {
+    let meta = ctx.meta_of(c);
+    let app = meta.app_label.clone().unwrap_or_else(|| f.app.clone());
+    django_table_name(&app, &c.name, meta.db_table.as_deref())
+}
+
+/// Tables for one concrete model: columns, keys, indexes and the join tables
+/// its `ManyToManyField`s own.
+fn django_tables(schema: &mut DbSchema, ctx: &DjangoCtx, f: &DjangoFile, c: &DjangoClass) {
+    let table = django_file_table(ctx, f, c);
+    let source = format!("{}:{}", f.path, c.line);
+    let mut t = Table { name: table.clone(), kind: "table".into(), source: source.clone(), aliases: vec![c.name.clone()], ..Default::default() };
+    let fields = ctx.fields(c);
+    let mut has_pk = false;
+    for fl in &fields {
+        if fl.many_to_many {
+            continue;
+        }
+        if fl.primary_key {
+            has_pk = true;
+        }
+        t.columns.push(Column { name: fl.column.clone(), data_type: fl.type_name.to_ascii_lowercase(), nullable: fl.nullable && !fl.primary_key, primary_key: fl.primary_key });
+        if let Some(target) = &fl.target {
+            t.foreign_keys.push(ForeignKey {
+                columns: vec![fl.column.clone()],
+                ref_table: ctx.ref_table(&table, target),
+                ref_columns: ctx.ref_columns(c, target, fl.to_field.as_deref()),
+            });
+        }
+        if fl.unique {
+            t.indexes.push(IndexDef { name: String::new(), columns: vec![fl.column.clone()], unique: true });
+        } else if fl.db_index {
+            t.indexes.push(IndexDef { name: String::new(), columns: vec![fl.column.clone()], unique: false });
+        }
+    }
+    let parents = ctx.concrete_bases(c);
+    if let Some(p) = parents.first() {
+        // Multi-table inheritance: the child's primary key links to the parent.
+        let col = format!("{}_ptr_id", p.name.to_lowercase());
+        let ref_table = ctx.table_of_class(&p.name).unwrap_or(&p.name).to_string();
+        t.columns.insert(0, Column { name: col.clone(), data_type: "onetoonefield".into(), nullable: false, primary_key: true });
+        t.foreign_keys.push(ForeignKey { columns: vec![col], ref_table, ref_columns: vec![ctx.pk_column(p)] });
+    } else if !has_pk {
+        // Django adds an auto primary key unless a field declares one.
+        t.columns.insert(0, Column { name: "id".into(), data_type: "bigautofield".into(), nullable: false, primary_key: true });
+    }
+    // `Meta.indexes` / `constraints`, `unique_together` and `index_together`,
+    // as inherited through `class Meta(Base.Meta)`.
+    let meta = ctx.meta_of(c);
+    let app_label = meta.app_label.clone().unwrap_or_else(|| f.app.clone());
+    let model_name = c.name.to_lowercase();
+    for mut i in meta.indexes.unwrap_or_default().into_iter().chain(meta.constraints.unwrap_or_default()) {
+        // Django fills `%(class)s` / `%(app_label)s` in per model, so one
+        // abstract base can name each child's index.
+        if i.name.contains('%') {
+            i.name = i.name.replace("%(app_label)s", &app_label).replace("%(class)s", &model_name);
+        }
+        t.indexes.push(i);
+    }
+    for g in meta.unique_together.unwrap_or_default() {
+        t.indexes.push(IndexDef { name: String::new(), columns: g.iter().map(|n| ctx.column_of(&fields, n)).collect(), unique: true });
+    }
+    for g in meta.index_together.unwrap_or_default() {
+        t.indexes.push(IndexDef { name: String::new(), columns: g.iter().map(|n| ctx.column_of(&fields, n)).collect(), unique: false });
+    }
+    schema.upsert(t);
+    // A plain ManyToManyField gets an implicit join table `<table>_<field>`
+    // with a primary key, a foreign key per side and a unique pair.
+    for fl in &fields {
+        if !fl.many_to_many || fl.through.is_some() {
+            continue;
+        }
+        let target = fl.target.clone().unwrap_or_default();
+        let target_table = ctx.ref_table(&table, &target);
+        let self_ref = target == "self" || target_table == table;
+        let own_name = c.name.to_lowercase();
+        let target_name = {
+            let n = ctx.target_model_name(&target);
+            if n.is_empty() {
+                py_name(&target).to_lowercase()
+            } else {
+                n
+            }
+        };
+        let (from_col, to_col) = if self_ref {
+            (format!("from_{own_name}_id"), format!("to_{own_name}_id"))
+        } else {
+            (format!("{own_name}_id"), format!("{target_name}_id"))
+        };
+        let mut j = Table { name: fl.join_table.clone().unwrap_or_else(|| format!("{table}_{}", fl.name)), kind: "table".into(), source: source.clone(), ..Default::default() };
+        j.columns = vec![
+            Column { name: "id".into(), data_type: "bigautofield".into(), nullable: false, primary_key: true },
+            Column { name: from_col.clone(), data_type: "foreignkey".into(), nullable: false, primary_key: false },
+            Column { name: to_col.clone(), data_type: "foreignkey".into(), nullable: false, primary_key: false },
+        ];
+        j.foreign_keys = vec![
+            ForeignKey { columns: vec![from_col.clone()], ref_table: table.clone(), ref_columns: vec![ctx.pk_column(c)] },
+            ForeignKey { columns: vec![to_col.clone()], ref_table: target_table, ref_columns: ctx.ref_columns(c, &target, None) },
+        ];
+        j.indexes = vec![
+            IndexDef { name: String::new(), columns: vec![from_col.clone(), to_col.clone()], unique: true },
+            IndexDef { name: String::new(), columns: vec![from_col, to_col], unique: false },
+        ];
+        schema.upsert(j);
+    }
+}
+
+/// Django tables from one models file (base classes in the same file resolve).
+pub fn parse_django(schema: &mut DbSchema, path: &str, src: &str) {
+    let file = DjangoFile { path: path.to_string(), app: django_app_label(&path.to_ascii_lowercase()), classes: django_classes(src) };
+    let files = [file];
+    let ctx = DjangoCtx::new(&files, None);
+    for f in &files {
+        for c in &f.classes {
+            if ctx.concrete.get(&c.name).copied().unwrap_or(false) {
+                django_tables(schema, &ctx, f, c);
+            }
+        }
+    }
+}
+
+/// Django tables from every models file in the repository.
+fn django_schema(schema: &mut DbSchema, mut files: Vec<DjangoFile>, auth_user_model: Option<&str>) {
+    if files.is_empty() {
+        return;
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    let ctx = DjangoCtx::new(&files, auth_user_model);
+    for f in &files {
+        for c in &f.classes {
+            if ctx.concrete.get(&c.name).copied().unwrap_or(false) {
+                django_tables(schema, &ctx, f, c);
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- Diesel
 
 pub fn parse_diesel(schema: &mut DbSchema, path: &str, src: &str) {
@@ -861,6 +1687,11 @@ pub fn from_repo(index: &Index) -> DbSchema {
         }
     }
     // ORM sources override/extend SQL (they carry model names for linking).
+    let re_auth = Regex::new(r#"AUTH_USER_MODEL\s*[:=]\s*["']([\w.]+)["']"#).unwrap();
+    let mut auth_user_model: Option<String> = None;
+    // Django models are parsed after this loop: a base, a `ForeignKey` or a
+    // `"app.Model"` string can name a model in another app.
+    let mut django_files: Vec<DjangoFile> = Vec::new();
     for f in &index.files {
         let p = f.path.as_str();
         let lower = p.to_ascii_lowercase();
@@ -884,7 +1715,21 @@ pub fn from_repo(index: &Index) -> DbSchema {
                     parse_sqlalchemy(&mut schema, p, &s);
                     true
                 }
-                _ => false,
+                // Django models: `models.py` and `models/` packages.
+                Some(s) if is_django_models_file(&lower) && (s.contains("models.Model") || s.contains("django.db") || s.contains("django.contrib")) => {
+                    django_files.push(DjangoFile { path: p.to_string(), app: django_app_label(&lower), classes: django_classes(&s) });
+                    true
+                }
+                Some(s) => {
+                    // `AUTH_USER_MODEL = "accounts.User"` names the model `settings.AUTH_USER_MODEL` stands for.
+                    if lower.contains("settings") {
+                        if let Some(c) = re_auth.captures(&s) {
+                            auth_user_model = Some(c[1].to_string());
+                        }
+                    }
+                    false
+                }
+                None => false,
             }
         } else if lower.ends_with(".rs") {
             match read(p) {
@@ -901,6 +1746,7 @@ pub fn from_repo(index: &Index) -> DbSchema {
             sources.push(p.to_string());
         }
     }
+    django_schema(&mut schema, django_files, auth_user_model.as_deref());
     sources.dedup();
     schema.sources = sources;
     schema.tables.sort_by(|a, b| a.key().cmp(&b.key()));
@@ -911,7 +1757,8 @@ pub fn from_repo(index: &Index) -> DbSchema {
 
 /// Link each table to the code that queries it: raw SQL (`FROM users`), Prisma
 /// (`prisma.user.findMany`), Diesel (`users::table`) and ORM models or
-/// variables used by files that import their definition.
+/// variables (Django `Post.objects`) used by files that import their
+/// definition.
 pub fn link_code(index: &Index, schema: &mut DbSchema) {
     if schema.tables.is_empty() {
         return;
@@ -1040,7 +1887,7 @@ impl DbSchema {
     pub fn text(&self, focus: Option<&str>) -> String {
         let mut o = String::new();
         if self.tables.is_empty() {
-            let _ = writeln!(o, "No database schema found. repomap reads SQL migrations, Prisma, Drizzle, SQLAlchemy and Diesel schema files, or a live database with --url-env / url_env (Postgres, MySQL, SQLite; read-only).");
+            let _ = writeln!(o, "No database schema found. repomap reads SQL migrations, Prisma, Drizzle, SQLAlchemy, Diesel and Django models, or a live database with --url-env / url_env (Postgres, MySQL, SQLite; read-only).");
             return o;
         }
         let edges = fk_edges(self);
@@ -1310,4 +2157,320 @@ class Order(Base):
         assert_eq!(c.foreign_keys[0].ref_table, "posts");
         assert!(c.columns.iter().any(|x| x.name == "body" && x.nullable));
     }
+
+    #[test]
+    fn django() {
+        let mut s = DbSchema::default();
+        parse_django(&mut s, "blog/models.py", r#"
+from django.db import models
+
+
+class TimestampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+
+
+class Author(TimestampedModel):
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    bio = models.TextField(null=True, db_column="biography")
+    rating = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "writers"
+        indexes = [models.Index(fields=["name"], name="author_name_idx")]
+        index_together = [["name", "rating"]]
+
+
+class Post(TimestampedModel):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name="posts")
+    parent = models.ForeignKey("self", null=True, on_delete=models.SET_NULL)
+    tags = models.ManyToManyField("Tag")
+    slug = models.SlugField(unique=True)
+
+    class Meta:
+        unique_together = ("title", "slug")
+
+
+class Tag(models.Model):
+    label = models.CharField(max_length=40)
+
+
+class FeaturedPost(Post):
+    class Meta:
+        proxy = True
+"#);
+        // Meta.db_table, the implicit id, and a column from the abstract base.
+        let a = s.table("writers").unwrap();
+        assert!(a.columns.iter().any(|c| c.name == "created_at" && !c.nullable), "{:?}", a.columns);
+        assert!(a.columns.iter().any(|c| c.name == "id" && c.primary_key), "{:?}", a.columns);
+        assert!(a.columns.iter().any(|c| c.name == "biography" && c.nullable));
+        assert!(a.columns.iter().any(|c| c.name == "email"));
+        assert!(a.indexes.iter().any(|i| i.unique && i.columns == vec!["email"]));
+        assert!(a.indexes.iter().any(|i| !i.unique && i.columns == vec!["name", "rating"]));
+        assert!(a.aliases.contains(&"Author".to_string()));
+        // Foreign keys: a class reference, a self reference, and M2M.
+        let p = s.table("blog_post").unwrap();
+        assert!(p.columns.iter().any(|c| c.name == "author_id" && !c.nullable));
+        assert_eq!(p.foreign_keys[0].ref_table, "writers");
+        assert_eq!(p.foreign_keys[0].columns, vec!["author_id"]);
+        assert_eq!(p.foreign_keys[0].ref_columns, vec!["id"]);
+        assert!(p.foreign_keys.iter().any(|f| f.ref_table == "blog_post" && f.columns == vec!["parent_id"]));
+        assert!(p.indexes.iter().any(|i| i.unique && i.columns == vec!["title", "slug"]));
+        // M2M: the implicit join table, its keys and its unique pair.
+        let j = s.table("blog_post_tags").unwrap();
+        assert_eq!(j.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["id", "post_id", "tag_id"]);
+        assert_eq!(j.foreign_keys[0].ref_table, "blog_post");
+        assert_eq!(j.foreign_keys[1].ref_table, "blog_tag");
+        assert!(j.indexes.iter().any(|i| i.unique && i.columns == vec!["post_id", "tag_id"]));
+        // A proxy model is not a table.
+        assert!(s.table("blog_featuredpost").is_none());
+        assert!(s.table("Tag").is_some());
+    }
+
+    #[test]
+    fn django_meta_inheritance_and_mti() {
+        let mut s = DbSchema::default();
+        parse_django(&mut s, "blog/models.py", r#"
+from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.indexes import GinIndex
+from django.db import models
+
+
+class Timestamped(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        indexes = [models.Index(fields=["created_at"], name="%(class)s_created_idx")]
+
+
+class Tagged(models.Model):
+    tag = models.CharField(max_length=20)
+
+    class Meta:
+        abstract = True
+        index_together = [["tag", "slug"]]
+
+
+class Tag(models.Model):
+    name = models.CharField(max_length=40)
+
+
+class Author(models.Model):
+    name = models.CharField(max_length=80, unique=True, db_column="author_name")
+
+
+class User(AbstractUser):
+    uuid = models.UUIDField(primary_key=True)
+
+    class Meta:
+        db_table = "users"
+
+
+class Editor(Timestamped):
+    name = models.CharField(max_length=80)
+
+
+class Post(Timestamped):
+    title = models.CharField(max_length=200)
+    body = models.TextField(default="")
+    editor = models.ForeignKey(Author, on_delete=models.CASCADE, to_field="name")
+    tags = models.ManyToManyField(Tag)
+
+    class Meta:
+        db_table = "articles"
+        indexes = [GinIndex(fields=["body"], name="articles_body_gin")]
+
+
+class BlogPost(Post):
+    subtitle = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "blogposts"
+
+
+class Story(Tagged):
+    slug = models.SlugField()
+
+    class Meta(Tagged.Meta):
+        db_table = "stories"
+
+
+class Searchable(models.Model):
+    search_document = models.TextField(default="")
+
+    class Meta:
+        abstract = True
+        indexes = [models.Index(fields=["search_document"], name="%(class)s_search_idx")]
+
+
+class Article(Searchable):
+    title = models.CharField(max_length=200)
+
+    class Meta:
+        db_table = "articles_search"
+        indexes = [*Searchable.Meta.indexes, GinIndex(fields=["title"], name="article_title_gin")]
+
+
+class Notice(Timestamped):
+    pinned = models.BooleanField(default=False)
+
+    class Meta(Timestamped.Meta):
+        db_table = "notices"
+        constraints = [models.UniqueConstraint(fields=["pinned"], name="unique_pinned_notice")]
+
+
+class Memo(Searchable):
+    text = models.TextField()
+
+    class Meta:
+        db_table = "memos"
+        indexes = []
+        indexes.extend(Searchable.Meta.indexes)
+"#);
+        // No Meta of its own: the abstract base's Meta applies.
+        let e = s.table("blog_editor").unwrap();
+        assert!(e.indexes.iter().any(|i| i.columns == vec!["created_at"]), "{:?}", e.indexes);
+        assert!(s.table("blog_timestamped").is_none() && s.table("blog_tagged").is_none());
+        // Its own Meta replaces the abstract base's, and backend index classes
+        // (`GinIndex`) count.
+        let p = s.table("articles").unwrap();
+        assert!(p.indexes.iter().any(|i| i.columns == vec!["body"]), "{:?}", p.indexes);
+        assert!(!p.indexes.iter().any(|i| i.columns == vec!["created_at"]), "{:?}", p.indexes);
+        // `to_field` points at the target field's column.
+        assert_eq!(p.foreign_keys[0].ref_table, "blog_author");
+        assert_eq!(p.foreign_keys[0].ref_columns, vec!["author_name"]);
+        // `class Meta(Base.Meta)` extends the base's Meta.
+        let st = s.table("stories").unwrap();
+        assert!(st.indexes.iter().any(|i| !i.unique && i.columns == vec!["tag", "slug"]), "{:?}", st.indexes);
+        // `indexes = [*Base.Meta.indexes, …]` splices the base's list in, with
+        // `%(class)s` filled in per model.
+        let a = s.table("articles_search").unwrap();
+        assert!(a.indexes.iter().any(|i| i.name == "article_search_idx" && i.columns == vec!["search_document"]), "{:?}", a.indexes);
+        assert!(a.indexes.iter().any(|i| i.name == "article_title_gin"), "{:?}", a.indexes);
+        // `indexes.extend(Base.Meta.indexes)` does the same after the fact.
+        let n = s.table("memos").unwrap();
+        assert!(n.indexes.iter().any(|i| i.name == "memo_search_idx"), "{:?}", n.indexes);
+        // `constraints` does not shadow the inherited `indexes`.
+        let no = s.table("notices").unwrap();
+        assert!(no.indexes.iter().any(|i| i.columns == vec!["created_at"]), "{:?}", no.indexes);
+        assert!(no.indexes.iter().any(|i| i.unique && i.columns == vec!["pinned"]), "{:?}", no.indexes);
+        // Multi-table inheritance: the child links to the parent and holds only
+        // its own columns (the parent's table keeps the inherited ones).
+        let b = s.table("blogposts").unwrap();
+        assert_eq!(b.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["post_ptr_id", "subtitle"]);
+        assert_eq!(b.columns[0].primary_key, true);
+        assert_eq!(b.foreign_keys[0].ref_table, "articles");
+        assert_eq!(b.foreign_keys[0].ref_columns, vec!["id"]);
+        // A base from a library (`AbstractUser`) still makes a model.
+        assert!(s.table("users").unwrap().columns.iter().any(|c| c.name == "uuid" && c.primary_key));
+        // The parent's M2M join table is named after its `db_table`.
+        let j = s.table("articles_tags").unwrap();
+        assert_eq!(j.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["id", "post_id", "tag_id"]);
+    }
+
+    #[test]
+    fn django_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let write = |path: &str, body: &str| {
+            let p = root.join(path);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        write("project/settings.py", "INSTALLED_APPS = [\"blog\", \"accounts\"]\nAUTH_USER_MODEL = \"accounts.User\"\n");
+        write("accounts/models.py", r#"
+from django.db import models
+
+
+class User(models.Model):
+    uuid = models.UUIDField(primary_key=True)
+    handle = models.CharField(max_length=30, unique=True)
+
+    class Meta:
+        db_table = "users"
+"#);
+        write("blog/models.py", r#"
+from django.conf import settings
+from django.db import models
+
+from shared.models import TimestampedModel
+
+
+class Post(TimestampedModel):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    tags = models.ManyToManyField("Tag")
+    reviewers = models.ManyToManyField(settings.AUTH_USER_MODEL)
+
+    class Meta:
+        db_table = "articles"
+
+
+class Tag(TimestampedModel):
+    label = models.CharField(max_length=40)
+
+
+class Rating(TimestampedModel):
+    post = models.ForeignKey("Post", on_delete=models.CASCADE)
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE)
+    score = models.IntegerField()
+
+
+class Review(TimestampedModel):
+    post = models.ForeignKey("Post", on_delete=models.CASCADE)
+    raters = models.ManyToManyField("accounts.User", through=Rating)
+"#);
+        write("shared/models.py", r#"
+from django.db import models
+
+
+class TimestampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+"#);
+        // Another app queries the model, so the table links back to the code.
+        write("blog/views.py", r#"
+from .models import Post
+
+
+def index(request):
+    return Post.objects.filter(author=request.user)
+"#);
+        let index = Index::build(root, &crate::BuildOptions { use_cache: false }).unwrap();
+        let mut s = from_repo(&index);
+        link_code(&index, &mut s);
+        // App label from the directory; Meta.db_table wins over it.
+        assert!(s.table("articles").is_some(), "{:?}", s.tables.iter().map(|t| t.key()).collect::<Vec<_>>());
+        assert!(s.table("blog_tag").is_some());
+        assert!(s.table("blog_rating").is_some());
+        // The abstract base in another app contributes its column.
+        let p = s.table("articles").unwrap();
+        assert!(p.columns.iter().any(|c| c.name == "created_at"), "{:?}", p.columns);
+        // `settings.AUTH_USER_MODEL` resolves through the settings file.
+        assert_eq!(p.foreign_keys[0].ref_table, "users");
+        assert_eq!(p.foreign_keys[0].ref_columns, vec!["uuid"], "the target's primary key");
+        // M2M to another app: join tables per target, columns named after the models.
+        let j = s.table("articles_tags").unwrap();
+        assert_eq!(j.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["id", "post_id", "tag_id"]);
+        assert_eq!(j.foreign_keys[1].ref_table, "blog_tag");
+        let r = s.table("articles_reviewers").unwrap();
+        assert_eq!(r.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["id", "post_id", "user_id"]);
+        assert_eq!(r.foreign_keys[1].ref_table, "users");
+        // `through=` names a model, so no join table is invented for it.
+        assert!(s.table("articles_raters").is_none());
+        assert!(s.table("blog_rating").unwrap().foreign_keys.iter().any(|f| f.ref_table == "articles"));
+        // Classification stays with Django (`updated_at` is a column, `save` is not).
+        assert!(!p.columns.iter().any(|c| c.name == "save"));
+        // Code links: `Post.objects.filter(...)` in a file that imports the models.
+        assert!(p.used_by.iter().any(|u| u.file == "blog/views.py"), "{:?}", p.used_by);
+        assert!(s.sources.iter().any(|s| s == "blog/models.py"));
+    }
 }
+

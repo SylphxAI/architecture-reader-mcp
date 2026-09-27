@@ -139,13 +139,13 @@ npx -y @sylphx/repomap export           # repomap.html: one self-contained file 
 ## Database map
 
 ```bash
-npx -y @sylphx/repomap db                              # from migrations / Prisma / Drizzle / SQLAlchemy / Diesel
+npx -y @sylphx/repomap db                              # from migrations / Prisma / Drizzle / SQLAlchemy / Diesel / Django
 npx -y @sylphx/repomap db --url-env DATABASE_URL       # live Postgres, MySQL or SQLite, read-only
 npx -y @sylphx/repomap db users                        # one table: columns, indexes, who references it, where it is queried
 npx -y @sylphx/repomap db --serve                      # the same graph UI, for tables and foreign keys
 ```
 
-repomap reads your schema from the repository: SQL migrations (applied in order, with `down` migrations skipped), `schema.prisma`, Drizzle `pgTable`/`mysqlTable`/`sqliteTable`, SQLAlchemy and Flask-SQLAlchemy models, and Diesel `table!`. It can also introspect a live database. Each table is linked to the code that queries it: raw SQL (`FROM users`), Prisma (`prisma.user.findMany`), Diesel (`users::table`), and ORM models or tables used by files that import them.
+repomap reads your schema from the repository: SQL migrations (applied in order, with `down` migrations skipped), `schema.prisma`, Drizzle `pgTable`/`mysqlTable`/`sqliteTable`, SQLAlchemy and Flask-SQLAlchemy models, Diesel `table!`, and Django `models.py` (fields, `ForeignKey`/`ManyToManyField`, `Meta`, implicit join tables). It can also introspect a live database. Each table is linked to the code that queries it: raw SQL (`FROM users`), Prisma (`prisma.user.findMany`), Diesel (`users::table`), Django (`Post.objects…`), and ORM models or tables used by files that import them.
 
 <img src="docs/public/img/db-crates-io.webp" alt="repomap db --serve on crates.io: 39 tables, 78 foreign keys, 527 code references" width="100%">
 

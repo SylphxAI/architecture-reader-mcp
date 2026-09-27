@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Django models as a schema source for `db`.** `repomap db` now reads `models.py` and `models/` packages alongside the existing sources:
+  - classes subclassing `models.Model` directly, through an abstract base in the repository, or through a library base (`AbstractUser`, `TimeStampedModel`); abstract and proxy models emit no table, and multi-table inheritance gives the child a `<parent>_ptr_id` primary key and only its own columns;
+  - fields as columns, with `db_column`, `primary_key`, `null`, `unique` and `db_index` honoured;
+  - `ForeignKey` and `OneToOneField` as foreign keys (`<attr>_id`, or the target field's column via `to_field`), resolving `"self"`, `"app.Model"` and `settings.AUTH_USER_MODEL`;
+  - `ManyToManyField` as Django's implicit join table `<db_table>_<field>` (two foreign keys, a unique pair and an index) unless `through=` names an explicit model;
+  - `Meta.db_table` (with `%(app_label)s` / `%(class)s` filled in), `Meta.indexes` / `Meta.constraints`, `unique_together` and `index_together`, including the backend index classes (`GinIndex`, `BTreeIndex`, …) and the ways a model reuses a base's Meta: `class Meta(Base.Meta)`, `indexes = [*Base.Meta.indexes, …]` and `indexes.extend(Base.Meta.indexes)`. The default table is `<app_label>_<modelname>`;
+  - model usage (`Post.objects.filter(…)`) links back to the table from any file that imports the model's `models.py`, like the other ORM sources.
+
+  On [saleor](https://github.com/saleor/saleor) (`repomap db --json`): 122 tables (100 models and 22 implicit M2M join tables), 245 foreign keys, 1229 columns and 508 indexes.
+
 ## 1.3.2
 
 - `repomap score --update-readme --insert` no longer treats a bare image, such as a hero banner at the top of a centered header, as the badge row. Only linked images count as badges.
