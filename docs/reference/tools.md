@@ -64,7 +64,7 @@ Database map: tables, columns, primary and foreign keys, indexes, and the code t
 | `url_env` | string | Name of an env var with a live connection string (Postgres, MySQL, SQLite), read-only |
 | `url` | string | Connection string. Prefer `url_env` so the secret never enters the transcript. |
 
-With no URL, repomap reads the repository's migrations, Prisma, Drizzle, SQLAlchemy and Diesel schema. See [Database map](/guide/database).
+With no URL, repomap reads the repository's migrations, Prisma, Drizzle, SQLAlchemy and Diesel schema files, and Django models. See [Database map](/guide/database).
 
 ## Legacy names
 

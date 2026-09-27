@@ -88,7 +88,7 @@ pub fn definitions(include_legacy: bool) -> Vec<Value> {
         json!({
             "name": "db",
             "title": "Database map",
-            "description": "Map the database: tables, columns, primary and foreign keys, indexes, and the code that queries each table (file:line). By default it reads schema sources in the repo: SQL migrations, Prisma, Drizzle, SQLAlchemy and Diesel. To inspect a live Postgres, MySQL or SQLite database, pass `url_env` (the NAME of an environment variable holding the connection string). The connection is strictly read-only and the string is never stored or shown. Pass `table` for one table's full detail.",
+            "description": "Map the database: tables, columns, primary and foreign keys, indexes, and the code that queries each table (file:line). By default it reads schema sources in the repo: SQL migrations, Prisma, Drizzle, SQLAlchemy, Diesel and Django models. To inspect a live Postgres, MySQL or SQLite database, pass `url_env` (the NAME of an environment variable holding the connection string). The connection is strictly read-only and the string is never stored or shown. Pass `table` for one table's full detail.",
             "inputSchema": {"type": "object", "properties": {
                 "table": {"type": "string", "description": "Focus on one table: columns, indexes, who references it, and where the code queries it."},
                 "url_env": {"type": "string", "description": "Name of an env var with the connection string, e.g. DATABASE_URL."},

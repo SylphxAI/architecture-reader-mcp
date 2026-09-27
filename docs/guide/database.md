@@ -19,6 +19,7 @@ repomap db --json                   # machine-readable
 | Drizzle | `pgTable` / `mysqlTable` / `sqliteTable`: columns, `.primaryKey()`, `.notNull()`, `.unique()`, `.references(() => t.col)` |
 | SQLAlchemy | declarative and Flask-SQLAlchemy models: `__tablename__` (or the snake-cased class name), `Column(...)` / `mapped_column(...)`, `ForeignKey("t.c")` or `ForeignKey(Model.col)`. Alembic revisions are skipped. |
 | Diesel | `table!` (including doc comments and schemas) and `joinable!` |
+| Django | `models.py` and `models/` packages: classes subclassing `models.Model` (directly or through an abstract base), fields as columns (`db_column`, `primary_key`, `null`, `unique`, `db_index`), `ForeignKey`/`OneToOneField`/`ManyToManyField` (implicit `<app>_<model>_<field>` join tables, or `through`), `Meta.db_table`/`indexes`/`constraints`/`unique_together`/`index_together`, and `settings.AUTH_USER_MODEL`. Abstract and proxy models emit no table; the default table is `<app_label>_<modelname>`. |
 | Postgres | `information_schema` + `pg_catalog`: tables, views, columns, primary/foreign/unique constraints, indexes |
 | MySQL / MariaDB | `information_schema`: tables, columns, keys, foreign keys, indexes |
 | SQLite | `sqlite_master` + `pragma_table_info` / `pragma_foreign_key_list` / `pragma_index_list` |
@@ -42,6 +43,7 @@ Each table lists where the code touches it, as `file:line` plus the enclosing fu
 - raw SQL: `FROM|JOIN|INTO|UPDATE|TABLE users`
 - Prisma client calls: `prisma.user.findMany(…)`
 - Diesel: `users::table`, `users::dsl`
+- Django: the model class (`Post.objects.filter(…)`), in files that import the model's `models.py`
 - ORM identifiers (Drizzle table variables, SQLAlchemy model classes) in files that import the schema module
 
 Import lines are skipped. Links are text-based and good at "where is this table used", but they can miss dynamic table names.
