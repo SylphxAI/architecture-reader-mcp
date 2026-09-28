@@ -23,6 +23,9 @@ MCP server and CLI, runs locally, needs no API key, and is MIT licensed.
 - `packages/repomap`: the npm launcher; `packages/npm/*`: the native binaries;
   `packages/aliases/*`: the spine, locus and coderag aliases
 - `docs/`: the VitePress site; `scripts/`: version sync and the benchmark
+- `brand/`: the brand home, and the source of truth for the mark, the icons, the colours
+  and the type. `brand/README.md` is its usage sheet; `python3 brand/build.py` rebuilds
+  the derived files and the copies the surfaces serve
 
 ## Release
 
