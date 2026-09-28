@@ -1,0 +1,17 @@
+{
+  "name": "repomap",
+  "icon": {
+    "master": "svg/repomap-app-icon.svg",
+    "small": "svg/repomap-app-icon.svg",
+    "apple_touch": "svg/repomap-app-icon-square.svg",
+    "palette": ["#06080C", "#5D5E61", "#8AA4FF", "#FF7EB6", "#42D6A4", "#FFB454"],
+    "snap_threshold": 0.5,
+    "sizes": [180, 192, 512, 1024]
+  },
+  "outputs": {
+    "docs/public/logo.svg": "svg/repomap-symbol-on-dark.svg",
+    "docs/public/icon.png": "app-icon/icon-512.png",
+    "docs/public/favicon.ico": "favicon/favicon.ico",
+    "docs/public/favicon.svg": "favicon/favicon.svg"
+  }
+}
