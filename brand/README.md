@@ -171,4 +171,4 @@ Every file's SHA-256 is in `provenance.json`.
 Not registered. Owner decision owner#781: no trademark filings before the product earns
 money. Use ™ at most, never ®.
 
-<!-- similarity: filled in by review -->
+Checked 2026-09-28. **Descriptive name shared across the category.** "Repo map" is Aider's feature name, and at least five open-source tools use "repomap" or close variants (pdavis68/RepoMapper, joshfinnie/repomap, l0wigh/repomap-rs, ariadoss/repomap, agustinvillegas/repomap). The name is descriptive and not protectable; the identity is @sylphx/repomap and the graph UI. Mark (four graph nodes): generic node-graph motif.
