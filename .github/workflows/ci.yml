@@ -243,6 +243,19 @@ jobs:
           fetch-depth: 0
       - uses: SylphxAI/.github/.github/actions/plain-language@f9176dad2e49c6b99d75f1506fafac84632fe870
 
+  identifiers:
+    if: github.event_name != 'merge_group'
+    name: Identifiers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Non-v7 ids on added lines (owner standards/identifiers.md)
+        uses: SylphxAI/.github/.github/actions/identifiers@e4a5ea41cbcc87cd93914f89f0d7c3981c868bf9
+
   # Queue-only: the platforms a pull request does not need to wait for. A
   # plain name: GitHub adds the matrix value, and a skipped run does not show
   # an unexpanded `${{ matrix.os }}`.
@@ -263,7 +276,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [changes, build, checks, action, live-db, docker, plain-language, other-os]
+    needs: [changes, build, checks, action, live-db, docker, plain-language, identifiers, other-os]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
