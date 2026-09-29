@@ -81,6 +81,36 @@ What this shows:
   - So the speed columns show the size of the costs. They are not a race.
 - **Tuning.** The ranking weights were tuned on 20 of the 63 repositories (one or two per language), then fixed. The table covers all 63.
 
+## File localization
+
+Given a GitHub issue, does `search` rank the files the fix touches near the top? This runs on [SWE-bench Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified) (500 instances, 12 Python repositories, dataset revision `c104f84`). Each repository is checked out at the instance's base commit, and each method gets the issue text as its only query, in one call. Files are ranked by their best-ranked result.
+
+- **Acc@k**: every file the gold patch modifies is among the top k files (the definition LocAgent and Agentless use).
+- **Hit@k**: at least one of them is.
+- **Chunk@k**: one of the top k result chunks overlaps a line the gold patch changes (repomap and semble only, since BM25 over files returns no line ranges).
+
+<!-- LOC:START -->
+<!-- LOC:END -->
+
+What this shows:
+- semble is ahead of repomap on file localization, by about 10 points on Acc@1 and Acc@5 and 9 on Acc@10. repomap is ahead of BM25 over files, mostly because of embeddings: with them off, repomap is level with BM25 at Acc@5 and Acc@10.
+- repomap indexes and answers faster: the index takes about an eighth of semble's time and the query about a sixth. The index time includes loading the model, and the query time is a round trip over MCP stdio.
+- On chunks, repomap's top results overlap the changed lines more often than semble's (Chunk@10), so it points at the right function more often even when the file rank is lower.
+- This is one query per instance with the raw issue text. It is not an agent, so it is not comparable with the published agent numbers below.
+
+Published file-level numbers on SWE-bench **Lite** (300 instances, a different subset with a different setup, the agents use a language model in a loop). Self-reported, different setup; we did not re-run them. From Table 4 of [LocAgent](https://arxiv.org/abs/2503.09089) (ACL 2025):
+
+| System | Acc@1 | Acc@5 |
+|---|---:|---:|
+| BM25 | 38.7 | 61.7 |
+| CodeRankEmbed ([CoRNStack](https://arxiv.org/abs/2412.01007)) | 52.6 | 84.7 |
+| Agentless, Claude-3.5 ([paper](https://arxiv.org/abs/2407.01489)) | 72.6 | 79.6 |
+| LocAgent, Claude-3.5 | 77.7 | 94.2 |
+
+Even plain BM25 scores higher there than on our run, which shows that the two subsets and setups differ: read these numbers next to each other only as context.
+
+Method: [`bench/localization`](https://github.com/SylphxAI/repomap/tree/main/bench/localization), run by the [`bench-localization` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench-localization.yml) on `ubuntu-latest` runners in 10 shards. BM25 is `rank_bm25` over the tracked text files, with identifiers split at camelCase and underscores. semble is at commit `2449784`. repomap ran as released, with no tuning on these instances.
+
 ## Indexing speed
 
 Measured by [`scripts/bench.py`](https://github.com/SylphxAI/repomap/blob/main/scripts/bench.py) in the [`bench` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench.yml) on a standard GitHub-hosted `ubuntu-latest` runner. Anyone can re-run it.
