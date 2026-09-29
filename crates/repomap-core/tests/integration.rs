@@ -25,6 +25,17 @@ fn search_finds_symbol_and_text() {
 }
 
 #[test]
+fn search_reads_identifiers_and_paths_out_of_a_report() {
+    let idx = fixture();
+    let opts = SearchOptions { limit: 5, ..SearchOptions::default() };
+    // The report names a method; the file is only in a stack trace.
+    let r = idx.search("Login keeps the old credentials\n\nAfter login `SessionStore.refresh` returns the same thing every time and nothing changes for the user.", &opts);
+    assert_eq!(r.hits[0].file, "src/auth/session.ts", "{:?}", r.hits.iter().map(|h| &h.file).collect::<Vec<_>>());
+    let r = idx.search("Something odd happens when requests come in. Traceback: at handle (src/api/router.ts:12)", &opts);
+    assert_eq!(r.hits[0].file, "src/api/router.ts", "{:?}", r.hits.iter().map(|h| &h.file).collect::<Vec<_>>());
+}
+
+#[test]
 fn context_shows_callers() {
     let idx = fixture();
     let c = idx.context("verifyToken", &ContextOptions::default()).unwrap();
