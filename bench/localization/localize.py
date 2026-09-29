@@ -379,7 +379,7 @@ def summarize(manifest_path, out, shards, docs, note):
             summary[mth] = {
                 **{f"acc@{k}": round(acc(rows, mth, k, "all")[0], 2) for k in KS},
                 **{f"hit@{k}": round(acc(rows, mth, k, "any")[0], 2) for k in KS},
-                "chunk@5": round(chunk_hit(rows, mth, 5), 2), "chunk@10": round(chunk_hit(rows, mth, 10), 2),
+                "chunk@5": None if math.isnan(chunk_hit(rows, mth, 5)) else round(chunk_hit(rows, mth, 5), 2), "chunk@10": None if math.isnan(chunk_hit(rows, mth, 10)) else round(chunk_hit(rows, mth, 10), 2),
                 "scored": acc(rows, mth, 1, "all")[1],
                 "errors": sum(1 for r in rows if "error" in r["methods"].get(mth, {})),
                 "index_ms_median": round(med(rows, mth, "index_ms")),

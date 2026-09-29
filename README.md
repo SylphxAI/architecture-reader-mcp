@@ -217,6 +217,8 @@ Import resolution understands relative paths, `@/` aliases, npm workspace packag
 
 On [semble's public code-search benchmark](https://sylphxai.github.io/repomap/benchmarks) (63 repositories, 19 languages, 1,251 questions), repomap's `search` scores NDCG@10 **0.851**. semble, a tool built only for search, also scores 0.851 on the same runner. The 137M-parameter CodeRankEmbed model scores 0.839 and plain BM25 0.673. repomap 1.2 scored 0.685.
 
+On [file localization](https://sylphxai.github.io/repomap/benchmarks#file-localization) (500 SWE-bench Verified issues, one `search` call with the issue text, all files the fix touches in the top 10), repomap finds them for **62.2%** of issues (Acc@10; 51.8% at 5, 23.6% at 1). semble scores 71.0% (61.6%, 34.0%), so it is ahead here. Plain BM25 over files scores 55.8%, and repomap with embeddings off 56.6%. repomap indexes about 8x faster and answers about 6x faster than semble. Agent systems such as LocAgent report higher numbers on a different subset with a language model in the loop; those are cited, not re-run.
+
 This needs no GPU, no vector database and no API key. A 33 MB static code model runs on the CPU, next to BM25 and symbol names.
 
 ## Fast
