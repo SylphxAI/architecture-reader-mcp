@@ -1,0 +1,124 @@
+name: bench-localization
+
+# File localization on SWE-bench Verified: given the issue text, does `search`
+# rank the files the fix touches near the top? Runs on free GitHub-hosted
+# standard runners, sharded so no job nears the 6 hour limit. Results are
+# uploaded as an artifact; bench/localization/README.md says how they land in
+# the docs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'smoke (50 instances, 1 shard) or full (500 instances)'
+        type: choice
+        options: [smoke, full]
+        default: smoke
+      shards:
+        description: 'Shards for the full run'
+        default: '10'
+      semble:
+        description: 'Also run semble'
+        type: boolean
+        default: true
+  pull_request:
+    paths: ['bench/localization/**', '.github/workflows/bench-localization.yml']
+
+permissions:
+  contents: read
+
+env:
+  SEMBLE_SHA: 24497845460960db1839c8485319df189a889225
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo build --release --locked -p repomap
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repomap-binary
+          path: target/release/repomap
+          retention-days: 3
+
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.p.outputs.shards }}
+      count: ${{ steps.p.outputs.count }}
+    steps:
+      - id: p
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = full ]; then n=${{ github.event.inputs.shards || 10 }}; else n=1; fi
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+          echo "shards=$(python3 -c "import json;print(json.dumps(list(range($n))))")" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: [build, plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: repomap-binary
+          path: bin
+      - run: chmod +x bin/repomap && bin/repomap version
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/sylphx/models
+          key: models-potion-code-16M-v2
+      - run: bin/repomap model
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the baselines
+        run: |
+          pip install -q rank_bm25 pyarrow
+          if [ "${{ github.event.inputs.semble || 'true' }}" = true ]; then
+            pip install -q "semble @ git+https://github.com/MinishLab/semble@$SEMBLE_SHA" || echo "semble did not install; running without it" >&2
+          fi
+      - name: Localize
+        run: |
+          set -euo pipefail
+          smoke=""
+          [ "${{ github.event.inputs.mode || 'smoke' }}" = full ] || smoke="--smoke"
+          nosemble=""
+          python3 -c "import semble" 2>/dev/null || nosemble="--no-semble"
+          python3 bench/localization/localize.py run bin/repomap bench/localization/manifest.json /tmp/repos out/shard-${{ matrix.shard }}.json \
+            --shard ${{ matrix.shard }}/${{ needs.plan.outputs.count }} $smoke $nosemble 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" | tail -n 400
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-${{ matrix.shard }}
+          path: out/
+
+  summary:
+    needs: run
+    if: always() && needs.run.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+          merge-multiple: true
+      - name: Merge
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 bench/localization/localize.py summarize bench/localization/manifest.json out/localization.json shards/shard-*.json \
+            --note "Run ${{ github.run_id }}, 4 vCPU \`ubuntu-latest\`." | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localization
+          path: out/localization.json
