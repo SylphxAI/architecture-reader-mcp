@@ -12,10 +12,12 @@ pub mod graph;
 pub mod index;
 pub mod lang;
 pub mod parse;
+pub mod qterms;
 pub mod query;
 pub mod score;
 pub mod semantic;
 pub mod tokenize;
+pub mod tune;
 
 pub use index::{BuildOptions, Index};
 pub use query::{ContextOptions, Direction, ImpactOptions, MapOptions, SearchOptions, TraceOptions};
