@@ -288,9 +288,14 @@ Issues and PRs are welcome, and new language support is especially useful: add a
 
 ## Also from Sylphx
 
-- [**anymd**](https://github.com/SylphxAI/anymd): any file (PDF, Word, PowerPoint, Excel, EPUB, HTML, images) to clean Markdown for AI agents. Rust MCP server + CLI, local.
-- [**lockdocs**](https://github.com/SylphxAI/lockdocs): exact-version library docs from your lockfile. Local, offline, no rate limits.
-- [**readme-mark**](https://github.com/SylphxAI/readme-mark): beautiful README images from one URL: banners, shields-compatible badges, icons, stats cards. It serves repomap's agent-ready badge.
+<!-- generated:also-from -->
+- [**anymd**](https://github.com/SylphxAI/anymd): Any file (PDF, Word, PowerPoint, Excel, EPUB, HTML, images) to clean Markdown for AI agents.
+- [**lockdocs**](https://github.com/SylphxAI/lockdocs): Exact-version library docs from your lockfile. Local, offline, no rate limits.
+- [**skills**](https://github.com/SylphxAI/skills): Battle-tested agent skills for Claude Code and Codex, installed in one command.
+- [**readme-mark**](https://github.com/SylphxAI/readme-mark): Beautiful README images from one URL: banners, badges, icons and stats cards.
+
+More from Sylphx: https://sylphx.com/open-source
+<!-- /generated:also-from -->
 
 ## Star history
 
