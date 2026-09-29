@@ -3,6 +3,7 @@ mod hook;
 mod mcp;
 mod serve;
 mod setup;
+mod star_hint;
 mod tools;
 mod workspace;
 
@@ -134,7 +135,10 @@ fn run() -> Result<()> {
         }
         _ => {}
     }
-    match cmd.as_str() {
+    let counts_as_run = matches!(cmd.as_str(), "map" | "search" | "context" | "trace" | "impact" | "index" | "score" | "db" | "export")
+        && !args.on("json")
+        && !args.on("serve");
+    let result = match cmd.as_str() {
         "mcp" => mcp::serve(args.flag("root").or_else(|| args.flag("C")).map(PathBuf::from)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");
@@ -181,7 +185,11 @@ fn run() -> Result<()> {
             Ok(())
         }
         other => bail!("unknown command `{other}`. Run `repomap help`."),
+    };
+    if result.is_ok() && counts_as_run {
+        star_hint::after_success();
     }
+    result
 }
 
 fn index_cmd(args: &Args) -> Result<()> {

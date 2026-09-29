@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The CLI prints one GitHub star line to stderr after the fifth successful interactive query run, once ever. It is silent for the MCP server, with `--json`, in CI, and when stderr is not a terminal; `REPOMAP_NO_STAR_HINT=1` turns it off.
+
 ## 1.4.0
 
 - **Django models as a schema source for `db`.** `repomap db` now reads `models.py` and `models/` packages alongside the existing sources:
