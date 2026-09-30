@@ -3,7 +3,7 @@
 repomap merges **Spine** (`@sylphx/spine`, architecture graph) and **Locus** (`@sylphx/locus`, formerly `@sylphx/coderag`, BM25 code search).
 
 - `@sylphx/spine`, `@sylphx/locus` and `@sylphx/coderag` are now thin aliases. They install `@sylphx/repomap` and run it, so existing MCP configs keep working.
-- The old tool names are still accepted until repomap 2.0:
+- The old tool names are still accepted:
 
 | Old | New |
 |---|---|
