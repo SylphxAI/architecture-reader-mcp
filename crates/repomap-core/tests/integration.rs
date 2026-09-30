@@ -36,6 +36,23 @@ fn search_reads_identifiers_and_paths_out_of_a_report() {
 }
 
 #[test]
+fn report_search_keeps_path_and_kind_filters() {
+    let idx = fixture();
+    let opts = SearchOptions {
+        limit: 20,
+        path: Some("src/auth/token.ts".to_string()),
+        kind: Some("function".to_string()),
+        include_tests: false,
+        ..SearchOptions::default()
+    };
+    // Named paths and identifier candidates must not escape the caller's filters.
+    let r = idx.search("Refreshing `SessionStore.refresh` fails in src/auth/session.ts, after verifyToken reports token expired", &opts);
+    assert!(!r.hits.is_empty());
+    assert!(r.hits.iter().all(|h| h.file == "src/auth/token.ts"));
+    assert!(r.hits.iter().all(|h| h.symbol.as_ref().is_some_and(|s| s.kind == "function")));
+}
+
+#[test]
 fn context_shows_callers() {
     let idx = fixture();
     let c = idx.context("verifyToken", &ContextOptions::default()).unwrap();

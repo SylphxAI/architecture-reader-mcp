@@ -41,7 +41,8 @@ pub struct Tune {
 
 impl Default for Tune {
     fn default() -> Self {
-        Tune { cand: 200, k: 20.0, wd: 1.0, wh: 0.0, wc: 0.0, wi: 1.0, wt: 2.0, wf: 0.5, k1f: 1.5, lam: 0.5, agg: 1.0, dec: 0.4, pw: 1.5, mw: 1.0, qcap: 0, symcap: 4 }
+        // Frozen on the disjoint 300-instance tuning split, before Verified.
+        Tune { cand: 200, k: 20.0, wd: 1.0, wh: 1.0, wc: 1.0, wi: 1.0, wt: 2.0, wf: 2.0, k1f: 1.5, lam: 0.5, agg: 1.0, dec: 0.4, pw: 1.5, mw: 1.0, qcap: 48, symcap: 4 }
     }
 }
 

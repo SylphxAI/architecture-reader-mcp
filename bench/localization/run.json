@@ -1,20 +1,9 @@
 {
  "mode": "full",
- "manifest": "manifest-tune.json",
+ "manifest": "manifest.json",
  "shards": 10,
- "semble": false,
- "skip": "keywords,bm25",
+ "semble": true,
+ "skip": "",
  "baseline_ref": "ae40b64dbc1405564e21676871a53812e2cf4ad5",
- "variants": {
-  "headcode": "wh=1,wc=1",
-  "headcode-wf1": "wh=1,wc=1,wf=1",
-  "headcode-wf2": "wh=1,wc=1,wf=2",
-  "head-wf2": "wh=1,wf=2",
-  "headcode-qcap48": "wh=1,wc=1,qcap=48",
-  "headcode-wf2-qcap48": "wh=1,wc=1,wf=2,qcap=48",
-  "headcode-wf2-wt3": "wh=1,wc=1,wf=2,wt=3",
-  "headcode-wf2-k60": "wh=1,wc=1,wf=2,k=60",
-  "headcode-wf2-lam1": "wh=1,wc=1,wf=2,lam=1",
-  "headcode-wf2-mw2": "wh=1,wc=1,wf=2,mw=2"
- }
+ "variants": {}
 }
