@@ -1,9 +1,9 @@
 {
- "mode": "full",
- "manifest": "manifest.json",
+ "mode": "smoke",
+ "manifest": "manifest-tune.json",
  "shards": 10,
- "semble": true,
- "skip": "",
- "baseline_ref": "ae40b64dbc1405564e21676871a53812e2cf4ad5",
+ "semble": false,
+ "skip": "keywords,bm25",
+ "baseline_ref": "",
  "variants": {}
 }
