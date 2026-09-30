@@ -19,3 +19,7 @@ repomap version
 ```
 
 `-C/--root` sets the repository for the query commands (the default is the current directory). With no arguments, and stdin not a terminal, `repomap` runs the MCP server.
+
+## Star reminder
+
+After the fifth successful interactive query run (`map`, `search`, `context`, `trace`, `impact`, `index`, `score`, `db`, `export`), repomap prints one line to stderr asking for a GitHub star, then never again. The run counter is the `star-hint` file in `<user cache dir>/repomap`. It stays silent for the MCP server and the hook, with `--json`, when stderr is not a terminal, and when `CI` is set. Set `REPOMAP_NO_STAR_HINT=1` to turn it off.

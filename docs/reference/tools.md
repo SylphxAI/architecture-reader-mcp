@@ -68,4 +68,4 @@ With no URL, repomap reads the repository's migrations, Prisma, Drizzle, SQLAlch
 
 ## Legacy names
 
-`architecture_*`, `codebase_search` and `find_related` are accepted until 2.0. See the [migration guide](/guide/migrate).
+`architecture_*`, `codebase_search` and `find_related` are accepted. See the [migration guide](/guide/migrate).

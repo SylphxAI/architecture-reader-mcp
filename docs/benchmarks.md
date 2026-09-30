@@ -90,6 +90,31 @@ Given a GitHub issue, does `search` rank the files the fix touches near the top?
 - **Chunk@k**: one of the top k result chunks overlaps a line the gold patch changes (repomap and semble only, since BM25 over files returns no line ranges).
 
 <!-- LOC:START -->
+Run [36519362352](https://github.com/SylphxAI/repomap/actions/runs/36519362352), `ubuntu-latest` runners, 10 shards. 500 instances scored.
+
+| Method | Acc@1 | Acc@5 | Acc@10 | Hit@1 | Hit@5 | Hit@10 | Chunk@5 | Chunk@10 | index, median | query, median |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| repomap `search` | 23.6 | 51.8 | 62.2 | 27.6 | 58.6 | 69.2 | 29.8 | 35.4 | 2.0 s | 67 ms |
+| repomap, keywords only (`REPOMAP_EMBED=0`) | 13.8 | 44.4 | 56.6 | 15.2 | 49.6 | 63.8 | 28.6 | 35.0 | 1.8 s | 63 ms |
+| BM25 over files | 20.8 | 45.4 | 55.8 | 23.2 | 51.0 | 62.8 |  |  | 2.9 s | 83 ms |
+| semble | 34.0 | 61.6 | 71.0 | 39.4 | 69.6 | 79.2 | 20.2 | 25.6 | 16.1 s | 399 ms |
+
+Acc@10 by repository (every gold file in the top 10 files):
+
+| Repository | instances | repomap `search` | repomap, keywords only (`REPOMAP_EMBED=0`) | BM25 over files | semble | repomap index, median | repomap query, median |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| astropy/astropy | 22 | 63.6 | 63.6 | 63.6 | 63.6 | 2.4 s | 87 ms |
+| django/django | 231 | 63.2 | 58.4 | 55.0 | 73.6 | 2.1 s | 100 ms |
+| matplotlib/matplotlib | 34 | 64.7 | 58.8 | 50.0 | 58.8 | 1.3 s | 44 ms |
+| mwaskom/seaborn | 2 | 100.0 | 50.0 | 100.0 | 100.0 | 0.2 s | 8 ms |
+| pallets/flask | 1 | 100.0 | 100.0 | 0.0 | 100.0 | 0.1 s | 3 ms |
+| psf/requests | 8 | 100.0 | 87.5 | 62.5 | 100.0 | 0.1 s | 3 ms |
+| pydata/xarray | 22 | 72.7 | 63.6 | 54.5 | 77.3 | 0.4 s | 23 ms |
+| pylint-dev/pylint | 10 | 40.0 | 30.0 | 30.0 | 30.0 | 0.4 s | 16 ms |
+| pytest-dev/pytest | 19 | 47.4 | 52.6 | 47.4 | 68.4 | 0.3 s | 17 ms |
+| scikit-learn/scikit-learn | 32 | 81.2 | 78.1 | 81.2 | 90.6 | 1.1 s | 57 ms |
+| sphinx-doc/sphinx | 44 | 31.8 | 20.5 | 36.4 | 50.0 | 0.8 s | 28 ms |
+| sympy/sympy | 75 | 65.3 | 58.7 | 64.0 | 74.7 | 4.3 s | 68 ms |
 <!-- LOC:END -->
 
 What this shows:
