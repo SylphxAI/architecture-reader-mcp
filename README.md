@@ -276,7 +276,7 @@ Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship a
 
 ## Migrating from Spine, Locus or CodeRAG
 
-`@sylphx/spine`, `@sylphx/locus` and `@sylphx/coderag` are thin aliases of `@sylphx/repomap`, and their old tool names still work until 2.0. See the [migration guide](https://sylphxai.github.io/repomap/guide/migrate) for the name mapping and how to switch.
+`@sylphx/spine`, `@sylphx/locus` and `@sylphx/coderag` are thin aliases of `@sylphx/repomap`, and their old tool names still work. See the [migration guide](https://sylphxai.github.io/repomap/guide/migrate) for the name mapping and how to switch.
 
 ## Contributing
 

@@ -8,4 +8,4 @@ This package is a thin alias that installs `@sylphx/repomap` and runs it, so exi
 npx -y @sylphx/repomap setup
 ```
 
-Old tool names (`architecture_*`, `codebase_search`) are still accepted by the server until repomap 2.0.
+Old tool names (`architecture_*`, `codebase_search`) are still accepted by the server.
