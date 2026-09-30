@@ -1,14 +1,48 @@
-# File localization on SWE-bench Verified
+# File localization on SWE-bench
 
-For each of the 500 instances of [SWE-bench Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
-(dataset revision `c104f84`, MIT-licensed), the repository is checked out at
-`base_commit`, and each method gets the issue text as its only query in one call.
+For each instance, the repository is checked out at `base_commit`, and each
+method gets only the issue text (at most 20,000 characters) in one search call.
 We score whether the files the gold patch modifies are among the top ranked files.
+Gold files and line ranges are used for scoring, never as search input.
 
-- `manifest.json`: the pinned dataset revision, the gold files and changed line ranges per instance, and the 50-instance smoke set (every 10th by id). Made by `localize.py prepare`.
-- `localize.py`: `prepare`, `run` (one shard) and `summarize` (merge shards, write the tables into `docs/benchmarks.md`). Metric definitions are in its header.
-- `results.json`: per-instance ranks and timings of the last full run.
+## Splits
 
-Methods: repomap `search` (with and without embeddings), BM25 over the tracked text files of the checkout (`rank_bm25`, code-aware tokens), and semble at its pinned commit.
+- `manifest.json`: all 500 [SWE-bench Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
+  instances, pinned dataset revision `c104f840cc67f8b6eec6f759ebc8b2693d585d4a`
+  (MIT). Includes gold files and changed old-file line ranges, plus a
+  50-instance smoke set (every tenth by id).
+- `manifest-tune.json`: 300 instances from the full SWE-bench test set, revision
+  `e48e2bd1e9fecd5bbd641e9414ac59da9f2e69f6`, **excluding every Verified id**.
+  Sampled evenly by sorted instance id, among instances with an existing gold
+  file. This is a tuning set, not SWE-bench Lite; its smoke set has 30 instances.
+- `localize.py`: `prepare` (`--split tune` for the tuning manifest), `run`
+  (one shard), and `summarize` (merge shards, optionally write the Verified
+  table into `docs/benchmarks.md`). Metric definitions are in its header.
+- `results.json`: per-instance ranks and timings of the last full Verified run.
+- `results-tune.json`: selected tuning ranks and timings, all experiment
+  summaries, and per-method run provenance. The before/selected binaries use
+  the same run; semble and BM25 use the earlier run on the identical split.
+- `run.json`: pull-request run settings. Keep it on the tuning split so later
+  documentation pushes do not measure Verified again.
 
-Run it: Actions, `bench-localization`, "Run workflow", mode `full`. It builds repomap, runs 10 shards on `ubuntu-latest` and merges them into the `localization` artifact. Nothing here tunes on the instances: repomap runs as released.
+Methods: repomap `search` (with and without embeddings), optional before binary
+(`--baseline`, labeled `main`), BM25 over tracked text files (`rank_bm25`,
+code-aware tokens), and semble pinned at `24497845460960db1839c8485319df189a889225`.
+Variants share the new binary's index, but each has its own MCP process with
+`REPOMAP_TUNE` set before initialization. Index timings include model loading;
+query timings are a warmed MCP round trip (semble is an in-process Python call).
+
+## Tuning and evaluation
+
+Only `manifest-tune.json` selects ranking defaults. Two runs tested 26 single
+changes and 10 combinations. Select the highest Acc@5 + Acc@10 among candidates
+within 2× the before binary's median query time. Freeze the winner before the
+one full Verified evaluation: `wh=1,wc=1,wf=2,qcap=48`.
+
+Run through Actions, `bench-localization`, mode `full`, with the desired manifest.
+It compiles in CI, runs 10 shards on free GitHub-hosted standard `ubuntu-latest`
+runners and merges them into the `localization` artifact. Before publishing
+numbers, check that every manifest id appears once, every method scored every
+instance, and no method has an error. Download the result into this directory
+and update `docs/benchmarks.md`, the README's search claim and the CHANGELOG in
+the same PR. Do not tune defaults after reading Verified.

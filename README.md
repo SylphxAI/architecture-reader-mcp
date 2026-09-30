@@ -7,6 +7,8 @@
 Code graph · hybrid search · call paths · change impact · an interactive graph UI.<br>
 One Rust binary. Local. No API key. MIT.
 
+One issue-text search finds every fix file in the top 10 for **83.0% of SWE-bench Verified issues** (semble: 71.0%). [Measured accuracy, speed and trade-offs](https://sylphxai.github.io/repomap/benchmarks).<br>
+
 [![npm](https://mark.sylphx.com/npm/v/@sylphx/repomap?color=8aa4ff&label=npm)](https://www.npmjs.com/package/@sylphx/repomap)
 [![CI](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml/badge.svg)](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml)
 [![MCP Registry](https://mark.sylphx.com/badge/MCP%20Registry-io.github.SylphxAI%2Frepomap-42d6a4)](https://registry.modelcontextprotocol.io/)
@@ -215,9 +217,9 @@ Import resolution understands relative paths, `@/` aliases, npm workspace packag
 
 ## Search that understands the question
 
-On [semble's public code-search benchmark](https://sylphxai.github.io/repomap/benchmarks) (63 repositories, 19 languages, 1,251 questions), repomap's `search` scores NDCG@10 **0.851**. semble, a tool built only for search, also scores 0.851 on the same runner. The 137M-parameter CodeRankEmbed model scores 0.839 and plain BM25 0.673. repomap 1.2 scored 0.685.
+On [semble's public code-search benchmark](https://sylphxai.github.io/repomap/benchmarks) (63 repositories, 19 languages, 1,251 questions), repomap's `search` scores NDCG@10 **0.845**, versus semble **0.851** on the same runner. The previous repomap score was 0.851: stronger issue localization trades about 0.006 here. On our 60 large-repository questions, repomap scores **0.846** versus semble **0.799**, but semble still wins on VS Code. The 137M-parameter CodeRankEmbed model's published score is 0.839 and plain BM25's 0.673 (cited, not re-run).
 
-On [file localization](https://sylphxai.github.io/repomap/benchmarks#file-localization) (500 SWE-bench Verified issues, one `search` call with the issue text, all files the fix touches in the top 10), repomap finds them for **62.2%** of issues (Acc@10; 51.8% at 5, 23.6% at 1). semble scores 71.0% (61.6%, 34.0%), so it is ahead here. Plain BM25 over files scores 55.8%, and repomap with embeddings off 56.6%. repomap indexes about 8x faster and answers about 6x faster than semble. Agent systems such as LocAgent report higher numbers on a different subset with a language model in the loop; those are cited, not re-run.
+On [file localization](https://sylphxai.github.io/repomap/benchmarks#file-localization) (500 SWE-bench Verified issues, one `search` call with the issue text), repomap finds every fix file in the top 10 for **83.0%** of issues (Acc@10; **74.8%** at 5, **48.8%** at 1), versus semble's **71.0% / 61.6% / 34.0%**. Before this change, repomap scored 62.2% / 51.8% / 23.6%. Plain BM25 scores 55.8% at 10, and repomap with embeddings off 77.6%. Same-run median index/query costs are **1.682 s / 54.4 ms**, versus the old binary's 1.686 s / 59.8 ms and semble's 12.813 s / 354.4 ms. Defaults were selected only on a disjoint 300-instance tuning split, then frozen before one Verified measurement. Agent systems such as LocAgent report higher numbers on a different subset with a language model in the loop; those are cited, not re-run.
 
 This needs no GPU, no vector database and no API key. A 33 MB static code model runs on the CPU, next to BM25 and symbol names.
 
@@ -229,10 +231,10 @@ Measured on a 4 vCPU GitHub-hosted runner ([method and full table](https://sylph
 
 | Repository | Code files | Cold index | Warm index | search p50 | impact p50 |
 |---|---:|---:|---:|---:|---:|
-| kubernetes | 11,710 | 13.0 s | 1.9 s | 73 ms | 6 ms |
-| vscode | 6,126 | 9.2 s | 1.4 s | 16 ms | 8 ms |
-| django | 2,271 | 2.6 s | 0.4 s | 24 ms | 1 ms |
-| rust-analyzer | 1,512 | 2.1 s | 0.4 s | 7 ms | 2 ms |
+| kubernetes | 11,710 | 13.1 s | 2.0 s | 74 ms | 6 ms |
+| vscode | 6,126 | 9.3 s | 1.4 s | 17 ms | 8 ms |
+| django | 2,271 | 2.6 s | 0.5 s | 24 ms | 1 ms |
+| rust-analyzer | 1,512 | 2.1 s | 0.4 s | 8 ms | 2 ms |
 
 ## How it compares
 

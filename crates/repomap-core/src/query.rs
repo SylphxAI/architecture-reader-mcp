@@ -451,14 +451,27 @@ impl Index {
             }
         };
 
-        // Lexical BM25 over chunks.
-        let bm = self.bm25.search(query, 60, |c| path_ok(c.file) && kind_ok(c.symbol));
-
-        // Symbol-name matches.
+        let t = *crate::tune::get();
         let q = query.trim();
         let ql = q.to_ascii_lowercase();
         let qtoks: Vec<String> = tokenize(q);
         let single_word = !q.contains(char::is_whitespace);
+        let symbolish = looks_like_symbol(q);
+        // Identifiers, paths and the title of a long question or report.
+        let qt = if symbolish { crate::qterms::QueryTerms::default() } else { crate::qterms::analyze(q) };
+
+        // Lexical BM25 over chunks and, from the same postings, over whole
+        // files. Terms that come from identifiers in the text weigh more.
+        let id_toks: HashSet<String> = qt.idents.iter().flat_map(|i| tokenize(i)).collect();
+        let mut uniq: Vec<String> = qtoks.clone();
+        uniq.sort();
+        uniq.dedup();
+        let terms: Vec<(String, f32)> = uniq.into_iter().map(|w| if id_toks.contains(&w) { (w, t.wt) } else { (w, 1.0) }).collect();
+        let terms = self.bm25.cap_terms(terms, t.qcap);
+        let file_limit = if t.wf > 0.0 && !symbolish { 100 } else { 0 };
+        let (bm, fbm) = self.bm25.search_terms(&terms, t.cand, file_limit, t.k1f, |c| path_ok(c.file) && kind_ok(c.symbol));
+
+        // Symbol-name matches.
         let mut sym_scores: Vec<(u32, f32)> = Vec::new();
         if !ql.is_empty() {
             for (i, s) in self.symbols.iter().enumerate() {
@@ -484,80 +497,156 @@ impl Index {
         sym_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0)));
         sym_scores.truncate(60);
 
+        // Symbols named exactly by an identifier in the text; a name shared by
+        // many symbols says little and is skipped.
+        let mut id_syms: Vec<(u32, f32)> = Vec::new();
+        if t.wi > 0.0 && !qt.idents.is_empty() {
+            let wanted: HashSet<String> = qt.idents.iter().map(|i| i.to_ascii_lowercase()).collect();
+            let mut count: HashMap<&str, u32> = HashMap::new();
+            for nl in &self.names_lower {
+                if wanted.contains(nl.as_str()) {
+                    *count.entry(nl.as_str()).or_default() += 1;
+                }
+            }
+            for (i, s) in self.symbols.iter().enumerate() {
+                let nl = self.names_lower[i].as_str();
+                let Some(&c) = count.get(nl) else { continue };
+                if c as usize <= t.symcap && path_ok(s.file) && kind_ok(Some(i as u32)) {
+                    id_syms.push((i as u32, 1.0 / c as f32 + self.sym_rank[i] * 0.5));
+                }
+            }
+            id_syms.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+            id_syms.truncate(t.cand);
+        }
+
         // Reciprocal-rank fusion keyed by (file, start line). Identifier-like
         // queries lean on the lexical lists, sentences on the embedding.
-        const K: f32 = 20.0;
-        let symbolish = looks_like_symbol(q);
-        let (w_lex, w_dense) = if symbolish { (1.0, 0.5) } else { (1.0, 1.0) };
-        let mut fused: HashMap<(u32, u32), (f32, u32, Option<u32>, Vec<String>)> = HashMap::new();
+        let k = t.k;
+        let (w_lex, w_dense) = if symbolish { (1.0, 0.5) } else { (1.0, t.wd) };
+        type Fused = (f32, u32, Option<u32>, Vec<String>);
+        let mut fused: HashMap<(u32, u32), Fused> = HashMap::new();
         for (rank, h) in bm.iter().enumerate() {
             let c = &self.bm25.chunks[h.chunk as usize];
             let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
-            e.0 += w_lex / (K + rank as f32);
+            e.0 += w_lex / (k + rank as f32);
             e.3 = h.matched.clone();
         }
         for (rank, (s, score)) in sym_scores.iter().enumerate() {
             let sym = &self.symbols[*s as usize];
             let weight = if *score >= 3.0 { 2.0 } else { 1.0 };
             let e = fused.entry((sym.file, sym.start)).or_insert((0.0, sym.end, Some(*s), Vec::new()));
-            e.0 += w_lex * weight / (K + rank as f32);
+            e.0 += w_lex * weight / (k + rank as f32);
             if e.2.is_none() {
                 e.2 = Some(*s);
             }
         }
-        // Semantic: chunks whose embedding is closest to the query's.
-        if let Some(qv) = crate::semantic::model().filter(|_| !self.dense.is_empty()).and_then(|m| m.embed(q)) {
-            let hits = self.dense.search(&qv, 60, |c| {
-                let c = &self.bm25.chunks[c as usize];
-                path_ok(c.file) && kind_ok(c.symbol)
-            });
-            for (rank, (cid, _)) in hits.iter().enumerate() {
-                let c = &self.bm25.chunks[*cid as usize];
-                let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
-                e.0 += w_dense / (K + rank as f32);
+        for (rank, (s, _)) in id_syms.iter().enumerate() {
+            let sym = &self.symbols[*s as usize];
+            let e = fused.entry((sym.file, sym.start)).or_insert((0.0, sym.end, Some(*s), Vec::new()));
+            e.0 += t.wi / (k + rank as f32);
+            if e.2.is_none() {
+                e.2 = Some(*s);
             }
         }
-        let mut merged: Vec<((u32, u32), (f32, u32, Option<u32>, Vec<String>))> = fused.into_iter().collect();
-        let max = merged.iter().map(|m| m.1 .0).fold(0f32, f32::max);
-        // A file whose name or folder says what the query asks for
-        // ("session handling" -> sessions.py) gets its best chunks lifted.
+        // Semantic: chunks whose embedding is closest to the query's, to its title's, and to its code.
+        if let Some(m) = crate::semantic::model().filter(|_| !self.dense.is_empty()) {
+            let mut lists: Vec<(&str, f32)> = vec![(q, w_dense)];
+            if !symbolish && t.wh > 0.0 && !qt.head.is_empty() && qt.head != q {
+                lists.push((qt.head.as_str(), t.wh));
+            }
+            if !symbolish && t.wc > 0.0 && !qt.code.is_empty() {
+                lists.push((qt.code.as_str(), t.wc));
+            }
+            for (text, w) in lists {
+                let Some(qv) = m.embed(text) else { continue };
+                let hits = self.dense.search(&qv, t.cand, |c| {
+                    let c = &self.bm25.chunks[c as usize];
+                    path_ok(c.file) && kind_ok(c.symbol)
+                });
+                for (rank, (cid, _)) in hits.iter().enumerate() {
+                    let c = &self.bm25.chunks[*cid as usize];
+                    let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
+                    e.0 += w / (k + rank as f32);
+                }
+            }
+        }
+
+        // Group chunks by file, best first.
+        struct Cand {
+            start: u32,
+            end: u32,
+            sym: Option<u32>,
+            score: f32,
+            matched: Vec<String>,
+        }
+        let max = fused.values().map(|m| m.0).fold(0f32, f32::max);
+        let mut by_file: HashMap<u32, Vec<Cand>> = HashMap::new();
+        for ((file, start), (score, end, sym, matched)) in fused {
+            by_file.entry(file).or_default().push(Cand { start, end, sym, score, matched });
+        }
+        // Files the text names by path or module, and the best files by whole-file BM25, join
+        // even when none of their chunks made a list.
+        let mut mention: HashMap<u32, f32> = HashMap::new();
+        if t.mw > 0.0 && !qt.paths.is_empty() {
+            for (i, f) in self.files.iter().enumerate() {
+                if !path_ok(i as u32) {
+                    continue;
+                }
+                let m = crate::qterms::path_mention(&f.path, &qt.paths);
+                if m > 0.0 {
+                    mention.insert(i as u32, m);
+                }
+            }
+        }
+        let file_bm: HashMap<u32, usize> = fbm.iter().enumerate().map(|(r, (f, _))| (*f, r)).collect();
+        let joining: Vec<u32> = mention.keys().copied().chain(fbm.iter().take(30).map(|(f, _)| *f)).collect();
+        for f in joining {
+            if by_file.contains_key(&f) {
+                continue;
+            }
+            let best = self.bm25.chunks_of(f).iter().filter(|c| kind_ok(c.symbol)).max_by_key(|c| c.len);
+            if let Some(c) = best {
+                by_file.entry(f).or_default().push(Cand { start: c.start, end: c.end, sym: c.symbol, score: 0.0, matched: Vec::new() });
+            }
+        }
         let words: Vec<String> = query_words(q);
-        let mut file_sum: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in &merged {
-            *file_sum.entry(k.0).or_default() += v.0;
-        }
+        let file_sum: HashMap<u32, f32> = by_file.iter().map(|(f, v)| (*f, v.iter().map(|c| c.score).sum())).collect();
         let max_file = file_sum.values().fold(0f32, |a, b| a.max(*b)).max(1e-9);
-        let mut best_of_file: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in &merged {
-            let b = best_of_file.entry(k.0).or_insert(0.0);
-            *b = b.max(v.0);
-        }
-        let mut path_ratio: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in merged.iter_mut() {
-            let f = &self.files[k.0 as usize];
-            let base = v.0;
+        let mut ranked: Vec<(u32, Cand, f32)> = Vec::new();
+        for (file, mut cs) in by_file {
+            cs.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.start.cmp(&b.start)));
+            let f = &self.files[file as usize];
+            let s0 = cs[0].score;
+            let mut fs = if t.agg > 0.5 {
+                // The best chunk plus a decayed sum of the others.
+                let rest: f32 = cs.iter().skip(1).take(8).enumerate().map(|(i, c)| c.score * 0.5f32.powi(i as i32 + 1)).sum();
+                s0 + t.lam * rest
+            } else {
+                s0 + max * 0.2 * file_sum[&file] / max_file
+            };
+            // A file whose name or folder says what the query asks for
+            // ("session handling" -> sessions.py) gets lifted.
             if !words.is_empty() && !symbolish {
-                let r = *path_ratio.entry(k.0).or_insert_with(|| path_match(&f.path, &words));
-                v.0 += max * 1.5 * r;
+                fs += max * t.pw * path_match(&f.path, &words);
             }
-            // A file with several matching chunks lifts its best one.
-            if base >= best_of_file[&k.0] {
-                v.0 += max * 0.2 * file_sum[&k.0] / max_file;
+            if let Some(m) = mention.get(&file) {
+                fs += max * t.mw * m;
             }
-            v.0 *= path_penalty(f);
-            v.0 *= 1.0 + 0.15 * self.file_rank[k.0 as usize];
+            if let Some(r) = file_bm.get(&file) {
+                fs += t.wf / (k + *r as f32);
+            }
+            fs *= path_penalty(f);
+            fs *= 1.0 + 0.15 * self.file_rank[file as usize];
+            // Spread results over files: each further chunk of a file counts less.
+            for (i, c) in cs.into_iter().take(6).enumerate() {
+                let share = if i == 0 || s0 <= 0.0 { 1.0 } else { c.score / s0 };
+                ranked.push((file, c, fs * share * t.dec.powi(i as i32)));
+            }
         }
-        merged.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap().then(a.0.cmp(&b.0)));
-        // Spread results over files: each further chunk of a file counts 0.4×.
-        let decay: f32 = 0.4;
-        let mut seen: HashMap<u32, i32> = HashMap::new();
-        for (k, v) in merged.iter_mut() {
-            let n = seen.entry(k.0).or_insert(0);
-            v.0 *= decay.powi(*n);
-            *n += 1;
-        }
-        merged.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap().then(a.0.cmp(&b.0)));
-        merged.truncate(opts.limit);
+        ranked.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap().then(a.0.cmp(&b.0)).then(a.1.start.cmp(&b.1.start)));
+        ranked.truncate(opts.limit);
+        let merged: Vec<((u32, u32), Fused)> =
+            ranked.into_iter().map(|(file, c, score)| ((file, c.start), (score, c.end, c.sym, c.matched))).collect();
 
         let qset: HashSet<String> = qtoks.iter().cloned().collect();
         let hits = merged

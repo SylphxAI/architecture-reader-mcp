@@ -4,7 +4,8 @@
 usage: localize.py prepare <manifest.json>
            Download the pinned dataset and write the manifest (gold files and hunks).
        localize.py run <repomap-binary> <manifest.json> <work-dir> <out.json>
-                       [--shard I/N] [--smoke] [--only ID ...] [--no-semble]
+                       [--shard I/N] [--smoke] [--only ID ...] [--skip keywords,bm25,semble]
+                       [--baseline <binary>] [--variants <json of name: REPOMAP_TUNE>]
            Score every method on the instances of one shard.
        localize.py summarize <manifest.json> <out.json> <shard.json ...> [--docs docs/benchmarks.md]
            Merge shards into the results file and print (or write into the docs) the tables.
@@ -32,11 +33,15 @@ from collections import defaultdict
 
 DATASET = "princeton-nlp/SWE-bench_Verified"
 REVISION = "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
-PARQUET = f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/data/test-00000-of-00001.parquet"
+# The tuning split: instances of the full SWE-bench test set that are not in Verified.
+FULL_DATASET = "princeton-nlp/SWE-bench"
+FULL_REVISION = "e48e2bd1e9fecd5bbd641e9414ac59da9f2e69f6"
+TUNE_SIZE = 300
 KS = (1, 5, 10)
 MAX_QUERY_CHARS = 20000
-METHODS = ["repomap", "repomap-keywords", "bm25", "semble"]
+METHODS = ["main", "repomap", "repomap-keywords", "bm25", "semble"]
 LABELS = {
+    "main": "repomap `search`, before (`main`)",
     "repomap": "repomap `search`",
     "repomap-keywords": "repomap, keywords only (`REPOMAP_EMBED=0`)",
     "bm25": "BM25 over files",
@@ -77,25 +82,34 @@ def hunks_of(patch):
     return {k: v for k, v in out.items()}
 
 
-def load_dataset():
+def load_dataset(dataset=DATASET, revision=REVISION):
     import pyarrow.parquet as pq
     import urllib.request
-    path = os.path.join(tempfile.gettempdir(), f"swebench-verified-{REVISION[:12]}.parquet")
+    path = os.path.join(tempfile.gettempdir(), f"{dataset.replace('/', '-')}-{revision[:12]}.parquet")
     if not os.path.exists(path):
-        urllib.request.urlretrieve(PARQUET, path)
+        urllib.request.urlretrieve(f"https://huggingface.co/datasets/{dataset}/resolve/{revision}/data/test-00000-of-00001.parquet", path)
     return pq.read_table(path).to_pylist()
 
 
-def prepare(out):
-    rows = sorted(load_dataset(), key=lambda r: r["instance_id"])
+def prepare(out, split="verified"):
+    if split == "tune":
+        verified = {r["instance_id"] for r in load_dataset()}
+        rest = sorted((r for r in load_dataset(FULL_DATASET, FULL_REVISION) if r["instance_id"] not in verified), key=lambda r: r["instance_id"])
+        rows = [r for r in rest if hunks_of(r["patch"])]
+        step = len(rows) / TUNE_SIZE
+        rows = [rows[int(i * step)] for i in range(TUNE_SIZE)]  # evenly spaced by id: every repository in proportion
+        dataset, revision = FULL_DATASET, FULL_REVISION
+    else:
+        rows = sorted(load_dataset(), key=lambda r: r["instance_id"])
+        dataset, revision = DATASET, REVISION
     inst = []
     for r in rows:
         h = hunks_of(r["patch"])
         inst.append({"id": r["instance_id"], "repo": r["repo"], "base_commit": r["base_commit"], "gold": h})
     ids = [i["id"] for i in inst]
     manifest = {
-        "dataset": DATASET,
-        "revision": REVISION,
+        "dataset": dataset,
+        "revision": revision,
         "instances": len(inst),
         "smoke": ids[::10],  # every 10th by id: 50 instances across 10 of the 12 repositories
         "items": inst,
@@ -170,20 +184,32 @@ class Mcp:
             self.p.kill()
 
 
-def run_repomap(binary, root, query, embed):
+def repomap_index(binary, root, embed):
+    """Index once into a private cache; returns the environment for later queries and the cold index time."""
     cache = tempfile.mkdtemp(prefix="repomap-loc-")
     env = dict(os.environ, REPOMAP_CACHE_DIR=cache)
     if not embed:
         env["REPOMAP_EMBED"] = "0"
     t = time.perf_counter()
     subprocess.run([binary, "index", root, "--no-cache", "--json"], check=True, capture_output=True, text=True, env=env)
-    index_ms = (time.perf_counter() - t) * 1000
+    return env, (time.perf_counter() - t) * 1000
+
+
+def repomap_query(binary, root, env, query, tune=None):
+    if tune:
+        env = dict(env, REPOMAP_TUNE=tune)
     mcp = Mcp(binary, root, env)
     try:
         query_ms, chunks = mcp.search(query)
     finally:
         mcp.close()
-    return {"index_ms": index_ms, "ready_ms": mcp.ready_ms, "query_ms": query_ms}, chunks
+    return {"ready_ms": mcp.ready_ms, "query_ms": query_ms}, chunks
+
+
+def run_repomap(binary, root, query, embed, session=None, tune=None):
+    env, index_ms = session or repomap_index(binary, root, embed)
+    timing, chunks = repomap_query(binary, root, env, query, tune)
+    return {"index_ms": index_ms, **timing}, chunks
 
 
 SKIP_EXT = {".po", ".mo", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".pdf", ".zip", ".gz", ".whl", ".pyc", ".so", ".woff", ".woff2", ".ttf", ".lock", ".min.js", ".npy", ".pkl", ".fits", ".dat"}
@@ -274,9 +300,9 @@ def score(gold, chunks):
     return out
 
 
-def run(binary, manifest_path, work, out, shard, smoke, only, use_semble):
+def run(binary, manifest_path, work, out, shard, smoke, only, skip, baseline, variants):
     m = json.load(open(manifest_path))
-    ds = {r["instance_id"]: r["problem_statement"] for r in load_dataset()}
+    ds = {r["instance_id"]: r["problem_statement"] for r in load_dataset(m["dataset"], m["revision"])}
     items = [i for i in m["items"] if i["gold"]]
     if smoke:
         items = [i for i in items if i["id"] in set(m["smoke"])]
@@ -296,12 +322,23 @@ def run(binary, manifest_path, work, out, shard, smoke, only, use_semble):
             row["error"] = f"checkout: {e}"
             results.append(row)
             continue
-        runs = {
-            "repomap": lambda: run_repomap(binary, root, query, True),
-            "repomap-keywords": lambda: run_repomap(binary, root, query, False),
-            "bm25": lambda: run_bm25(root, query),
-        }
-        if use_semble:
+        session = {}
+
+        def sess(key, bin_, embed):
+            if key not in session:
+                session[key] = repomap_index(bin_, root, embed)
+            return session[key]
+
+        runs = {"repomap": lambda: run_repomap(binary, root, query, True, sess("new", binary, True))}
+        if baseline:
+            runs["main"] = lambda: run_repomap(baseline, root, query, True)
+        for vname, tune in variants.items():
+            runs[f"repomap:{vname}"] = lambda tune=tune: run_repomap(binary, root, query, True, sess("new", binary, True), tune)
+        if "keywords" not in skip:
+            runs["repomap-keywords"] = lambda: run_repomap(binary, root, query, False)
+        if "bm25" not in skip:
+            runs["bm25"] = lambda: run_bm25(root, query)
+        if "semble" not in skip:
             runs["semble"] = lambda: run_semble(root, query)
         for name, fn in runs.items():
             try:
@@ -344,8 +381,13 @@ def med(rows, method, key):
     return statistics.median(xs) if xs else float("nan")
 
 
+def methods_of(rows):
+    found = {m for r in rows for m, v in r["methods"].items() if "error" not in v}
+    return [m for m in METHODS if m in found] + sorted(found - set(METHODS))
+
+
 def tables(rows, run_note):
-    used = [m for m in METHODS if any(m in r["methods"] and "error" not in r["methods"][m] for r in rows)]
+    used = methods_of(rows)
     n = len(rows)
     out = [f"{run_note} {n} instances scored.\n"]
     out.append("| Method | Acc@1 | Acc@5 | Acc@10 | Hit@1 | Hit@5 | Hit@10 | Chunk@5 | Chunk@10 | index, median | query, median |")
@@ -355,10 +397,10 @@ def tables(rows, run_note):
         h = [acc(rows, mth, k, "any")[0] for k in KS]
         c = [chunk_hit(rows, mth, k) for k in (5, 10)]
         cs = [f"{x:.1f}" if not math.isnan(x) else "" for x in c]
-        out.append(f"| {LABELS[mth]} | " + " | ".join(f"{x:.1f}" for x in a + h) + f" | {cs[0]} | {cs[1]} | {med(rows, mth, 'index_ms') / 1000:.1f} s | {med(rows, mth, 'query_ms'):.0f} ms |")
+        out.append(f"| {LABELS.get(mth, mth)} | " + " | ".join(f"{x:.1f}" for x in a + h) + f" | {cs[0]} | {cs[1]} | {med(rows, mth, 'index_ms') / 1000:.1f} s | {med(rows, mth, 'query_ms'):.0f} ms |")
     out.append("\nAcc@10 by repository (every gold file in the top 10 files):\n")
     repos = sorted({r["repo"] for r in rows})
-    out.append("| Repository | instances | " + " | ".join(LABELS[m] for m in used) + " | repomap index, median | repomap query, median |")
+    out.append("| Repository | instances | " + " | ".join(LABELS.get(m, m) for m in used) + " | repomap index, median | repomap query, median |")
     out.append("|---|---:|" + "---:|" * len(used) + "---:|---:|")
     for repo in repos:
         sub = [r for r in rows if r["repo"] == repo]
@@ -374,17 +416,16 @@ def summarize(manifest_path, out, shards, docs, note):
     rows.sort(key=lambda r: r["id"])
     m = json.load(open(manifest_path))
     summary = {}
-    for mth in METHODS:
-        if any(mth in r["methods"] for r in rows):
-            summary[mth] = {
-                **{f"acc@{k}": round(acc(rows, mth, k, "all")[0], 2) for k in KS},
-                **{f"hit@{k}": round(acc(rows, mth, k, "any")[0], 2) for k in KS},
-                "chunk@5": None if math.isnan(chunk_hit(rows, mth, 5)) else round(chunk_hit(rows, mth, 5), 2), "chunk@10": None if math.isnan(chunk_hit(rows, mth, 10)) else round(chunk_hit(rows, mth, 10), 2),
-                "scored": acc(rows, mth, 1, "all")[1],
-                "errors": sum(1 for r in rows if "error" in r["methods"].get(mth, {})),
-                "index_ms_median": round(med(rows, mth, "index_ms")),
-                "query_ms_median": round(med(rows, mth, "query_ms"), 1),
-            }
+    for mth in methods_of(rows):
+        summary[mth] = {
+            **{f"acc@{k}": round(acc(rows, mth, k, "all")[0], 2) for k in KS},
+            **{f"hit@{k}": round(acc(rows, mth, k, "any")[0], 2) for k in KS},
+            "chunk@5": None if math.isnan(chunk_hit(rows, mth, 5)) else round(chunk_hit(rows, mth, 5), 2), "chunk@10": None if math.isnan(chunk_hit(rows, mth, 10)) else round(chunk_hit(rows, mth, 10), 2),
+            "scored": acc(rows, mth, 1, "all")[1],
+            "errors": sum(1 for r in rows if "error" in r["methods"].get(mth, {})),
+            "index_ms_median": round(med(rows, mth, "index_ms")),
+            "query_ms_median": round(med(rows, mth, "query_ms"), 1),
+        }
     json.dump({"dataset": m["dataset"], "revision": m["revision"], "summary": summary, "results": rows}, open(out, "w"), separators=(",", ":"))
     text = tables(rows, note)
     print(text)
@@ -397,7 +438,7 @@ def summarize(manifest_path, out, shards, docs, note):
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "prepare":
-        prepare(a[1])
+        prepare(a[1], a[a.index("--split") + 1] if "--split" in a else "verified")
     elif a[0] == "run":
         shard = (0, 1)
         if "--shard" in a:
@@ -405,7 +446,14 @@ if __name__ == "__main__":
             shard = (int(i), int(n))
         only = a[a.index("--only") + 1:] if "--only" in a else []
         only = [x for x in only if not x.startswith("--")]
-        run(a[1], a[2], a[3], a[4], shard, "--smoke" in a, only, "--no-semble" not in a)
+        skip = set()
+        if "--no-semble" in a:
+            skip.add("semble")
+        if "--skip" in a:
+            skip |= set(a[a.index("--skip") + 1].split(","))
+        baseline = a[a.index("--baseline") + 1] if "--baseline" in a else None
+        variants = json.load(open(a[a.index("--variants") + 1])) if "--variants" in a else {}
+        run(a[1], a[2], a[3], a[4], shard, "--smoke" in a, only, skip, baseline, variants)
     elif a[0] == "summarize":
         docs = a[a.index("--docs") + 1] if "--docs" in a else None
         note = a[a.index("--note") + 1] if "--note" in a else ""

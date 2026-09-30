@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Issue-to-code search.** Long reports now contribute their title, backtick code, identifiers, stack-trace frames and named paths to ranking. Chunk BM25 and local embeddings fuse with exact symbol candidates and file-level BM25; decayed per-file aggregation spreads results across files. Lexical queries retain their path/kind filters and keywords-only mode. Defaults were frozen on a disjoint 300-instance tuning split (`wh=1,wc=1,wf=2,qcap=48`) before one full SWE-bench Verified evaluation. Acc@1/5/10 rises from 23.6/51.8/62.2 to **48.8/74.8/83.0**, ahead of semble's 34.0/61.6/71.0, with median query time 59.8 → 54.4 ms. Public search NDCG@10 trades 0.851 → 0.845 (semble still wins at 0.851); the large-repository set improves 0.794 → 0.846. [Benchmarks](docs/benchmarks.md) record both localization splits, the search trade-off and timings.
+
 - The CLI prints one GitHub star line to stderr after the fifth successful interactive query run, once ever. It is silent for the MCP server, with `--json`, in CI, and when stderr is not a terminal; `REPOMAP_NO_STAR_HINT=1` turns it off.
 
 ## 1.4.0
