@@ -230,7 +230,8 @@ impl Index {
                 .filter(|(_, f)| f.role == Role::Core && f.lang == Some(Lang::Rust))
                 .filter(|(_, f)| read(root, &f.path).map_or(false, |t| t.contains("#[test]") || t.contains("#[cfg(test)]")))
                 .count();
-            let tests = self.code_files().filter(|(_, f)| f.role == Role::Test).count() + inline;
+            let deferred_files: usize = self.deferred.iter().map(|d| d.files).sum();
+            let tests = self.code_files().filter(|(_, f)| f.role == Role::Test).count() + inline + deferred_files;
             let ratio = if core == 0 { 1.0 } else { tests as f32 / core as f32 };
             let s = if tests == 0 { 0 } else { pts(15, ratio / 0.4) };
             let mut fixes = Vec::new();

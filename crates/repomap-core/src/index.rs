@@ -238,10 +238,15 @@ fn root_slug(root: &Path) -> String {
 
 pub fn is_test_path(path: &str) -> bool {
     let p = path.to_ascii_lowercase();
+    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e")) || has_test_name(&p)
+}
+
+/// The filename half of `is_test_path`.
+fn has_test_name(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
     let name = p.rsplit('/').next().unwrap_or(&p);
-    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e"))
-        // `test_x.py`, but not a library such as `lib/test_functions.bash`.
-        || (name.starts_with("test_") && matches!(name.rsplit('.').next(), Some("py" | "rb" | "c" | "cc" | "cpp" | "lua" | "dart" | "php")))
+    // `test_x.py`, but not a library such as `lib/test_functions.bash`.
+    (name.starts_with("test_") && matches!(name.rsplit('.').next(), Some("py" | "rb" | "c" | "cc" | "cpp" | "lua" | "dart" | "php")))
         || name.contains(".test.")
         || name.contains(".spec.")
         || name.contains("_test.")
@@ -299,8 +304,13 @@ pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Ve
     let paths: Vec<&str> = paths.collect();
     let qualifying = |segs: &[&str], depth: usize| -> bool {
         // `depth` directories: segs[..depth]; the last one is the candidate.
-        is_fixture_segment(segs[depth - 1]) || segs[..depth - 1].iter().any(|s| is_test_segment(s))
+        is_fixture_segment(segs[depth - 1])
+            || segs[..depth - 1]
+                .iter()
+                .enumerate()
+                .any(|(i, s)| is_test_segment(s) && !matches!(segs[i + 1], "src" | "lib" | "source"))
     };
+    let mut named: HashMap<&str, usize> = HashMap::new();
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for p in &paths {
         let segs: Vec<&str> = p.split('/').collect();
@@ -312,6 +322,9 @@ pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Ve
             end += segs[d - 1].len() + usize::from(d > 1);
             if qualifying(&segs, d) {
                 *counts.entry(&p[..end]).or_default() += 1;
+                if has_test_name(p) {
+                    *named.entry(&p[..end]).or_default() += 1;
+                }
             }
         }
     }
@@ -323,7 +336,9 @@ pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Ve
             end += segs[d - 1].len() + usize::from(d > 1);
             if qualifying(&segs, d) {
                 let dir = &p[..end];
-                if counts.get(dir).copied().unwrap_or(0) >= min {
+                let n = counts.get(dir).copied().unwrap_or(0);
+                // Real tests (named like tests) are at least 10%: keep indexed.
+                if n >= min && named.get(dir).copied().unwrap_or(0) * 10 < n {
                     *trees.entry(dir).or_default() += 1;
                     break;
                 }
@@ -775,6 +790,19 @@ mod fixture_tests {
     fn small_fixture_trees_stay_indexed() {
         assert!(trees(&many("tests/fixtures", 999), 1000).is_empty());
         assert_eq!(trees(&many("tests/fixtures", 1000), 1000), vec![("tests/fixtures".to_string(), 1000)]);
+    }
+
+    #[test]
+    fn real_tests_and_source_stay_indexed() {
+        let many_f = |fmt: &dyn Fn(usize) -> String| -> Vec<String> { (0..1000).map(fmt).collect() };
+        let java = many_f(&|i| format!("src/test/java/a/b/X{i}Test.java"));
+        let rb = many_f(&|i| format!("spec/services/s{i}_spec.rb"));
+        let ts = many_f(&|i| format!("packages/spec/src/f{i}.ts"));
+        let cases = many_f(&|i| format!("tests/cases/c{i}.ts"));
+        for v in [&java, &rb, &ts] {
+            assert!(trees(v, 1000).is_empty(), "{:?}", v[0]);
+        }
+        assert_eq!(trees(&cases, 1000), vec![("tests/cases".to_string(), 1000)]);
     }
 
     fn write(root: &Path, rel: &str) {
