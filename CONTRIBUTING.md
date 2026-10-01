@@ -10,7 +10,7 @@ its layout and contracts.
   requests before starting. The [good first issue list](https://github.com/SylphxAI/repomap/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
   contains tasks when suitable ones are available.
 - Use [Discussions](https://github.com/SylphxAI/repomap/discussions) for usage
-  questions and early ideas. For a concrete bug or feature, use the
+  questions and early ideas. For a bug, feature request or documentation correction, use the
   [issue forms](https://github.com/SylphxAI/repomap/issues/new/choose).
 - Share a minimal public or synthetic repository, commands/tool arguments,
   version and expected file:line results. Redact private source, personal paths,
