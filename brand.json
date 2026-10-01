@@ -1,4 +1,4 @@
 {
   "oneliner": "A map of your codebase for AI agents: code graph, search, call paths and change impact. No API key.",
-  "cargoInstall": "cargo install sylphx-repomap"
+  "cargoInstall": "cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap"
 }

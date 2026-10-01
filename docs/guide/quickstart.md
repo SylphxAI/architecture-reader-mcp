@@ -84,4 +84,4 @@ For a global install, run `npm i -g @sylphx/repomap`, then use `repomap …`.
 
 ## Supported platforms
 
-macOS (Apple silicon, Intel), Linux glibc (x64, arm64) and Windows x64. Node 18+ is only used to launch the native binary. You can also download a binary from [GitHub releases](https://github.com/SylphxAI/repomap/releases) or build one with `cargo install sylphx-repomap`.
+macOS (Apple silicon, Intel), Linux glibc (x64, arm64) and Windows x64. Node 18+ is only used to launch the native binary. You can also download a binary from [GitHub releases](https://github.com/SylphxAI/repomap/releases) or build one with `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.

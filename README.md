@@ -334,7 +334,7 @@ repomap index [dir] [--no-cache] [--json]
 repomap mcp [--root dir]
 ```
 
-Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install sylphx-repomap`.
+Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
 
 ## Migrating from Spine, Locus or CodeRAG
 

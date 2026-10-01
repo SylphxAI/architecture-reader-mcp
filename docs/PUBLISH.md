@@ -52,8 +52,10 @@ A yanked exact version or registry error fails rather than being treated as
 missing. If a publish is interrupted, dispatch the existing workflow again;
 it resumes with the missing packages and never overwrites a published version.
 
-Install the company crate with `cargo install sylphx-repomap`. The executable
-remains `repomap`, and the core Rust library remains `repomap_core` through its
-explicit library target and dependency alias. Git source installs can use
+The working source installation is
 `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
+Only after successful registry publication is `cargo install sylphx-repomap`
+usable. Until then, generated installation copy must retain the Git command.
+The executable remains `repomap`, and the core Rust library remains
+`repomap_core` through its explicit library target and dependency alias.
 The existing npm and native installations are unchanged.
