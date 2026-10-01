@@ -513,6 +513,10 @@ impl Index {
             .iter()
             .map(|c| cache.remove(&c.path).filter(|hit| hit.mtime == c.mtime && hit.size == c.size))
             .collect();
+        // Entries for deferred trees stay in the cache (a later targeted query
+        // reuses them) and do not count as stale.
+        let keep_old: Vec<String> = cache.keys().filter(|p| deferred.iter().any(|d| under(p, &d.dir))).cloned().collect();
+        let kept_old: Vec<(String, CacheEntry)> = keep_old.into_iter().filter_map(|p| cache.remove(&p).map(|e| (p, e))).collect();
         let stale = !cache.is_empty();
         let results: Vec<Option<(bool, CacheEntry)>> = candidates
             .par_iter()
@@ -560,6 +564,7 @@ impl Index {
             let entries: HashMap<String, CacheEntry> = kept
                 .into_iter()
                 .map(|(c, e)| (c.path.clone(), e))
+                .chain(kept_old)
                 .collect();
             let file = CacheFile { version: CACHE_VERSION, embed: model_id.to_string(), entries };
             if let Ok(bytes) = postcard::to_stdvec(&file) {
