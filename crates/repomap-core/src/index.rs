@@ -354,7 +354,7 @@ fn under(path: &str, dir: &str) -> bool {
     path.len() > dir.len() && path.starts_with(dir) && path.as_bytes()[dir.len()] == b'/'
 }
 
-fn included(path: &str, include: &[String]) -> bool {
+pub fn included(path: &str, include: &[String]) -> bool {
     include.iter().any(|i| {
         let i = i.trim_matches('/');
         !i.is_empty() && (path == i || under(path, i))

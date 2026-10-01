@@ -36,7 +36,7 @@ impl Workspace {
             include = e.include.clone();
             let before = include.len();
             for t in targets {
-                if let Some(p) = deferred_target(&e.index, t) {
+                if let Some(p) = deferred_target(&e.index, t, &include) {
                     if !include.contains(&p) {
                         include.push(p);
                     }
@@ -62,7 +62,7 @@ impl Workspace {
         let mut index = Arc::new(Index::build(&root, &opts)?);
         // A first call may already target a fixture tree: include and rebuild
         // (the per-file cache makes the second build cheap).
-        let extra: Vec<String> = targets.iter().filter_map(|t| deferred_target(&index, t)).filter(|p| !include.contains(p)).collect();
+        let extra: Vec<String> = targets.iter().filter_map(|t| deferred_target(&index, t, &include)).filter(|p| !include.contains(p)).collect();
         if !extra.is_empty() {
             include.extend(extra);
             let opts = BuildOptions { include: include.clone(), ..Default::default() };
@@ -75,7 +75,7 @@ impl Workspace {
 
 /// The path to include when `target` (a file, `file:line`, or directory)
 /// points into or at a deferred fixture tree.
-fn deferred_target(index: &Index, target: &str) -> Option<String> {
+fn deferred_target(index: &Index, target: &str, include: &[String]) -> Option<String> {
     let t = target.trim().trim_start_matches("./");
     let t = match t.rsplit_once(':') {
         Some((p, l)) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => p,
@@ -83,6 +83,10 @@ fn deferred_target(index: &Index, target: &str) -> Option<String> {
     };
     let t = t.trim_end_matches('/');
     if t.is_empty() || !t.contains('/') && !t.contains('.') {
+        return None;
+    }
+    // Already covered by an include, or already indexed: nothing to rebuild.
+    if repomap_core::index::included(t, include) || index.path_ix.contains_key(t) {
         return None;
     }
     let under = |a: &str, b: &str| a.len() > b.len() && a.starts_with(b) && a.as_bytes()[b.len()] == b'/';
