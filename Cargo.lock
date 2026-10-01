@@ -1245,7 +1245,6 @@ name = "repomap-core"
 version = "1.5.0"
 dependencies = [
  "anyhow",
- "dirs",
  "ignore",
  "postcard",
  "rayon",
@@ -1753,9 +1752,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sylphx-mcp-kit"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00ec919f34dd53e5ca286fb62a47c21e6655be8d7bd76343f96bb6034284b3df"
+checksum = "baba92c4baf8d691a65fbd0776db27a91e20e4d9f032c7845d1788b8eae7ac58"
 dependencies = [
  "anyhow",
  "dirs",

@@ -22,4 +22,4 @@ repomap version
 
 ## Star reminder
 
-After the fifth successful interactive query run (`map`, `search`, `context`, `trace`, `impact`, `index`, `score`, `db`, `export`), repomap prints one line to stderr asking for a GitHub star, then never again. The run counter is the `star-hint` file in `<user cache dir>/repomap`. It stays silent for the MCP server and the hook, with `--json`, when stderr is not a terminal, and when `CI` is set. Set `REPOMAP_NO_STAR_HINT=1` to turn it off.
+After the fifth successful interactive query run (`map`, `search`, `context`, `trace`, `impact`, `index`, `score`, `db`, `export`), repomap prints one line to stderr asking for a GitHub star, then never again. The run counter is the `star-hint` file in `REPOMAP_CACHE_DIR` when set, else `<user cache dir>/repomap` (or the temporary cache fallback). The hint and cache-root selection come from `sylphx-mcp-kit` 0.3. It stays silent for the MCP server and the hook, with `--json`, when stderr is not a terminal, and when `CI` is set. Set `REPOMAP_NO_STAR_HINT=1` to turn it off.
