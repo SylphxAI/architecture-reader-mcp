@@ -7,7 +7,18 @@
 Code graph · hybrid search · call paths · change impact · an interactive graph UI.<br>
 One Rust binary. Local. No API key. MIT.
 
-One issue-text search finds every fix file in the top 10 for **83.0% of SWE-bench Verified issues** (semble: 71.0%). [Measured accuracy, speed and trade-offs](https://sylphxai.github.io/repomap/benchmarks).<br>
+<!-- localization-hero:start -->
+<p>One issue-text search finds every fix file in the top 10 for <strong>83.0% of SWE-bench Verified issues</strong> (semble: 71.0%). File retrieval, not issue resolution.</p>
+<img src="docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for 83.0% of 500 issues; semble 71.0%, BM25 55.8%. Full Acc@1, 5 and 10 values follow in the table.">
+<details><summary>Chart values and evaluation protocol</summary>
+<table><caption>SWE-bench Verified: every gold fix file in the top k files</caption><thead><tr><th scope="col">Method</th><th scope="col">Acc@1</th><th scope="col">Acc@5</th><th scope="col">Acc@10</th></tr></thead><tbody><tr><th scope="row">repomap</th><td>48.8%</td><td>74.8%</td><td>83.0%</td></tr>
+<tr><th scope="row">semble</th><td>34.0%</td><td>61.6%</td><td>71.0%</td></tr>
+<tr><th scope="row">BM25</th><td>20.8%</td><td>45.4%</td><td>55.8%</td></tr></tbody></table>
+<p>Defaults selected on 300 disjoint SWE-bench test instances, excluding every Verified ID, then frozen before one evaluation on all 500 Verified instances. One search per issue, at its base commit; gold files are used only for scoring. All three methods scored 500/500, with zero errors.</p>
+<p><a href="https://sylphxai.github.io/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
+</details>
+<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="https://sylphxai.github.io/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
+<!-- localization-hero:end -->
 
 [![npm](https://mark.sylphx.com/npm/v/@sylphx/repomap?color=8aa4ff&label=npm)](https://www.npmjs.com/package/@sylphx/repomap)
 [![CI](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml/badge.svg)](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml)
