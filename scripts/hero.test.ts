@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test";
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { readHeroData, heroSvg, heroCopy } from "./hero";
+import { readHeroData, heroSvg, heroCopy, heroCss } from "./hero";
 
 const root = join(import.meta.dirname, "..");
 const data = readHeroData(root);
@@ -55,6 +55,15 @@ test("committed chart and copy are byte-for-byte generated from their sources", 
     const body = current.split("<!-- localization-hero:start -->\n")[1].split("\n<!-- localization-hero:end -->")[0];
     expect(body).toBe(heroCopy(data, file.startsWith("docs/")));
   }
+});
+
+test("docs import the shared generated CSS instead of Vue-stripped inline styles", () => {
+  expect(heroSvg(data)).toContain(`<style>\n${heroCss}</style>`);
+  expect(heroSvg(data, false)).not.toContain("<style>");
+  expect(heroCopy(data, true)).not.toContain("<style>");
+  expect(readFileSync(join(root, "docs/.vitepress/theme/localization.css"), "utf8")).toBe(heroCss);
+  expect(readFileSync(join(root, "docs/.vitepress/theme/index.ts"), "utf8")).toContain("import './localization.css'");
+  expect(heroCss).toContain(".dark .localization-chart");
 });
 
 // Fixtures live in this private checkout, not another session's temp tree.

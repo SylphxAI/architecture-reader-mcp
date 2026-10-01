@@ -40,12 +40,7 @@ features:
 <svg class="localization-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 548" role="img" aria-labelledby="localization-title localization-desc" style="width:100%;max-width:720px;height:auto">
 <title id="localization-title">SWE-bench Verified file localization</title>
 <desc id="localization-desc">500 issues, one issue-text search each. Acc@k counts issues where every gold fix file is among the top k files. repomap: Acc@1 48.8%, Acc@5 74.8%, Acc@10 83.0%. semble: Acc@1 34.0%, Acc@5 61.6%, Acc@10 71.0%. BM25: Acc@1 20.8%, Acc@5 45.4%, Acc@10 55.8%. Higher is better. This measures file retrieval, not issue resolution.</desc>
-<style>
-.localization-chart{--surface:#fcfcfb;--ink:#0b0b0b;--secondary:#52514e;--grid:#e8e8e4;--repomap:#2a78d6;--semble:#eb6834;--bm25:#1baf7a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;font-size:19px}
-@media(prefers-color-scheme:dark){.localization-chart{--surface:#1a1a19;--ink:#ffffff;--secondary:#c3c2b7;--grid:#333330;--repomap:#3987e5;--semble:#d95926;--bm25:#199e70}}
-.localization-chart text{fill:var(--ink)}.localization-chart .secondary{fill:var(--secondary)}.localization-chart .grid{stroke:var(--grid);stroke-width:1;fill:none}.localization-chart .repomap{fill:var(--repomap)}.localization-chart .semble{fill:var(--semble)}.localization-chart .bm25{fill:var(--bm25)}.localization-chart .group,.localization-chart .value{font-weight:600}.localization-chart .tick{font-size:17px}.localization-chart .tooltip{opacity:0}.localization-chart .bar:hover .tooltip,.localization-chart .bar:focus .tooltip{opacity:1}.localization-chart .bar:focus{outline:none}.localization-chart .bar:hover path,.localization-chart .bar:focus path{filter:brightness(1.12)}
-@media print,(forced-colors:active){.localization-chart .semble{fill:url(#texture-45)}.localization-chart .bm25{fill:url(#texture-135)}.localization-chart .repomap{fill:var(--ink)}.localization-chart .tooltip{opacity:1}}
-</style>
+
 <defs><pattern id="texture-45" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern><pattern id="texture-135" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern></defs>
 <rect width="720" height="548" rx="16" fill="var(--surface)"/>
 <text x="40" y="46" font-size="27" font-weight="600">Find the files behind an issue</text>

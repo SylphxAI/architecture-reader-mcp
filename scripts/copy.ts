@@ -5,7 +5,7 @@
 //  - `repomap tools` -> the README tool table (REPOMAP_BIN or target/release/repomap)
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { readHeroData, heroSvg, heroCopy } from "./hero";
+import { readHeroData, heroSvg, heroCopy, heroCss } from "./hero";
 
 const mode = process.argv.includes("--write") ? "write" : "check";
 const github = process.argv.includes("--github");
@@ -38,6 +38,7 @@ sync("docs/index.md", (s) => s.replace(/^  tagline: .*$/m, `  tagline: ${JSON.st
 
 const hero = readHeroData();
 sync("docs/public/img/localization.svg", () => heroSvg(hero));
+sync("docs/.vitepress/theme/localization.css", () => heroCss);
 for (const path of ["README.md", "docs/index.md"]) {
   sync(path, between("<!-- localization-hero:start -->\n", "\n<!-- localization-hero:end -->", heroCopy(hero, path.startsWith("docs/"))));
 }

@@ -63,7 +63,15 @@ export function readHeroData(root = "."): HeroData {
 
 const pct = (value: number) => `${value.toFixed(1)}%`;
 
-export function heroSvg(data: HeroData): string {
+// One CSS source for the self-contained SVG and the imported VitePress theme.
+const darkChartTokens = "--surface:#1a1a19;--ink:#ffffff;--secondary:#c3c2b7;--grid:#333330;--repomap:#3987e5;--semble:#d95926;--bm25:#199e70";
+export const heroCss = `.localization-chart{--surface:#fcfcfb;--ink:#0b0b0b;--secondary:#52514e;--grid:#e8e8e4;--repomap:#2a78d6;--semble:#eb6834;--bm25:#1baf7a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;font-size:19px}
+@media(prefers-color-scheme:dark){:root.localization-chart{${darkChartTokens}}}
+.dark .localization-chart{${darkChartTokens}}
+.localization-chart text{fill:var(--ink)}.localization-chart .secondary{fill:var(--secondary)}.localization-chart .grid{stroke:var(--grid);stroke-width:1;fill:none}.localization-chart .repomap{fill:var(--repomap)}.localization-chart .semble{fill:var(--semble)}.localization-chart .bm25{fill:var(--bm25)}.localization-chart .group,.localization-chart .value{font-weight:600}.localization-chart .tick{font-size:17px}.localization-chart .tooltip{opacity:0}.localization-chart .bar:hover .tooltip,.localization-chart .bar:focus .tooltip{opacity:1}.localization-chart .bar:focus{outline:none}.localization-chart .bar:hover path,.localization-chart .bar:focus path{filter:brightness(1.12)}
+@media print,(forced-colors:active){.localization-chart .semble{fill:url(#texture-45)}.localization-chart .bm25{fill:url(#texture-135)}.localization-chart .repomap{fill:var(--ink)}.localization-chart .tooltip{opacity:1}}\n`;
+
+export function heroSvg(data: HeroData, inlineStyles = true): string {
   const grid = [0, 25, 50, 75, 100].map(value => {
     const x = 168 + value * 4.6;
     return `<path class="grid" d="M${x} 124V454"/><text class="secondary tick" x="${x}" y="482" text-anchor="middle">${value}</text>`;
@@ -88,12 +96,7 @@ export function heroSvg(data: HeroData): string {
   return `<svg class="localization-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 548" role="img" aria-labelledby="localization-title localization-desc" style="width:100%;max-width:720px;height:auto">
 <title id="localization-title">SWE-bench Verified file localization</title>
 <desc id="localization-desc">${data.count} issues, one issue-text search each. Acc@k counts issues where every gold fix file is among the top k files. ${methods.map(method => `${labels[method]}: ${ks.map(k => `Acc@${k} ${pct(data.scores[method][`acc@${k}`])}`).join(", ")}`).join(". ")}. Higher is better. This measures file retrieval, not issue resolution.</desc>
-<style>
-.localization-chart{--surface:#fcfcfb;--ink:#0b0b0b;--secondary:#52514e;--grid:#e8e8e4;--repomap:#2a78d6;--semble:#eb6834;--bm25:#1baf7a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;font-size:19px}
-@media(prefers-color-scheme:dark){.localization-chart{--surface:#1a1a19;--ink:#ffffff;--secondary:#c3c2b7;--grid:#333330;--repomap:#3987e5;--semble:#d95926;--bm25:#199e70}}
-.localization-chart text{fill:var(--ink)}.localization-chart .secondary{fill:var(--secondary)}.localization-chart .grid{stroke:var(--grid);stroke-width:1;fill:none}.localization-chart .repomap{fill:var(--repomap)}.localization-chart .semble{fill:var(--semble)}.localization-chart .bm25{fill:var(--bm25)}.localization-chart .group,.localization-chart .value{font-weight:600}.localization-chart .tick{font-size:17px}.localization-chart .tooltip{opacity:0}.localization-chart .bar:hover .tooltip,.localization-chart .bar:focus .tooltip{opacity:1}.localization-chart .bar:focus{outline:none}.localization-chart .bar:hover path,.localization-chart .bar:focus path{filter:brightness(1.12)}
-@media print,(forced-colors:active){.localization-chart .semble{fill:url(#texture-45)}.localization-chart .bm25{fill:url(#texture-135)}.localization-chart .repomap{fill:var(--ink)}.localization-chart .tooltip{opacity:1}}
-</style>
+${inlineStyles ? `<style>\n${heroCss}</style>` : ""}
 <defs><pattern id="texture-45" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern><pattern id="texture-135" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern></defs>
 <rect width="720" height="548" rx="16" fill="var(--surface)"/>
 <text x="40" y="46" font-size="27" font-weight="600">Find the files behind an issue</text>
@@ -106,7 +109,7 @@ ${legend}\n${grid}\n${groups}
 export function heroCopy(data: HeroData, docs = false): string {
   const benchmarks = "https://sylphxai.github.io/repomap/benchmarks";
   const table = methods.map(method => `<tr><th scope="row">${labels[method]}</th>${ks.map(k => `<td>${pct(data.scores[method][`acc@${k}`])}</td>`).join("")}</tr>`).join("\n");
-  const image = docs ? heroSvg(data) : `<img src="docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for ${pct(data.scores.repomap["acc@10"])} of ${data.count} issues; semble ${pct(data.scores.semble["acc@10"])}, BM25 ${pct(data.scores.bm25["acc@10"])}. Full Acc@1, 5 and 10 values follow in the table.">`;
+  const image = docs ? heroSvg(data, false) : `<img src="docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for ${pct(data.scores.repomap["acc@10"])} of ${data.count} issues; semble ${pct(data.scores.semble["acc@10"])}, BM25 ${pct(data.scores.bm25["acc@10"])}. Full Acc@1, 5 and 10 values follow in the table.">`;
   return `<p>One issue-text search finds every fix file in the top 10 for <strong>${pct(data.scores.repomap["acc@10"])} of SWE-bench Verified issues</strong> (semble: ${pct(data.scores.semble["acc@10"])}). File retrieval, not issue resolution.</p>
 ${image}
 <details><summary>Chart values and evaluation protocol</summary>
