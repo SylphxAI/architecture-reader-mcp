@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a concrete improvement to repomap.
+labels:
+- enhancement
+- owner:sylphx-oss
+body:
+- type: markdown
+  attributes:
+    value: 'Search existing issues first. Use [Discussions](https://github.com/SylphxAI/repomap/discussions)
+      for questions. Reports are public: use synthetic/public examples and redact secrets, personal data
+      and private source material. Report vulnerabilities through the [security policy](https://github.com/SylphxAI/repomap/security/policy),
+      not a public issue.'
+- type: textarea
+  id: environment
+  attributes:
+    label: Version and environment
+    description: Include `repomap version`, installation method (npm, native binary, Cargo or Docker),
+      OS/architecture, and Node or MCP client/browser version if relevant.
+  validations:
+    required: true
+- type: textarea
+  id: workflow
+  attributes:
+    label: Use case and current limitation
+    description: Describe the code-navigation, search, graph or read-only schema workflow and which of
+      map/search/context/trace/impact/db it would improve.
+  validations:
+    required: true
+- type: textarea
+  id: example
+  attributes:
+    label: Example and configuration
+    description: CLI command or MCP tool name and JSON arguments; root selection, language, ignore rules,
+      embedding/cache mode, or UI/browser details. For database reports, name the engine and schema source,
+      never the connection string. Give a small synthetic input/query and the desired output; do not share
+      private content.
+  validations:
+    required: true
+- type: textarea
+  id: acceptance
+  attributes:
+    label: Acceptance criteria and alternatives
+    description: What observable result would make this useful? Explain the current workaround or alternatives
+      and why they fall short.
+  validations:
+    required: true
