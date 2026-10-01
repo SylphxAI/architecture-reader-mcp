@@ -14,7 +14,7 @@ npm packages are thin aliases.
   which is committed so cargo builds need no JS toolchain
 - `packages/`: npm launcher, native binaries, aliases
 - `docs/`: VitePress site; `bench/` and `scripts/`: benchmarks and tooling
-- `brand/`: the brand home; `brand/README.md` explains `python3 brand/build.py`
+- `brand/`: the brand home; `brand/README.md` explains the pinned shared generator ([usage](brand/README.md))
 
 ## Rules and their reasons
 

@@ -1,13 +1,36 @@
 # repomap brand
 
+## Shared generator
+
+CI uses the shared brand action pinned to `a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb`.
+The masters, tokens, pixel grids and provenance remain in this repository;
+existing assets are unchanged by moving the generator. To regenerate locally,
+prepare the script from the same pin (run from the repository root):
+
+```sh
+BRAND_SCRIPT="$(mktemp)"
+curl --fail --location --output "$BRAND_SCRIPT" \
+  "https://raw.githubusercontent.com/SylphxAI/.github/a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb/.github/actions/brand/build.py"
+python3 -m pip install pillow numpy resvg-py
+python3 "$BRAND_SCRIPT" --brand-dir "$PWD/brand" --root "$PWD"
+python3 "$BRAND_SCRIPT" --brand-dir "$PWD/brand" --root "$PWD" --check
+rm "$BRAND_SCRIPT"
+```
+
+Add `--resnap` only when intentionally redrawing the small favicon grids.
+Check mode needs only Python 3 and does not regenerate files. The commands below
+assume `BRAND_SCRIPT` points to this pinned script. Generated-file comments that
+name `brand/build.py` describe the historical generator; they are preserved to
+keep the asset bytes and hashes unchanged.
+
 This folder is the source of truth for the repomap mark, its icons, its colours and its
 type. Every surface copies from here; nothing redraws the mark. Rebuild every derived
 file with:
 
 ```bash
-python3 brand/build.py            # needs pillow, numpy and resvg-py
-python3 brand/build.py --resnap   # also redraw the 16 and 32 px grids
-python3 brand/build.py --check    # verify the hashes and the surface copies (CI runs this)
+python3 "$BRAND_SCRIPT" --brand-dir "$PWD/brand" --root "$PWD"            # needs pillow, numpy and resvg-py
+python3 "$BRAND_SCRIPT" --brand-dir "$PWD/brand" --root "$PWD" --resnap   # also redraw the 16 and 32 px grids
+python3 "$BRAND_SCRIPT" --brand-dir "$PWD/brand" --root "$PWD" --check    # verify the hashes and the surface copies (CI runs this)
 ```
 
 ## Name
@@ -41,7 +64,7 @@ never part of the brand.
 | Colours and type as data | `tokens.json` |
 | Colours and type as CSS | `tokens.css` |
 | Where every file came from | `provenance.json` |
-| The construction spec and the generator | `brand.json`, `build.py` |
+| The construction spec and the generator | `brand.json`, [shared generator](https://github.com/SylphxAI/.github/tree/a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb/.github/actions/brand) |
 
 `brand.json` at the repository root is a different file: it holds the public-copy
 oneliner that `scripts/copy.ts` syncs into the README, the docs tagline, `package.json`
@@ -92,7 +115,7 @@ empty when fewer than half of its samples are filled (`snap_threshold` 0.5).
 - The grids are `favicon/grid-16.txt` and `favicon/grid-32.txt`. Each row is one pixel
   row and each letter indexes the palette in the file's header, so a person can edit a
   pixel by hand.
-- Hand edits are kept: `build.py` draws the PNGs, the ICO and `favicon.svg` from the grid
+- Hand edits are kept: [shared generator](https://github.com/SylphxAI/.github/tree/a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb/.github/actions/brand) draws the PNGs, the ICO and `favicon.svg` from the grid
   until `--resnap` redraws it from the master.
 - `favicon.svg` is the 32 px grid drawn as pixel rectangles. `favicon.ico` holds the 16
   and 32 px grids and a 48 px render of the vector. From 48 px up, every file is the

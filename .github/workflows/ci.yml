@@ -101,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bun scripts/copy.ts --check --github
       - name: Brand files match their masters and the surface copies
-        run: python3 brand/build.py --check
+        uses: SylphxAI/.github/.github/actions/brand@a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb # shared brand generator
       - name: Smoke (CLI, export, MCP over stdio, hook, npm launcher)
         run: |
           set -euo pipefail
