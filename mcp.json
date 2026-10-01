@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "repomap": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sylphx/repomap",
+        "mcp"
+      ]
+    }
+  }
+}

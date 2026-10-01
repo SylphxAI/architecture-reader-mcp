@@ -2,6 +2,7 @@
 //  - brand.json "oneliner" -> README lead, docs hero tagline, package.json, server.json
 //    (and, with --github, the GitHub repository description)
 //  - `repomap tools` -> the README tool table (REPOMAP_BIN or target/release/repomap)
+import "./editor-install.ts";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
