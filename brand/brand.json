@@ -12,6 +12,7 @@
     "docs/public/logo.svg": "svg/repomap-symbol-on-dark.svg",
     "docs/public/icon.png": "app-icon/icon-512.png",
     "docs/public/favicon.ico": "favicon/favicon.ico",
-    "docs/public/favicon.svg": "favicon/favicon.svg"
+    "docs/public/favicon.svg": "favicon/favicon.svg",
+    "docs/public/og.png": "og/repomap-og.png"
   }
 }
