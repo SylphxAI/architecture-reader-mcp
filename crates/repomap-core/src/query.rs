@@ -95,7 +95,7 @@ impl Index {
                 .collect();
         }
         if cands.is_empty() {
-            return Err(format!("no file or symbol matches `{q}`. Try `search` first."));
+            return Err(format!("no file or symbol matches `{q}`. Try `search` first.{}", self.not_analysed_note()));
         }
         cands.sort_by(|a, b| {
             let fa = self.files[self.symbols[*a as usize].file as usize].is_test;
@@ -1284,6 +1284,32 @@ pub struct ImpactResult {
     pub modules: Vec<String>,
     pub tests: Vec<String>,
     pub importers: Vec<String>,
+    /// Fixture files left out of the index, and the trees they sit in.
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
+}
+
+impl Index {
+    pub fn deferred_files(&self) -> usize {
+        self.deferred.iter().map(|d| d.files).sum()
+    }
+
+    pub fn deferred_dirs(&self) -> Vec<String> {
+        self.deferred.iter().map(|d| d.dir.clone()).collect()
+    }
+
+    /// A trailing note when fixture trees were left out of this index.
+    pub fn not_analysed_note(&self) -> String {
+        if self.deferred.is_empty() {
+            return String::new();
+        }
+        format!(
+            "
+Not analysed: {} fixture files in {} (target the dir or pass --include-fixtures).",
+            self.deferred_files(),
+            self.deferred_dirs().join(", ")
+        )
+    }
 }
 
 pub struct ImpactOptions {
@@ -1462,6 +1488,11 @@ impl Index {
             plural(modules.len(), "module"),
             plural(importers.len(), "file"),
             match tests.len() {
+                0 if !self.deferred.is_empty() => format!(
+                    "no indexed tests reach this; {} fixture files in {} were not analysed (callers there are not shown; target the dir or pass --include-fixtures)",
+                    self.deferred_files(),
+                    self.deferred_dirs().join(", ")
+                ),
                 0 => "no tests reach this".to_string(),
                 n => format!("{} to run", plural(n, "test file")),
             }
@@ -1479,6 +1510,8 @@ impl Index {
             modules,
             tests,
             importers,
+            deferred_files: self.deferred_files(),
+            deferred_dirs: self.deferred_dirs(),
         }
     }
 }
@@ -1489,6 +1522,9 @@ impl ImpactResult {
         let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
         let _ = writeln!(o, "Changing: {}", self.targets.join("; "));
         let _ = writeln!(o, "{}", self.summary);
+        if self.deferred_files > 0 {
+            let _ = writeln!(o, "\n## Not analysed\n{} fixture files in {} (callers there are not shown; target the dir or pass --include-fixtures); the risk above excludes them.", self.deferred_files, self.deferred_dirs.join(", "));
+        }
         let titles = ["Direct callers (will break if the contract changes)", "Indirect (depth 2)", "Indirect (depth 3)", "Depth 4", "Depth 5", "Depth 6"];
         for (i, level) in self.by_depth.iter().enumerate() {
             let _ = writeln!(o, "\n## {}", titles[i.min(5)]);

@@ -857,4 +857,16 @@ mod fixture_tests {
         assert!(idx.deferred.is_empty());
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn impact_names_deferred_trees() {
+        let root = repo();
+        write(&root, "src/lib2.ts");
+        let idx = build(&root, false, &[]);
+        let r = idx.impact(&["src/lib2.ts".to_string()], &crate::query::ImpactOptions::default()).unwrap();
+        assert!(r.summary.contains("not analysed"), "{}", r.summary);
+        assert!(r.text().contains("## Not analysed"));
+        assert_eq!(r.deferred_files, 12);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
