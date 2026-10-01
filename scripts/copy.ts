@@ -10,7 +10,7 @@ import { readHeroData, heroSvg, heroCopy, heroCss } from "./hero";
 
 const mode = process.argv.includes("--write") ? "write" : "check";
 const github = process.argv.includes("--github");
-const { oneliner } = JSON.parse(readFileSync("brand.json", "utf8"));
+const { oneliner, cargoInstall } = JSON.parse(readFileSync("brand.json", "utf8"));
 if (oneliner.length > 100) throw new Error(`oneliner is ${oneliner.length} chars; the MCP Registry allows 100`);
 const problems: string[] = [];
 
@@ -36,6 +36,10 @@ sync("packages/repomap/package.json", json("description"));
 sync("server.json", json("description"));
 sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `**${oneliner}**`));
 sync("docs/index.md", (s) => s.replace(/^  tagline: .*$/m, `  tagline: ${JSON.stringify(oneliner)}`));
+
+for (const path of ["README.md", "docs/guide/quickstart.md"]) {
+  sync(path, (s) => s.replace(/`cargo install[^`]+`/g, `\`${cargoInstall}\``));
+}
 
 const hero = readHeroData();
 sync("docs/public/img/localization.svg", () => heroSvg(hero));

@@ -32,11 +32,10 @@ already published it.
 
 Required owner chores:
 
-- Confirm authorized control of crates.io packages `repomap-core` and `repomap`.
-  Both already exist at version `0.1.0`; the public owner logins observed were
-  `zeon256` and `syf20020816`, respectively. Public ownership listings do not
-  establish company control. Resolve this before granting publication; do not
-  assume a name is available or rename it silently.
+- Confirm availability and register the company packages `sylphx-repomap-core`
+  and `sylphx-repomap`. The unprefixed packages belong to unrelated users and
+  must not be published by this workflow. Both prefixed sparse-index paths
+  returned HTTP 404 when checked; this does not reserve either name.
 - Register a GitHub Actions trusted publisher for each package with GitHub
   owner `SylphxAI`, repository `repomap`, workflow filename `release.yml`, and
   environment `crates-io`. These are the required configuration values, not a
@@ -47,11 +46,14 @@ Required owner chores:
 
 The publish job requests a short-lived token using the official crates.io
 OIDC action. Its post hook revokes the token. The script publishes
-`repomap-core` before `repomap`, waits for each exact version to appear in the
+`sylphx-repomap-core` before `sylphx-repomap`, waits for each exact version to appear in the
 sparse index, and skips an already-published exact version on a later dispatch.
 A yanked exact version or registry error fails rather than being treated as
 missing. If a publish is interrupted, dispatch the existing workflow again;
 it resumes with the missing packages and never overwrites a published version.
 
-The default CLI model/cache behavior and installation copy are independent of
-this workflow and are not changed by registry packaging.
+Install the company crate with `cargo install sylphx-repomap`. The executable
+remains `repomap`, and the core Rust library remains `repomap_core` through its
+explicit library target and dependency alias. Git source installs can use
+`cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
+The existing npm and native installations are unchanged.

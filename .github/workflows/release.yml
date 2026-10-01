@@ -79,6 +79,7 @@ jobs:
       packages: write
     with:
       name: repomap
+      cargo-package: sylphx-repomap
       npm-package: '@sylphx/repomap'
       mcp-name: io.github.SylphxAI/repomap
       alias-dirs: packages/aliases/spine packages/aliases/locus packages/aliases/coderag

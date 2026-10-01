@@ -44,6 +44,16 @@ def publish_order(metadata):
     return ordered
 
 
+def validate_packages(packages):
+    expected = {"sylphx-repomap-core": ("repomap_core", "lib"), "sylphx-repomap": ("repomap", "bin")}
+    if {p["name"] for p in packages} != set(expected):
+        raise ValueError("release must contain only the two company-prefixed crates")
+    for package in packages:
+        name, kind = expected[package["name"]]
+        if not any(t["name"] == name and kind in t["kind"] for t in package["targets"]):
+            raise ValueError(f"{package['name']} must preserve its {name} {kind} target")
+
+
 def registry_constraints(text, package, packages):
     """Use Cargo metadata, not another version table, for internal edges."""
     for dep in package["dependencies"]:
@@ -116,6 +126,7 @@ def main():
     args = parser.parse_args()
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
     packages = publish_order(metadata)
+    validate_packages(packages)
     if not packages:
         raise ValueError("no publishable workspace crates")
     if args.mode == "list":

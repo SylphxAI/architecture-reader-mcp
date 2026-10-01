@@ -10,19 +10,31 @@ import release_crates as release
 
 
 def metadata(root):
-    core = {"id": "core", "name": "repomap-core", "version": "1.5.0", "publish": None,
+    core = {"id": "core", "name": "sylphx-repomap-core", "version": "1.5.0", "publish": None,
             "manifest_path": str(root / "crates/repomap-core/Cargo.toml"), "dependencies": []}
-    binary = {"id": "binary", "name": "repomap", "version": "1.5.0", "publish": None,
+    binary = {"id": "binary", "name": "sylphx-repomap", "version": "1.5.0", "publish": None,
               "manifest_path": str(root / "crates/repomap/Cargo.toml"),
-              "dependencies": [{"name": "repomap-core", "path": str(root / "crates/repomap-core"), "kind": None}]}
+              "dependencies": [{"name": "sylphx-repomap-core", "path": str(root / "crates/repomap-core"), "kind": None, "rename": "repomap-core"}]}
     return {"workspace_members": ["binary", "core"], "packages": [binary, core]}
 
 
 class ReleaseCratesTests(unittest.TestCase):
+    def test_only_company_crates_with_compatible_targets(self):
+        packages = metadata(release.ROOT)["packages"]
+        packages[0]["targets"] = [{"name": "repomap", "kind": ["bin"]}]
+        packages[1]["targets"] = [{"name": "repomap_core", "kind": ["lib"]}]
+        release.validate_packages(packages)
+        packages[0]["targets"][0]["name"] = "sylphx-repomap"
+        with self.assertRaisesRegex(ValueError, "preserve"):
+            release.validate_packages(packages)
+        packages[0]["name"] = "repomap"
+        with self.assertRaisesRegex(ValueError, "company-prefixed"):
+            release.validate_packages(packages)
+
     def test_dependency_order_and_cycle(self):
         data = metadata(release.ROOT)
-        self.assertEqual([p["name"] for p in release.publish_order(data)], ["repomap-core", "repomap"])
-        data["packages"][1]["dependencies"] = [{"name": "repomap", "path": "binary", "kind": None}]
+        self.assertEqual([p["name"] for p in release.publish_order(data)], ["sylphx-repomap-core", "sylphx-repomap"])
+        data["packages"][1]["dependencies"] = [{"name": "sylphx-repomap", "path": "binary", "kind": None}]
         with self.assertRaisesRegex(ValueError, "cycle"):
             release.publish_order(data)
 
@@ -34,7 +46,7 @@ class ReleaseCratesTests(unittest.TestCase):
             stage = Path(directory) / "stage"
             data = metadata(root)
             files = {"Cargo.toml": "[workspace]\n", "Cargo.lock": "version = 4\n", "LICENSE": "MIT\n",
-                     "crates/repomap-core/Cargo.toml": '[package]\nname = "repomap-core"\n',
+                     "crates/repomap-core/Cargo.toml": '[package]\nname = "sylphx-repomap-core"\n',
                      "crates/repomap/Cargo.toml": '[dependencies]\nrepomap-core = { path = "../repomap-core" }\n',
                      "crates/repomap/assets/app.js": "asset", "docs/unused.md": "not packaged"}
             for name, text in files.items():
