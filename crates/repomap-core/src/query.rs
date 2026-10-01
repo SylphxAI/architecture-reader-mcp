@@ -163,6 +163,24 @@ pub struct MapResult {
     pub outline: Vec<Outline>,
     /// Tests, examples, docs and benchmarks, grouped by role (not modules).
     pub aux: Vec<(String, usize)>,
+    /// Fixture trees left out of the index until a query targets them.
+    pub deferred: Vec<crate::index::DeferredDir>,
+}
+
+/// One line saying which fixture trees were deferred and how to include them.
+pub fn deferred_note(deferred: &[crate::index::DeferredDir]) -> Option<String> {
+    if deferred.is_empty() {
+        return None;
+    }
+    let total: usize = deferred.iter().map(|d| d.files).sum();
+    let mut dirs: Vec<&crate::index::DeferredDir> = deferred.iter().collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.files));
+    let shown: Vec<String> = dirs.iter().take(5).map(|d| format!("{} ({})", d.dir, d.files)).collect();
+    let more = if dirs.len() > 5 { format!(", +{} more", dirs.len() - 5) } else { String::new() };
+    Some(format!(
+        "{total} fixture files deferred, not indexed: {}{more}. Target one of these paths (context, impact, map --focus, search --path) to index it on demand, or pass --include-fixtures (REPOMAP_INCLUDE_FIXTURES=1) for all.",
+        shown.join(", ")
+    ))
 }
 
 #[derive(Debug, Serialize)]
@@ -337,6 +355,7 @@ impl Index {
             focus,
             outline,
             aux,
+            deferred: self.deferred.clone(),
         }
     }
 }
@@ -376,6 +395,9 @@ impl MapResult {
         if !self.aux.is_empty() {
             let parts: Vec<String> = self.aux.iter().map(|(n, c)| format!("{n} ({c} files)")).collect();
             let _ = writeln!(o, "Also: {}", parts.join(", "));
+        }
+        if let Some(note) = deferred_note(&self.deferred) {
+            let _ = writeln!(o, "{note}");
         }
         let _ = writeln!(o, "\n## Most central files");
         for f in &self.key_files {

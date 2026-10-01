@@ -175,7 +175,12 @@ pub struct Output {
 /// Run a tool. `root` must already be resolved.
 pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
     let tool = canonical(name).ok_or_else(|| format!("unknown tool `{name}`"))?;
-    let index = ws.get(root).map_err(|e| format!("indexing {} failed: {e}", root.display()))?;
+    // A query that names a path inside a deferred fixture tree indexes it.
+    let targets: Vec<String> = ["target", "targets", "symbol", "paths", "changed_paths", "files", "focus", "path", "scope", "from", "to", "file", "source", "start", "end"]
+        .iter()
+        .flat_map(|k| strings(args, &[k]))
+        .collect();
+    let index = ws.get_with(root, &targets).map_err(|e| format!("indexing {} failed: {e}", root.display()))?;
     let index = &*index;
     macro_rules! out {
         ($r:expr) => {{

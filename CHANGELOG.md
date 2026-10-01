@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Huge fixture trees are deferred by default.** A directory named `testdata`, `fixtures`, `__fixtures__` or `__snapshots__`, or the first directory below a `test`/`tests`/`spec`/`e2e` folder (for example `tests/cases`), with 1,000 or more files is no longer indexed up front. Unit tests next to code (`*_test.go`, `*.test.ts`, `tests/*.rs`) and small fixture folders stay indexed. A `context`, `impact`, `trace`, `map --focus` or `search --path` that names a file or directory inside a deferred tree indexes it on demand; `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) indexes them all. `repomap index` and `map` say how many fixture files were deferred and where. On the TypeScript compiler repository (37,296 of 38,110 code files under `tests/`) cold index goes from 12.9 s and 607 MB to 1.3 s and 158 MB.
+
 ## 1.5.0
 
 - **Issue-to-code search.** Long reports now contribute their title, backtick code, identifiers, stack-trace frames and named paths to ranking. Chunk BM25 and local embeddings fuse with exact symbol candidates and file-level BM25; decayed per-file aggregation spreads results across files. Lexical queries retain their path/kind filters and keywords-only mode. Defaults were frozen on a disjoint 300-instance tuning split (`wh=1,wc=1,wf=2,qcap=48`) before one full SWE-bench Verified evaluation. Acc@1/5/10 rises from 23.6/51.8/62.2 to **48.8/74.8/83.0**, ahead of semble's 34.0/61.6/71.0, with median query time 59.8 → 54.4 ms. Public search NDCG@10 trades 0.851 → 0.845 (semble still wins at 0.851); the large-repository set improves 0.794 → 0.846. [Benchmarks](docs/benchmarks.md) record both localization splits, the search trade-off and timings.

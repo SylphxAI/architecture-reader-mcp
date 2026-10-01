@@ -185,6 +185,8 @@ pub struct Index {
     pub fingerprint: u64,
     /// The embedding model the index was built with ("" for none).
     pub model_id: &'static str,
+    /// Fixture trees left out of the index (see `fixture_trees`).
+    pub deferred: Vec<DeferredDir>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -250,12 +252,119 @@ pub fn is_test_path(path: &str) -> bool {
 
 pub struct BuildOptions {
     pub use_cache: bool,
+    /// Index fixture trees too (`--include-fixtures`, or `REPOMAP_INCLUDE_FIXTURES=1`).
+    pub include_fixtures: bool,
+    /// Path prefixes to index even when they sit in a deferred fixture tree
+    /// (set when a query or path targets one).
+    pub include: Vec<String>,
+    /// Files a fixture tree needs before it is deferred.
+    pub fixture_threshold: usize,
 }
 
 impl Default for BuildOptions {
     fn default() -> Self {
-        Self { use_cache: true }
+        Self {
+            use_cache: true,
+            include_fixtures: std::env::var("REPOMAP_INCLUDE_FIXTURES").is_ok_and(|v| !matches!(v.as_str(), "" | "0" | "false")),
+            include: Vec::new(),
+            fixture_threshold: FIXTURE_DEFER_MIN,
+        }
     }
+}
+
+/// A fixture tree left out of the index, and how many files it holds.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeferredDir {
+    pub dir: String,
+    pub files: usize,
+}
+
+/// A fixture-like tree with at least this many files is deferred.
+pub const FIXTURE_DEFER_MIN: usize = 1000;
+
+fn is_test_segment(s: &str) -> bool {
+    matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "e2e")
+}
+
+fn is_fixture_segment(s: &str) -> bool {
+    matches!(s, "testdata" | "fixtures" | "__fixtures__" | "__snapshots__")
+}
+
+/// Fixture-like trees among `paths` with at least `min` files: a directory
+/// named like test data (`testdata`, `fixtures`, `__fixtures__`,
+/// `__snapshots__`), or the shallowest directory strictly below a test
+/// directory (`tests/cases`). The result maps each tree to its file count;
+/// trees never nest. Unit tests beside code, and flat `tests/` folders, stay.
+pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Vec<DeferredDir> {
+    let paths: Vec<&str> = paths.collect();
+    let qualifying = |segs: &[&str], depth: usize| -> bool {
+        // `depth` directories: segs[..depth]; the last one is the candidate.
+        is_fixture_segment(segs[depth - 1]) || segs[..depth - 1].iter().any(|s| is_test_segment(s))
+    };
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for p in &paths {
+        let segs: Vec<&str> = p.split('/').collect();
+        if segs.len() < 2 || !segs[..segs.len() - 1].iter().any(|s| is_test_segment(s) || is_fixture_segment(s)) {
+            continue;
+        }
+        let mut end = 0;
+        for d in 1..segs.len() {
+            end += segs[d - 1].len() + usize::from(d > 1);
+            if qualifying(&segs, d) {
+                *counts.entry(&p[..end]).or_default() += 1;
+            }
+        }
+    }
+    let mut trees: HashMap<&str, usize> = HashMap::new();
+    for p in &paths {
+        let segs: Vec<&str> = p.split('/').collect();
+        let mut end = 0;
+        for d in 1..segs.len() {
+            end += segs[d - 1].len() + usize::from(d > 1);
+            if qualifying(&segs, d) {
+                let dir = &p[..end];
+                if counts.get(dir).copied().unwrap_or(0) >= min {
+                    *trees.entry(dir).or_default() += 1;
+                    break;
+                }
+            }
+        }
+    }
+    let mut v: Vec<DeferredDir> = trees.into_iter().map(|(dir, files)| DeferredDir { dir: dir.to_string(), files }).collect();
+    v.sort_by(|a, b| a.dir.cmp(&b.dir));
+    v
+}
+
+fn under(path: &str, dir: &str) -> bool {
+    path.len() > dir.len() && path.starts_with(dir) && path.as_bytes()[dir.len()] == b'/'
+}
+
+fn included(path: &str, include: &[String]) -> bool {
+    include.iter().any(|i| {
+        let i = i.trim_matches('/');
+        !i.is_empty() && (path == i || under(path, i))
+    })
+}
+
+/// Split `candidates` into those to index and the fixture trees left out.
+fn defer_fixtures(candidates: Vec<Candidate>, opts: &BuildOptions) -> (Vec<Candidate>, Vec<DeferredDir>) {
+    if opts.include_fixtures {
+        return (candidates, Vec::new());
+    }
+    let trees = fixture_trees(candidates.iter().map(|c| c.path.as_str()), opts.fixture_threshold);
+    if trees.is_empty() {
+        return (candidates, trees);
+    }
+    let mut left: Vec<DeferredDir> = trees.iter().map(|t| DeferredDir { dir: t.dir.clone(), files: 0 }).collect();
+    let mut kept = Vec::with_capacity(candidates.len());
+    for c in candidates {
+        match trees.iter().position(|t| under(&c.path, &t.dir)) {
+            Some(i) if !included(&c.path, &opts.include) => left[i].files += 1,
+            _ => kept.push(c),
+        }
+    }
+    left.retain(|d| d.files > 0);
+    (kept, left)
 }
 
 struct Candidate {
@@ -340,9 +449,9 @@ fn fingerprint_of(c: &[Candidate]) -> u64 {
 }
 
 /// Cheap change detection: walk and stat without parsing.
-pub fn fingerprint(root: &Path) -> Result<u64> {
+pub fn fingerprint(root: &Path, opts: &BuildOptions) -> Result<u64> {
     let root = root.canonicalize()?;
-    Ok(fingerprint_of(&walk(&root)?))
+    Ok(fingerprint_of(&defer_fixtures(walk(&root)?, opts).0))
 }
 
 fn looks_generated(src: &str) -> bool {
@@ -364,7 +473,7 @@ impl Index {
         let loading = std::thread::spawn(|| {
             crate::semantic::model();
         });
-        let candidates = walk(&root)?;
+        let (candidates, deferred) = defer_fixtures(walk(&root)?, opts);
         let _ = loading.join();
         // Fixed for this build, even if a background download finishes meanwhile.
         let model_id = crate::semantic::model_id();
@@ -450,6 +559,7 @@ impl Index {
         index.stats = stats;
         index.git = git_info(&root);
         index.fingerprint = fp;
+        index.deferred = deferred;
         Ok(index)
     }
 
@@ -558,6 +668,7 @@ fn assemble(root: PathBuf, kept: &[(&Candidate, CacheEntry)]) -> Index {
         git: GitInfo::default(),
         fingerprint: 0,
         model_id: "",
+        deferred: Vec::new(),
     };
     let facts: Vec<&FileFacts> = kept.iter().map(|(_, e)| &e.facts).collect();
     graph::link(&mut index, &facts);
@@ -624,5 +735,98 @@ mod tests {
     fn remotes() {
         assert_eq!(remote_to_web("git@github.com:a/b.git").as_deref(), Some("https://github.com/a/b"));
         assert_eq!(remote_to_web("https://x:y@github.com/a/b.git").as_deref(), Some("https://github.com/a/b"));
+    }
+}
+
+#[cfg(test)]
+mod fixture_tests {
+    use super::*;
+
+    fn trees(paths: &[String], min: usize) -> Vec<(String, usize)> {
+        fixture_trees(paths.iter().map(|s| s.as_str()), min).into_iter().map(|d| (d.dir, d.files)).collect()
+    }
+
+    fn many(prefix: &str, n: usize) -> Vec<String> {
+        (0..n).map(|i| format!("{prefix}/f{i}.ts")).collect()
+    }
+
+    #[test]
+    fn large_trees_below_tests_and_named_fixture_dirs_are_deferred() {
+        let mut p = many("tests/cases/compiler", 30);
+        p.extend(many("tests/cases/conformance/es6", 25));
+        p.extend(many("pkg/testdata", 12));
+        p.extend(many("web/__snapshots__", 4));
+        p.extend(many("src", 100));
+        p.extend(many("tests/unit", 3));
+        assert_eq!(trees(&p, 20), vec![("tests/cases".to_string(), 55)]);
+        assert_eq!(trees(&p, 10), vec![("pkg/testdata".to_string(), 12), ("tests/cases".to_string(), 55)]);
+    }
+
+    #[test]
+    fn unit_tests_next_to_code_stay_indexed() {
+        let mut p = many("src", 3000);
+        p.extend((0..3000).map(|i| format!("src/a{i}_test.go")));
+        p.extend((0..3000).map(|i| format!("tests/t{i}.rs")));
+        p.extend((0..3000).map(|i| format!("src/__tests__/t{i}.test.ts")));
+        assert!(trees(&p, 1000).is_empty());
+    }
+
+    #[test]
+    fn small_fixture_trees_stay_indexed() {
+        assert!(trees(&many("tests/fixtures", 999), 1000).is_empty());
+        assert_eq!(trees(&many("tests/fixtures", 1000), 1000), vec![("tests/fixtures".to_string(), 1000)]);
+    }
+
+    fn write(root: &Path, rel: &str) {
+        let p = root.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, "export function f() { return 1 }\n").unwrap();
+    }
+
+    fn repo() -> PathBuf {
+        let root = std::env::temp_dir().join(format!("repomap-fixtures-{}-{:?}", std::process::id(), std::thread::current().id()).replace(['(', ')'], ""));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "src/main.ts");
+        write(&root, "src/main.test.ts");
+        for i in 0..6 {
+            write(&root, &format!("tests/cases/a/c{i}.ts"));
+            write(&root, &format!("tests/cases/b/c{i}.ts"));
+        }
+        root
+    }
+
+    fn build(root: &Path, include_fixtures: bool, include: &[&str]) -> Index {
+        let opts = BuildOptions {
+            use_cache: false,
+            include_fixtures,
+            include: include.iter().map(|s| s.to_string()).collect(),
+            fixture_threshold: 10,
+        };
+        Index::build(root, &opts).unwrap()
+    }
+
+    #[test]
+    fn build_defers_then_includes_lazily_or_by_flag() {
+        let root = repo();
+        let idx = build(&root, false, &[]);
+        assert_eq!(idx.files.len(), 2);
+        assert!(idx.path_ix.contains_key("src/main.test.ts"));
+        assert_eq!(idx.deferred, vec![DeferredDir { dir: "tests/cases".into(), files: 12 }]);
+
+        // A path inside the tree brings in just that part.
+        let idx = build(&root, false, &["tests/cases/a"]);
+        assert_eq!(idx.files.len(), 8);
+        assert_eq!(idx.deferred, vec![DeferredDir { dir: "tests/cases".into(), files: 6 }]);
+        assert!(idx.path_ix.contains_key("tests/cases/a/c3.ts"));
+        assert!(!idx.path_ix.contains_key("tests/cases/b/c3.ts"));
+
+        // A file target brings in that file.
+        let idx = build(&root, false, &["tests/cases/b/c1.ts"]);
+        assert_eq!(idx.files.len(), 3);
+
+        let idx = build(&root, true, &[]);
+        assert_eq!(idx.files.len(), 14);
+        assert!(idx.deferred.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
