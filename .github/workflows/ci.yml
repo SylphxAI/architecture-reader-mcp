@@ -53,7 +53,7 @@ jobs:
       # One release build: the tests reuse its dependency artifacts and the
       # binary is shared with every later job.
       - run: cargo test --release --locked --workspace
-      - run: cargo build --release --locked -p repomap
+      - run: cargo build --release --locked -p sylphx-repomap
       - uses: actions/upload-artifact@v4
         with:
           name: repomap-linux-x64

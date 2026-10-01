@@ -1,5 +1,5 @@
 [package]
-name = "repomap"
+name = "sylphx-repomap"
 description = "A map of your codebase for AI agents: code graph, search, call paths and change impact, with an interactive graph UI."
 version.workspace = true
 edition.workspace = true
@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-repomap-core = { path = "../repomap-core" }
+repomap-core = { package = "sylphx-repomap-core", path = "../repomap-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sylphx-mcp-kit = "0.3"

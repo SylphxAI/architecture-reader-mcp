@@ -334,7 +334,7 @@ repomap index [dir] [--no-cache] [--json]
 repomap mcp [--root dir]
 ```
 
-Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap repomap`.
+Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
 
 ## Migrating from Spine, Locus or CodeRAG
 
@@ -345,7 +345,7 @@ Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship a
 ```bash
 cargo test --workspace          # engine + CLI tests
 bun install && bun run build:ui # rebuild the UI bundle (ui/ -> crates/repomap/assets/)
-cargo run -p repomap -- serve .
+cargo run -p sylphx-repomap -- serve .
 ```
 
 Issues and PRs are welcome, and new language support is especially useful: add a grammar and a query in `crates/repomap-core/src/lang.rs`.

@@ -30,7 +30,7 @@ Rust stable builds the engine and CLI. Bun 1.4.0 runs the UI and docs tooling.
 From your checkout, the relevant checks are:
 
 ```bash
-cargo test -p repomap-core
+cargo test -p sylphx-repomap-core
 cargo test --workspace
 bun install --frozen-lockfile
 bun scripts/check-version.ts

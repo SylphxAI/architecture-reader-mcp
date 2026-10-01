@@ -1,11 +1,15 @@
 [package]
-name = "repomap-core"
+name = "sylphx-repomap-core"
 description = "Indexing, code graph, BM25 search, call paths and change impact for repomap."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
+
+[lib]
+name = "repomap_core"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"

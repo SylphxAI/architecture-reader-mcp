@@ -34,7 +34,7 @@ npm packages are thin aliases.
 
 ## How a result is judged
 
-- `cargo test -p repomap-core`, then `cargo test --workspace`; CI runs the same
+- `cargo test -p sylphx-repomap-core`, then `cargo test --workspace`; CI runs the same
   plus the smoke test (CLI, export, MCP over stdio, hook, npm launcher) and
   `bun run docs:build`.
 - Benchmarks run in CI (`bench.yml`, `bench-localization.yml`), not locally;
