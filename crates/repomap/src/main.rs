@@ -3,7 +3,6 @@ mod hook;
 mod mcp;
 mod serve;
 mod setup;
-mod star_hint;
 mod tools;
 mod workspace;
 
@@ -187,7 +186,12 @@ fn run() -> Result<()> {
         other => bail!("unknown command `{other}`. Run `repomap help`."),
     };
     if result.is_ok() && counts_as_run {
-        star_hint::after_success();
+        mcp_kit::star_hint::after_success(
+            "Enjoying repomap? A GitHub star helps others find it: https://github.com/SylphxAI/repomap",
+            "REPOMAP_NO_STAR_HINT",
+            &repomap_core::index::cache_root(),
+            false,
+        );
     }
     result
 }

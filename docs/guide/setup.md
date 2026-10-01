@@ -102,7 +102,7 @@ Claude Desktop has no project directory, so ask it to pass `root`, for example: 
 
 ## Options
 
-- `REPOMAP_CACHE_DIR`: where per-file parse caches live (default: your OS cache dir, `…/repomap/<repo>-<hash>`)
+- `REPOMAP_CACHE_DIR`: the shared root for per-file parse caches (`<repo>-<hash>/`) and the one-time CLI star-hint counter (`star-hint`). The default is your OS cache dir plus `repomap`, or the temporary directory plus `repomap` if no OS cache is available. An empty override keeps caches relative to the working directory, as before.
 - `REPOMAP_LEGACY_TOOLS=1`: also list the old `architecture_*` and `codebase_search` names in `tools/list`
 - `.repomapignore`: extra ignore patterns in `.gitignore` syntax
 
