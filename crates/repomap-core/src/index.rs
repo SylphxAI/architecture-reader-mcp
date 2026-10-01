@@ -721,7 +721,7 @@ fn remote_to_web(url: &str) -> Option<String> {
     None
 }
 
-pub(crate) fn git_run(root: &Path, args: &[&str]) -> Option<String> {
+pub fn git_run(root: &Path, args: &[&str]) -> Option<String> {
     git(root, args)
 }
 
