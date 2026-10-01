@@ -435,6 +435,8 @@ pub struct SearchHit {
 
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub query: String,
     pub hits: Vec<SearchHit>,
 }
@@ -686,7 +688,7 @@ impl Index {
                 }
             })
             .collect();
-        SearchResult { query: query.to_string(), hits }
+        SearchResult { query: query.to_string(), hits, deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), }
     }
 
     /// The first line plus the lines that best match the query terms.
@@ -731,6 +733,7 @@ impl SearchResult {
         let mut o = String::new();
         if self.hits.is_empty() {
             let _ = writeln!(o, "No matches for `{}`.", self.query);
+            o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
             return o;
         }
         let _ = writeln!(o, "# Search: {}", self.query);
@@ -749,6 +752,7 @@ impl SearchResult {
                 last = *line;
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -757,6 +761,8 @@ impl SearchResult {
 
 #[derive(Debug, Serialize)]
 pub struct ContextResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub target: String,
     pub module: String,
     pub symbol: Option<SymRef>,
@@ -841,7 +847,7 @@ impl Index {
         callers.truncate(opts.limit);
         let mut callees = callees;
         callees.truncate(opts.limit);
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: self.target_label(Target::Symbol(s)),
             module: self.community_name(sym.file).to_string(),
             symbol: Some(self.sym_ref(s)),
@@ -893,7 +899,7 @@ impl Index {
         callers.dedup_by(|a, b| a.symbol.name == b.symbol.name && a.symbol.file == b.symbol.file);
         callers.truncate(opts.limit);
         let syms: Vec<u32> = self.file_symbols(f).map(|s| s as u32).collect();
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: file.path.clone(),
             module: self.community_name(f).to_string(),
             symbol: None,
@@ -1019,6 +1025,7 @@ impl ContextResult {
         paths(&mut o, "Imports", &self.imports);
         paths(&mut o, "Imported by", &self.imported_by);
         paths(&mut o, "Tests", &self.tests);
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -1036,6 +1043,8 @@ pub struct Hop {
 
 #[derive(Debug, Serialize)]
 pub struct TraceResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub from: String,
     pub to: Option<String>,
     pub found: bool,
@@ -1083,10 +1092,10 @@ impl Index {
         let sources = self.symbols_of(ft);
         let targets: HashSet<u32> = self.symbols_of(tt).into_iter().collect();
         if let Some(path) = self.bfs_sym(&sources, &targets, false) {
-            return Ok(TraceResult { from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
         }
         if let Some(path) = self.bfs_sym(&self.symbols_of(tt), &sources.iter().copied().collect(), false) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -1098,7 +1107,7 @@ impl Index {
         }
         let (a, b) = (self.file_of(ft), self.file_of(tt));
         if let Some(path) = self.bfs_file(a, b) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -1108,7 +1117,7 @@ impl Index {
                 note: Some("No call path; this is the file dependency path.".into()),
             });
         }
-        Ok(TraceResult {
+        Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: from_label,
             to: Some(to_label),
             found: false,
@@ -1229,7 +1238,7 @@ impl Index {
                 q.push_back((v, d + 1));
             }
         }
-        TraceResult {
+        TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: label,
             to: None,
             found: !tree.is_empty(),
@@ -1267,6 +1276,7 @@ impl TraceResult {
                 }
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -1549,6 +1559,13 @@ impl ImpactResult {
         }
         o
     }
+}
+
+fn deferred_tail(files: usize, dirs: &[String]) -> String {
+    if files == 0 {
+        return String::new();
+    }
+    format!("\nNot analysed: {files} fixture files in {} (target the dir or pass --include-fixtures).\n", dirs.join(", "))
 }
 
 fn plural(n: usize, word: &str) -> String {
