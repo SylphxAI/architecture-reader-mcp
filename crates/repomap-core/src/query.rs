@@ -1297,6 +1297,8 @@ pub struct ImpactResult {
     /// Fixture files left out of the index, and the trees they sit in.
     pub deferred_files: usize,
     pub deferred_dirs: Vec<String>,
+    /// Set while fixture files are deferred: the risk covers indexed code only.
+    pub risk_caveat: Option<String>,
 }
 
 impl Index {
@@ -1522,6 +1524,8 @@ impl Index {
             importers,
             deferred_files: self.deferred_files(),
             deferred_dirs: self.deferred_dirs(),
+            risk_caveat: (!self.deferred.is_empty())
+                .then(|| format!("indexed code only; {} fixture files not analysed", self.deferred_files())),
         }
     }
 }
@@ -1529,7 +1533,14 @@ impl Index {
 impl ImpactResult {
     pub fn text(&self) -> String {
         let mut o = String::new();
-        let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+        match &self.risk_caveat {
+            Some(c) => {
+                let _ = writeln!(o, "# Impact ({} risk; {c})", self.risk.to_uppercase());
+            }
+            None => {
+                let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+            }
+        }
         let _ = writeln!(o, "Changing: {}", self.targets.join("; "));
         let _ = writeln!(o, "{}", self.summary);
         if self.deferred_files > 0 {

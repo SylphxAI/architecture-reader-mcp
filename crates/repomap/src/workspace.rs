@@ -56,7 +56,8 @@ impl Workspace {
                 }
             }
         } else {
-            // First build: targets are matched after it, below.
+            // First build: find fixture targets up front so it builds once.
+            include = repomap_core::index::fixture_includes(&root, targets);
         }
         let opts = BuildOptions { include: include.clone(), ..Default::default() };
         let mut index = Arc::new(Index::build(&root, &opts)?);

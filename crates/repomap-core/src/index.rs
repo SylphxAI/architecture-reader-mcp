@@ -382,6 +382,33 @@ fn defer_fixtures(candidates: Vec<Candidate>, opts: &BuildOptions) -> (Vec<Candi
     (kept, left)
 }
 
+/// Which of `targets` fall inside (or at) a fixture tree of `root`; walks once
+/// so a first build can include them up front instead of building twice.
+pub fn fixture_includes(root: &Path, targets: &[String]) -> Vec<String> {
+    let opts = BuildOptions::default();
+    if opts.include_fixtures || targets.is_empty() {
+        return Vec::new();
+    }
+    let Ok(cands) = walk(root) else { return Vec::new() };
+    let trees = fixture_trees(cands.iter().map(|c| c.path.as_str()), opts.fixture_threshold);
+    let mut out: Vec<String> = Vec::new();
+    for t in targets {
+        let t = t.trim().trim_start_matches("./");
+        let t = match t.rsplit_once(':') {
+            Some((p, l)) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => p,
+            _ => t,
+        };
+        let t = t.trim_end_matches('/');
+        if t.is_empty() || (!t.contains('/') && !t.contains('.')) {
+            continue;
+        }
+        if trees.iter().any(|d| d.dir == t || under(t, &d.dir) || under(&d.dir, t)) && !out.iter().any(|o| o == t) {
+            out.push(t.to_string());
+        }
+    }
+    out
+}
+
 struct Candidate {
     path: String,
     abs: PathBuf,
@@ -871,6 +898,8 @@ mod fixture_tests {
         let r = idx.impact(&["src/lib2.ts".to_string()], &crate::query::ImpactOptions::default()).unwrap();
         assert!(r.summary.contains("not analysed"), "{}", r.summary);
         assert!(r.text().contains("## Not analysed"));
+        assert!(r.text().contains("LOW risk; indexed code only; 12 fixture files not analysed"), "{}", r.text());
+        assert!(r.risk_caveat.is_some());
         assert_eq!(r.deferred_files, 12);
         let _ = std::fs::remove_dir_all(&root);
     }
