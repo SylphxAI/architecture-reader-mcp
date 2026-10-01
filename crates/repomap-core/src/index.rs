@@ -136,7 +136,7 @@ pub fn role_of(path: &str, is_test: bool) -> Role {
                 "example" | "examples" | "sample" | "samples" | "demo" | "demos" | "playground" | "playgrounds" | "showcase" | "tutorial" | "tutorials" => return Role::Example,
                 "docs" | "doc" | "documentation" | "website" => return Role::Doc,
                 "bench" | "benches" | "benchmark" | "benchmarks" => return Role::Bench,
-                "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "fixtures" | "__fixtures__" | "__mocks__" | "e2e" | "testing" => return Role::Test,
+                "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "fixtures" | "__fixtures__" | "__snapshots__" | "__mocks__" | "e2e" | "testing" => return Role::Test,
                 _ => {}
             }
         }

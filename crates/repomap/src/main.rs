@@ -43,8 +43,8 @@ Commands:
 
 Common options:
   -C, --root <dir>      Repository root (default: current directory)
-  --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __snapshots__ with 1000+
-                        files), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
+  --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __fixtures__,
+                        __snapshots__ with 1000+ files, under 10% named like tests), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
                         or --path inside one indexes it on demand.
   --json                Machine-readable output
 

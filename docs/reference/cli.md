@@ -13,6 +13,9 @@ repomap impact [target…] [--changed] [--base REF] [--depth N] [--json]
 repomap db [table] [--url-env VAR|--url URL] [--serve|--out f.html] [--json]
 repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]            build and print timings
+
+Any command accepts `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) to index huge fixture trees (`tests/cases`, `testdata`, `fixtures`, `__fixtures__`, `__snapshots__` with 1,000+ files, under 10% named like tests), which are deferred by default. A target or `--path` inside one indexes it on demand; results say how many files were not analysed.
+
 repomap mcp [--root dir]                             MCP server on stdio
 repomap hook                                         Claude Code PreToolUse hook (reads JSON on stdin)
 repomap version
