@@ -301,6 +301,8 @@ Issues and PRs are welcome, and new language support is especially useful: add a
 More from Sylphx: https://sylphx.com/open-source
 <!-- /generated:also-from -->
 
+- [**Sylphx apps**](https://sylphx.com/apps): Apps and tools from Sylphx.
+
 ## Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=SylphxAI/repomap&type=Date)](https://star-history.com/#SylphxAI/repomap&Date)
