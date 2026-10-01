@@ -1,9 +1,11 @@
 // One source for public copy. `bun scripts/copy.ts --write` syncs, `--check` verifies (CI).
 //  - brand.json "oneliner" -> README lead, docs hero tagline, package.json, server.json
 //    (and, with --github, the GitHub repository description)
+//  - committed benchmark data -> localization chart and README/docs hero
 //  - `repomap tools` -> the README tool table (REPOMAP_BIN or target/release/repomap)
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { readHeroData, heroSvg, heroCopy } from "./hero";
 
 const mode = process.argv.includes("--write") ? "write" : "check";
 const github = process.argv.includes("--github");
@@ -12,7 +14,7 @@ if (oneliner.length > 100) throw new Error(`oneliner is ${oneliner.length} chars
 const problems: string[] = [];
 
 function sync(path: string, update: (s: string) => string) {
-  const before = readFileSync(path, "utf8");
+  const before = existsSync(path) ? readFileSync(path, "utf8") : "";
   const after = update(before);
   if (after === before) return;
   if (mode === "write") writeFileSync(path, after);
@@ -33,6 +35,12 @@ sync("packages/repomap/package.json", json("description"));
 sync("server.json", json("description"));
 sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `**${oneliner}**`));
 sync("docs/index.md", (s) => s.replace(/^  tagline: .*$/m, `  tagline: ${JSON.stringify(oneliner)}`));
+
+const hero = readHeroData();
+sync("docs/public/img/localization.svg", () => heroSvg(hero));
+for (const path of ["README.md", "docs/index.md"]) {
+  sync(path, between("<!-- localization-hero:start -->\n", "\n<!-- localization-hero:end -->", heroCopy(hero, path.startsWith("docs/"))));
+}
 
 const bin = process.env.REPOMAP_BIN ?? ["target/release/repomap", "target/debug/repomap"].find(existsSync);
 if (bin) {
