@@ -209,14 +209,15 @@ struct CacheEntry {
     facts: FileFacts,
 }
 
+/// Product-wide cache root, also used by the one-time CLI star hint.
+/// A UTF-8 override is accepted even when empty, as before.
+pub fn cache_root() -> PathBuf {
+    mcp_kit::cache::root("REPOMAP_CACHE_DIR", "repomap", mcp_kit::cache::Fallback::Temp, mcp_kit::cache::Override::Utf8)
+        .expect("temporary cache fallback")
+}
+
 pub fn cache_dir(root: &Path) -> PathBuf {
-    if let Ok(dir) = std::env::var("REPOMAP_CACHE_DIR") {
-        return PathBuf::from(dir).join(root_slug(root));
-    }
-    dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("repomap")
-        .join(root_slug(root))
+    cache_root().join(root_slug(root))
 }
 
 fn root_slug(root: &Path) -> String {

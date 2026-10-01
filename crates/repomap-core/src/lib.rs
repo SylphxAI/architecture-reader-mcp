@@ -16,7 +16,7 @@ pub mod qterms;
 pub mod query;
 pub mod score;
 pub mod semantic;
-pub mod tokenize;
+pub use mcp_kit::search as tokenize;
 pub mod tune;
 
 pub use index::{BuildOptions, Index};

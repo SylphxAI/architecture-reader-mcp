@@ -1,46 +1,13 @@
----
-layout: home
-hero:
-  name: repomap
-  text: A map of your codebase, for you and your AI agent.
-  tagline: "A map of your codebase for AI agents: code graph, search, call paths and change impact. No API key."
-  actions:
-    - theme: brand
-      text: npx -y @sylphx/repomap setup
-      link: /guide/quickstart
-    - theme: alt
-      text: Live demo
-      link: /demo
-    - theme: alt
-      text: GitHub
-      link: https://github.com/SylphxAI/repomap
-features:
-  - icon: 🗺️
-    title: map
-    details: Modules found from real dependencies, the most central files (PageRank), key symbols and entry points. Zoom into any directory for an outline with line numbers.
-  - icon: 🔎
-    title: search
-    details: Symbol names, BM25 and a local code embedding model over whole functions, methods and classes. Ask in plain words or by name. Returns file:line ranges and the matching lines.
-  - icon: 🧭
-    title: context
-    details: One call for a symbol's code, its callers with call sites, callees, subtypes, members and the tests that reach it.
-  - icon: 🪢
-    title: trace
-    details: The shortest call path between two symbols, each hop cited file:line, or the call tree above or below one.
-  - icon: 💥
-    title: impact
-    details: Blast radius before you edit, or of your current git diff. Callers by depth, importing files, modules touched, tests to run, risk level.
-  - icon: ⚡
-    title: Fast and local
-    details: Parallel Rust indexer with a per-file cache and an in-memory graph that refreshes as you edit. Nothing leaves your machine.
----
-
-<!-- localization-hero:start -->
-<p>One issue-text search finds every fix file in the top 10 for <strong>83.0% of SWE-bench Verified issues</strong> (semble: 71.0%). File retrieval, not issue resolution.</p>
 <svg class="localization-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 548" role="img" aria-labelledby="localization-title localization-desc" style="width:100%;max-width:720px;height:auto">
 <title id="localization-title">SWE-bench Verified file localization</title>
 <desc id="localization-desc">500 issues, one issue-text search each. Acc@k counts issues where every gold fix file is among the top k files. repomap: Acc@1 48.8%, Acc@5 74.8%, Acc@10 83.0%. semble: Acc@1 34.0%, Acc@5 61.6%, Acc@10 71.0%. BM25: Acc@1 20.8%, Acc@5 45.4%, Acc@10 55.8%. Higher is better. This measures file retrieval, not issue resolution.</desc>
-
+<style>
+.localization-chart{--surface:#fcfcfb;--ink:#0b0b0b;--secondary:#52514e;--grid:#e8e8e4;--repomap:#2a78d6;--semble:#eb6834;--bm25:#1baf7a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;font-size:19px}
+@media(prefers-color-scheme:dark){:root.localization-chart{--surface:#1a1a19;--ink:#ffffff;--secondary:#c3c2b7;--grid:#333330;--repomap:#3987e5;--semble:#d95926;--bm25:#199e70}}
+.dark .localization-chart{--surface:#1a1a19;--ink:#ffffff;--secondary:#c3c2b7;--grid:#333330;--repomap:#3987e5;--semble:#d95926;--bm25:#199e70}
+.localization-chart text{fill:var(--ink)}.localization-chart .secondary{fill:var(--secondary)}.localization-chart .grid{stroke:var(--grid);stroke-width:1;fill:none}.localization-chart .repomap{fill:var(--repomap)}.localization-chart .semble{fill:var(--semble)}.localization-chart .bm25{fill:var(--bm25)}.localization-chart .group,.localization-chart .value{font-weight:600}.localization-chart .tick{font-size:17px}.localization-chart .tooltip{opacity:0}.localization-chart .bar:hover .tooltip,.localization-chart .bar:focus .tooltip{opacity:1}.localization-chart .bar:focus{outline:none}.localization-chart .bar:hover path,.localization-chart .bar:focus path{filter:brightness(1.12)}
+@media print,(forced-colors:active){.localization-chart .semble{fill:url(#texture-45)}.localization-chart .bm25{fill:url(#texture-135)}.localization-chart .repomap{fill:var(--ink)}.localization-chart .tooltip{opacity:1}}
+</style>
 <defs><pattern id="texture-45" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern><pattern id="texture-135" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="6" height="6" fill="var(--surface)"/><path d="M0 0V6" stroke="var(--ink)" stroke-width="2"/></pattern></defs>
 <rect width="720" height="548" rx="16" fill="var(--surface)"/>
 <text x="40" y="46" font-size="27" font-weight="600">Find the files behind an issue</text>
@@ -103,18 +70,3 @@ features:
 <text class="tooltip" x="434.67999999999995" y="440">55.8%</text></g>
 <text class="secondary" x="168" y="512" font-size="17">Issues with every fix file in the top k (%)</text>
 </svg>
-
-<details><summary>Chart values and evaluation protocol</summary>
-<table><caption>SWE-bench Verified: every gold fix file in the top k files</caption><thead><tr><th scope="col">Method</th><th scope="col">Acc@1</th><th scope="col">Acc@5</th><th scope="col">Acc@10</th></tr></thead><tbody><tr><th scope="row">repomap</th><td>48.8%</td><td>74.8%</td><td>83.0%</td></tr>
-<tr><th scope="row">semble</th><td>34.0%</td><td>61.6%</td><td>71.0%</td></tr>
-<tr><th scope="row">BM25</th><td>20.8%</td><td>45.4%</td><td>55.8%</td></tr></tbody></table>
-<p>Defaults selected on 300 disjoint SWE-bench test instances, excluding every Verified ID, then frozen before one evaluation on all 500 Verified instances. One search per issue, at its base commit; gold files are used only for scoring. All three methods scored 500/500, with zero errors.</p>
-<p><a href="https://sylphxai.github.io/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
-</details>
-<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="https://sylphxai.github.io/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
-<!-- localization-hero:end -->
-
-<div class="hero-shot">
-  <video src="/img/demo.mp4" poster="/img/hero-excalidraw.webp" autoplay loop muted playsinline aria-label="repomap demo: the map of excalidraw, search, a symbol's code and callers, then the impact of changing it"></video>
-  <p>excalidraw: 687 files, 5,001 symbols and 9,639 resolved calls, indexed in under half a second. <a href="/repomap/demo">Try it live →</a></p>
-</div>
