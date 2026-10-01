@@ -40,11 +40,17 @@ class Mcp:
         while True:
             m = json.loads(self.p.stdout.readline())
             if m.get("id") == self.id:
+                if "error" in m:
+                    raise RuntimeError(f"MCP {method} JSON-RPC error: {m['error']}")
                 return m
 
     def tool(self, name, args):
         t = time.perf_counter()
         r = self.call_raw("tools/call", {"name": name, "arguments": args})
+        if "error" in r:
+            raise RuntimeError(f"MCP {name} JSON-RPC error: {r['error']}")
+        if r["result"].get("isError"):
+            raise RuntimeError(f"MCP {name} tool error: {r['result'].get('content')}")
         return (time.perf_counter() - t) * 1000, r["result"]
 
     def close(self):

@@ -165,12 +165,16 @@ class Mcp:
                 raise RuntimeError("repomap mcp exited")
             m = json.loads(line)
             if m.get("id") == self.id:
+                if "error" in m:
+                    raise RuntimeError(f"MCP {method} JSON-RPC error: {m['error']}")
                 return m
 
     def search(self, query):
         t = time.perf_counter()
         r = self.call("tools/call", {"name": "search", "arguments": {"query": query, "limit": 100, "include_content": False, "format": "json"}})
         ms = (time.perf_counter() - t) * 1000
+        if "error" in r:
+            raise RuntimeError(f"MCP search JSON-RPC error: {r['error']}")
         res = r["result"]
         if res.get("isError"):
             raise RuntimeError(res["content"][0]["text"][:200])
@@ -281,7 +285,7 @@ def rank_files(chunks):
     return seen
 
 
-def score(gold, chunks):
+def score(gold, chunks, chunk_capable=True):
     files = rank_files(chunks)
     def pos(g):
         return next((i + 1 for i, f in enumerate(files) if path_matches(f, g)), None)
@@ -295,22 +299,43 @@ def score(gold, chunks):
         if any(covers(c, g) for g in gold):
             out["chunk_rank"] = i
             break
-    if not any(s is not None for _, s, _ in chunks[:1]):
+    if not chunk_capable:
         out["chunk_rank"] = "n/a"
     return out
 
 
+def selection(m, smoke=False, only=()):
+    ids = [i["id"] for i in m["items"]]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate manifest IDs")
+    if set(only) - set(ids):
+        raise ValueError("unknown selected IDs")
+    return [i for i in m["items"] if i["gold"]
+            and (not smoke or i["id"] in m["smoke"])
+            and (not only or i["id"] in only)]
+
+
+def planned_methods(skip=(), baseline=None, variants=None):
+    if set(skip) - {"keywords", "bm25", "semble"}:
+        raise ValueError("unknown skipped methods")
+    return (["repomap"] + (["main"] if baseline else [])
+            + [f"repomap:{v}" for v in sorted(variants or {})]
+            + [m for key, m in (("keywords", "repomap-keywords"), ("bm25", "bm25"), ("semble", "semble")) if key not in skip])
+
+
 def run(binary, manifest_path, work, out, shard, smoke, only, skip, baseline, variants):
     m = json.load(open(manifest_path))
-    ds = {r["instance_id"]: r["problem_statement"] for r in load_dataset(m["dataset"], m["revision"])}
-    items = [i for i in m["items"] if i["gold"]]
-    if smoke:
-        items = [i for i in items if i["id"] in set(m["smoke"])]
-    if only:
-        items = [i for i in items if i["id"] in only]
+    items = selection(m, smoke, only)
+    methods = planned_methods(skip, baseline, variants)
+    ids = [i["id"] for i in items]
     idx, n = shard
+    if n < 1 or not 0 <= idx < n:
+        raise ValueError("invalid shard")
     size = math.ceil(len(items) / n)
     items = items[idx * size:(idx + 1) * size]
+    plan = {"dataset": m["dataset"], "revision": m["revision"], "ids": ids,
+            "methods": methods, "shard": idx, "shards": n}
+    ds = {r["instance_id"]: r["problem_statement"] for r in load_dataset(m["dataset"], m["revision"])}
     os.makedirs(work, exist_ok=True)
     results = []
     for k, it in enumerate(items, 1):
@@ -343,13 +368,13 @@ def run(binary, manifest_path, work, out, shard, smoke, only, skip, baseline, va
         for name, fn in runs.items():
             try:
                 timing, chunks = fn()
-                row["methods"][name] = {**score(it["gold"], chunks), **{a: round(b, 1) for a, b in timing.items()}}
+                row["methods"][name] = {**score(it["gold"], chunks, name != "bm25"), **{a: round(b, 1) for a, b in timing.items()}}
             except Exception as e:
                 row["methods"][name] = {"error": str(e)[:300]}
         results.append(row)
         print(f"[{k}/{len(items)}] {it['id']} " + " ".join(f"{a}={min((r for r in v.get('gold_ranks', {}).values() if r), default='-')}" for a, v in row["methods"].items()), flush=True)
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    json.dump({"results": results}, open(out, "w"), indent=1)
+    json.dump({"plan": plan, "results": results}, open(out, "w"), indent=1)
 
 
 # ---------- summary ----------
@@ -358,8 +383,8 @@ def acc(rows, method, k, mode):
     vals = []
     for r in rows:
         v = r["methods"].get(method)
-        if not v or "error" in v:
-            continue
+        if "error" in r or not v or "error" in v:
+            raise ValueError(f"invalid result: {r['id']} / {method}")
         g = list(v["gold_ranks"].values())
         ok = [x is not None and x <= k for x in g]
         vals.append(all(ok) if mode == "all" else any(ok))
@@ -370,7 +395,9 @@ def chunk_hit(rows, method, k):
     vals = []
     for r in rows:
         v = r["methods"].get(method)
-        if not v or "error" in v or v.get("chunk_rank") == "n/a":
+        if "error" in r or not v or "error" in v:
+            raise ValueError(f"invalid result: {r['id']} / {method}")
+        if v.get("chunk_rank") == "n/a":
             continue
         vals.append(v["chunk_rank"] is not None and v["chunk_rank"] <= k)
     return 100 * sum(vals) / len(vals) if vals else float("nan")
@@ -408,13 +435,44 @@ def tables(rows, run_note):
     return "\n".join(out)
 
 
-def summarize(manifest_path, out, shards, docs, note):
-    rows = []
-    for s in shards:
-        rows += json.load(open(s))["results"]
-    rows = [r for r in rows if "error" not in r]
-    rows.sort(key=lambda r: r["id"])
+def summarize(manifest_path, out, shards, docs, note, smoke=False, only=(), skip=(), baseline=None, variants=None, shard_count=1):
+    # The expected coverage comes from the manifest and caller's frozen plan,
+    # never from whichever successful rows happened to reach the merger.
     m = json.load(open(manifest_path))
+    items = selection(m, smoke, only)
+    ids = [i["id"] for i in items]
+    methods = planned_methods(skip, baseline, variants)
+    if not ids or shard_count < 1:
+        raise ValueError("empty or invalid planned coverage")
+    expected = {"dataset": m["dataset"], "revision": m["revision"], "ids": ids,
+                "methods": methods, "shards": shard_count}
+    size = math.ceil(len(ids) / shard_count)
+    rows, seen = [], set()
+    for s in shards:
+        data = json.load(open(s))
+        plan = data.get("plan", {})
+        idx = plan.get("shard")
+        if (not isinstance(idx, int) or not 0 <= idx < shard_count or idx in seen
+                or plan != {**expected, "shard": idx}):
+            raise ValueError(f"invalid or duplicate shard plan: {s}")
+        seen.add(idx)
+        batch = data["results"]
+        if [r["id"] for r in batch] != ids[idx * size:(idx + 1) * size]:
+            raise ValueError(f"missing, duplicate or unexpected IDs: {s}")
+        rows.extend(batch)
+    if seen != set(range(shard_count)):
+        raise ValueError("missing planned shards")
+    by_id = {i["id"]: i for i in items}
+    for r in rows:
+        gold = by_id[r["id"]]["gold"]
+        if "error" in r or set(r["methods"]) != set(methods):
+            raise ValueError(f"failed checkout or missing/unexpected methods: {r['id']}")
+        for method, v in r["methods"].items():
+            if ("error" in v or set(v.get("gold_ranks", {})) != set(gold)
+                    or "chunk_rank" not in v or "index_ms" not in v or "query_ms" not in v
+                    or (v.get("chunk_rank") == "n/a") != (method == "bm25")):
+                raise ValueError(f"failed or incomplete result: {r['id']} / {method}")
+    rows.sort(key=lambda r: r["id"])
     summary = {}
     for mth in methods_of(rows):
         summary[mth] = {
@@ -426,7 +484,7 @@ def summarize(manifest_path, out, shards, docs, note):
             "index_ms_median": round(med(rows, mth, "index_ms")),
             "query_ms_median": round(med(rows, mth, "query_ms"), 1),
         }
-    json.dump({"dataset": m["dataset"], "revision": m["revision"], "summary": summary, "results": rows}, open(out, "w"), separators=(",", ":"))
+    json.dump({"dataset": m["dataset"], "revision": m["revision"], "plan": expected, "summary": summary, "results": rows}, open(out, "w"), separators=(",", ":"))
     text = tables(rows, note)
     print(text)
     if docs:
@@ -435,27 +493,32 @@ def summarize(manifest_path, out, shards, docs, note):
         open(docs, "w").write(new)
 
 
+def options(a):
+    def value(flag, default=None):
+        return a[a.index(flag) + 1] if flag in a else default
+    only = []
+    if "--only" in a:
+        for x in a[a.index("--only") + 1:]:
+            if x.startswith("--"):
+                break
+            only.append(x)
+    skip = set(filter(None, value("--skip", "").split(",")))
+    if "--no-semble" in a:
+        skip.add("semble")
+    variants = json.load(open(value("--variants"))) if "--variants" in a else {}
+    return "--smoke" in a, only, skip, value("--baseline"), variants
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "prepare":
         prepare(a[1], a[a.index("--split") + 1] if "--split" in a else "verified")
     elif a[0] == "run":
-        shard = (0, 1)
-        if "--shard" in a:
-            i, n = a[a.index("--shard") + 1].split("/")
-            shard = (int(i), int(n))
-        only = a[a.index("--only") + 1:] if "--only" in a else []
-        only = [x for x in only if not x.startswith("--")]
-        skip = set()
-        if "--no-semble" in a:
-            skip.add("semble")
-        if "--skip" in a:
-            skip |= set(a[a.index("--skip") + 1].split(","))
-        baseline = a[a.index("--baseline") + 1] if "--baseline" in a else None
-        variants = json.load(open(a[a.index("--variants") + 1])) if "--variants" in a else {}
-        run(a[1], a[2], a[3], a[4], shard, "--smoke" in a, only, skip, baseline, variants)
+        shard = tuple(map(int, a[a.index("--shard") + 1].split("/"))) if "--shard" in a else (0, 1)
+        run(a[1], a[2], a[3], a[4], shard, *options(a))
     elif a[0] == "summarize":
         docs = a[a.index("--docs") + 1] if "--docs" in a else None
         note = a[a.index("--note") + 1] if "--note" in a else ""
-        skip = {docs, note, "--docs", "--note"}
-        summarize(a[1], a[2], [x for x in a[3:] if x not in skip], docs, note)
+        count = int(a[a.index("--shards") + 1]) if "--shards" in a else 1
+        end = next((i for i in range(3, len(a)) if a[i].startswith("--")), len(a))
+        summarize(a[1], a[2], a[3:end], docs, note, *options(a), shard_count=count)

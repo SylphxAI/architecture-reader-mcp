@@ -41,11 +41,17 @@ jobs:
           key: models-potion-code-16M-v2
       - run: target/release/repomap model
       - name: Run (keywords and embeddings)
-        run: python3 scripts/bench.py target/release/repomap /tmp/corpus bench.json | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/bench.py target/release/repomap /tmp/corpus bench.json | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run (keywords only)
         env:
           REPOMAP_EMBED: '0'
-        run: python3 scripts/bench.py target/release/repomap /tmp/corpus bench-keywords.json | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/bench.py target/release/repomap /tmp/corpus bench-keywords.json | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: bench

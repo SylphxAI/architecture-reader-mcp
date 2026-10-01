@@ -152,9 +152,10 @@ jobs:
           python-version: '3.12'
       - name: Install the baselines
         run: |
+          set -euo pipefail
           pip install -q rank_bm25 pyarrow
           if [ "${{ needs.plan.outputs.semble }}" = true ]; then
-            pip install -q "semble @ git+https://github.com/MinishLab/semble@$SEMBLE_SHA" || echo "semble did not install; running without it" >&2
+            pip install -q "semble @ git+https://github.com/MinishLab/semble@$SEMBLE_SHA"
           fi
       - name: Localize
         env:
@@ -163,7 +164,7 @@ jobs:
           set -euo pipefail
           extra=()
           [ "${{ needs.plan.outputs.mode }}" = full ] || extra+=(--smoke)
-          python3 -c "import semble" 2>/dev/null || extra+=(--no-semble)
+          [ "${{ needs.plan.outputs.semble }}" = true ] || extra+=(--no-semble)
           [ -z "${{ needs.plan.outputs.skip }}" ] || extra+=(--skip "${{ needs.plan.outputs.skip }}")
           if [ -n "${{ needs.plan.outputs.baseline_ref }}" ]; then chmod +x baseline/repomap; extra+=(--baseline baseline/repomap); fi
           printf '%s' "$VARIANTS" > variants.json
@@ -188,11 +189,20 @@ jobs:
           path: shards
           merge-multiple: true
       - name: Merge
+        env:
+          VARIANTS: ${{ needs.plan.outputs.variants }}
         run: |
           set -euo pipefail
           mkdir -p out
+          extra=(--shards "${{ needs.plan.outputs.count }}")
+          [ "${{ needs.plan.outputs.mode }}" = full ] || extra+=(--smoke)
+          [ "${{ needs.plan.outputs.semble }}" = true ] || extra+=(--no-semble)
+          [ -z "${{ needs.plan.outputs.skip }}" ] || extra+=(--skip "${{ needs.plan.outputs.skip }}")
+          [ -z "${{ needs.plan.outputs.baseline_ref }}" ] || extra+=(--baseline planned)
+          printf '%s' "$VARIANTS" > variants.json
+          extra+=(--variants variants.json)
           python3 bench/localization/localize.py summarize bench/localization/${{ needs.plan.outputs.manifest }} out/localization.json shards/shard-*.json \
-            --note "Run ${{ github.run_id }}, 4 vCPU \`ubuntu-latest\`." | tee -a "$GITHUB_STEP_SUMMARY"
+            --note "Run ${{ github.run_id }}, 4 vCPU \`ubuntu-latest\`." "${extra[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: localization
