@@ -17,6 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  review-stamp:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - uses: SylphxAI/.github/.github/actions/review-stamp-gate@fa31ad44ef1c072e0e88245dfc468573f6ca19b8
+        with:
+          config-path: .github/review-stamp.json
+          trusted-creator-ids: '8020099'
+
   changes:
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
@@ -90,6 +106,8 @@ jobs:
           $B search "rank files by how central they are in the dependency graph" --json --limit 5 > /tmp/sem.json
           jq -e '[.hits[].file] | index("crates/repomap-core/src/graph.rs") != null' /tmp/sem.json
           REPOMAP_EMBED=0 $B index . --no-cache | grep -q 'keywords only'
+      - name: Merge-group review gate contract
+        run: python3 -m unittest discover -s scripts -p test_review_gate.py
       - name: Offline benchmark validity regressions
         run: python3 -m unittest discover -s scripts -p test_bench_validity.py
       - name: Manifests agree on one version
@@ -278,7 +296,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [changes, build, checks, action, live-db, docker, plain-language, identifiers, other-os]
+    needs: [changes, build, checks, action, live-db, docker, plain-language, identifiers, other-os, review-stamp]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
