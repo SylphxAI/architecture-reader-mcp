@@ -1,12 +1,17 @@
 ---
 layout: home
+title: repomap
+titleTemplate: ":title — codebase map, search and change impact for AI agents"
 hero:
   name: repomap
-  text: A map of your codebase, for you and your AI agent.
+  text: Give your agent the map before it edits.
   tagline: "A map of your codebase for AI agents: code graph, search, call paths and change impact. No API key."
+  image:
+    src: /logo.svg
+    alt: ""
   actions:
     - theme: brand
-      text: npx -y @sylphx/repomap setup
+      text: Get started
       link: /guide/quickstart
     - theme: alt
       text: Live demo
@@ -14,24 +19,37 @@ hero:
     - theme: alt
       text: GitHub
       link: https://github.com/SylphxAI/repomap
+install: npx -y @sylphx/repomap setup
+proof:
+  - value: "83.0%"
+    label: SWE-bench Verified issues with every fix file in one search's top 10 (semble 71.0%)
+    link: /benchmarks#file-localization
+  - value: "0.846"
+    label: NDCG@10 on Django, Kubernetes, VS Code and rust-analyzer (semble 0.799)
+    link: /benchmarks#search-quality
+  - value: "< 0.5 s"
+    label: to index excalidraw, 687 files and 5,001 symbols
+    link: /demo
+media:
+  kind: video
+  src: /img/demo.mp4
+  poster: /img/hero-excalidraw.webp
+  alt: "repomap demo: the map of excalidraw, search, a symbol's code and callers, then the impact of changing it"
+  caption: "excalidraw: 687 files, 5,001 symbols and 9,639 resolved calls, indexed in under half a second."
+  link: /demo
+  linkText: Try it live →
 features:
-  - icon: 🗺️
-    title: map
+  - title: map
     details: Modules found from real dependencies, the most central files (PageRank), key symbols and entry points. Zoom into any directory for an outline with line numbers.
-  - icon: 🔎
-    title: search
+  - title: search
     details: Symbol names, BM25 and a local code embedding model over whole functions, methods and classes. Ask in plain words or by name. Returns file:line ranges and the matching lines.
-  - icon: 🧭
-    title: context
+  - title: context
     details: One call for a symbol's code, its callers with call sites, callees, subtypes, members and the tests that reach it.
-  - icon: 🪢
-    title: trace
+  - title: trace
     details: The shortest call path between two symbols, each hop cited file:line, or the call tree above or below one.
-  - icon: 💥
-    title: impact
+  - title: impact
     details: Blast radius before you edit, or of your current git diff. Callers by depth, importing files, modules touched, tests to run, risk level.
-  - icon: ⚡
-    title: Fast and local
+  - title: Fast and local
     details: Parallel Rust indexer with a per-file cache and an in-memory graph that refreshes as you edit. Nothing leaves your machine.
 ---
 
@@ -109,12 +127,7 @@ features:
 <tr><th scope="row">semble</th><td>34.0%</td><td>61.6%</td><td>71.0%</td></tr>
 <tr><th scope="row">BM25</th><td>20.8%</td><td>45.4%</td><td>55.8%</td></tr></tbody></table>
 <p>Defaults selected on 300 disjoint SWE-bench test instances, excluding every Verified ID, then frozen before one evaluation on all 500 Verified instances. One search per issue, at its base commit; gold files are used only for scoring. All three methods scored 500/500, with zero errors.</p>
-<p><a href="https://sylphxai.github.io/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
+<p><a href="/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
 </details>
-<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="https://sylphxai.github.io/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
+<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
 <!-- localization-hero:end -->
-
-<div class="hero-shot">
-  <video src="/img/demo.mp4" poster="/img/hero-excalidraw.webp" autoplay loop muted playsinline aria-label="repomap demo: the map of excalidraw, search, a symbol's code and callers, then the impact of changing it"></video>
-  <p>excalidraw: 687 files, 5,001 symbols and 9,639 resolved calls, indexed in under half a second. <a href="/repomap/demo">Try it live →</a></p>
-</div>
