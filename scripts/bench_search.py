@@ -64,15 +64,19 @@ class Mcp:
         while True:
             m = json.loads(self.p.stdout.readline())
             if m.get("id") == self.id:
+                if "error" in m:
+                    raise RuntimeError(f"MCP {method} JSON-RPC error: {m['error']}")
                 return m
 
     def search(self, query):
         t = time.perf_counter()
         r = self.call("tools/call", {"name": "search", "arguments": {"query": query, "limit": K, "format": "json"}})
         ms = (time.perf_counter() - t) * 1000
+        if "error" in r:
+            raise RuntimeError(f"MCP search JSON-RPC error: {r['error']}")
         res = r["result"]
         if res.get("isError"):
-            return ms, []
+            raise RuntimeError(f"MCP search tool error: {res.get('content')}")
         return ms, json.loads(res["content"][0]["text"])["hits"]
 
     def close(self):

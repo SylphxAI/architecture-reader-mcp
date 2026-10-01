@@ -41,8 +41,17 @@ one full Verified evaluation: `wh=1,wc=1,wf=2,qcap=48`.
 
 Run through Actions, `bench-localization`, mode `full`, with the desired manifest.
 It compiles in CI, runs 10 shards on free GitHub-hosted standard `ubuntu-latest`
-runners and merges them into the `localization` artifact. Before publishing
-numbers, check that every manifest id appears once, every method scored every
-instance, and no method has an error. Download the result into this directory
+runners and merges them into the `localization` artifact. Each shard records the frozen manifest selection, methods and shard count.
+The merger independently derives that plan from the manifest and the same
+`--smoke`, `--only`, `--skip`, `--no-semble`, `--baseline`, `--variants` options;
+pass `--shards N` for a multi-shard merge. Missing or duplicate shards/IDs,
+unplanned or missing methods, checkout failures and method errors invalidate
+the merge before it writes results or documentation. Intentionally unselected
+methods/instances and BM25's inapplicable chunk metric remain excluded;
+a successful empty chunk search is a miss, not an inapplicable metric.
+Legacy shards without a plan cannot be merged; historical committed results
+are unchanged. Run the offline regressions with
+`python3 -m unittest discover -s scripts -p test_bench_validity.py`.
+Before publishing numbers, verify the frozen plan matches the intended run. Download the result into this directory
 and update `docs/benchmarks.md`, the README's search claim and the CHANGELOG in
 the same PR. Do not tune defaults after reading Verified.
