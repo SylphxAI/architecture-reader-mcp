@@ -16,10 +16,6 @@ use std::sync::Arc;
 /// Marker for the key list below. No token verifies while it is the only entry.
 pub const KEY_PLACEHOLDER: &str = "PLACEHOLDER-repomap-team-issuer-public-key-not-issued-yet";
 
-/// Where `buy` sends the checkout claim.
-// set when buy.sylphx.com serves /api/v1/claims and a Money sandbox token passes activate
-pub const CHECKOUT_BASE: &str = "https://buy.sylphx.com";
-
 /// The repomap Team licence policy.
 ///
 /// TODO(Services S1): replace `KEY_PLACEHOLDER` with the issued repomap-team
@@ -34,7 +30,7 @@ pub const POLICY: LicencePolicy<'static> = LicencePolicy {
     env_var: "REPOMAP_LICENCE_TOKEN",
     file_name: "licence",
     upgrade_url: "https://sylphxai.github.io/repomap/team",
-    // set when buy.sylphx.com serves /api/v1/claims and a Money sandbox token passes activate
+    // Some("https://buy.sylphx.com") once it serves /api/v1/claims and a live purchase reads back
     checkout_base: None,
 };
 
