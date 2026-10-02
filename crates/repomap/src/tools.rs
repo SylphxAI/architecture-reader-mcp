@@ -173,8 +173,32 @@ pub struct Output {
     pub json: Value,
 }
 
-/// Run a tool. `root` must already be resolved.
+/// Run a tool. `root` must already be resolved. A request that names more than
+/// one workspace root goes through the Team gate; every other request is free.
 pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
+    let roots = crate::team::named_roots(args, root);
+    if roots.len() < 2 {
+        return call_root(ws, name, args, root);
+    }
+    let tool = canonical(name).unwrap_or(name);
+    crate::team::gate(
+        &crate::team::POLICY,
+        &roots,
+        tool,
+        args,
+        || call_root(ws, name, args, root),
+        // The free workspace's indexes, so a join does not index a root twice.
+        || {
+            roots
+                .iter()
+                .filter_map(|r| Some((r.canonicalize().ok()?, ws.get(r).ok()?)))
+                .collect()
+        },
+    )
+}
+
+/// Run a tool against one root.
+fn call_root(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
     let tool = canonical(name).ok_or_else(|| format!("unknown tool `{name}`"))?;
     // A query that names a path inside a deferred fixture tree indexes it.
     let targets: Vec<String> = ["target", "targets", "symbol", "paths", "changed_paths", "files", "focus", "path", "scope", "from", "to", "file", "source", "start", "end", "node", "id"]

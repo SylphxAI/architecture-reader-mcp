@@ -4,6 +4,9 @@
 
 - **Ready for crates.io.** The two crates, `sylphx-repomap-core` and `sylphx-repomap` (the binary stays `repomap`), carry full package metadata, a small `include` list, and a versioned path dependency, so `cargo publish --dry-run --locked` passes in dependency order. `cargo binstall sylphx-repomap` downloads the matching GitHub release binary. Publishing stays off until an owner sets `CRATES_IO_PUBLISH_ENABLED` and the trusted-publisher records exist.
 - **Security: `base` could be used to write files.** The `base` value of `impact --changed` (CLI `--base`, MCP or HTTP argument `base` or `git_base`) was passed to `git diff` as-is, so a value such as `--output=/path` made git write a file. repomap now rejects any ref that starts with `-` with a clear error, and passes `--end-of-options` before the ref so git always reads it as a revision. No other user input is passed to git or another program in a position where it could be read as an option.
+- **repomap Team licence.** `repomap licence status` and `repomap licence activate <token>` show and store a Team licence (token from `REPOMAP_LICENCE_TOKEN` or the licence file), checked offline against the issuer's public key. They are free to run. A request that names more than one repository root (a `workspace` argument, `--workspace`, or a `repomap.workspace.toml` with several roots) now goes through one gate: without a Team licence it answers for the current repository, adds `pro_required` and one line saying the other repositories were not joined; with one it calls the multi-repository join. Everything free stays free, and the MCP surface stays six tools.
+- New [Team page](docs/team.md) (US$180 per developer per year, packs of 5, 10, 25 and 50; public repositories free) and `docs/vision.md`, with a "Free and Team" section in the README.
+- Updates `sylphx-mcp-kit` to 0.5.
 
 ## 1.6.0 - 2026-10-02
 

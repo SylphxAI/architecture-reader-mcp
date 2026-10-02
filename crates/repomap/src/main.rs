@@ -3,6 +3,7 @@ mod hook;
 mod mcp;
 mod serve;
 mod setup;
+mod team;
 mod tools;
 mod workspace;
 
@@ -38,6 +39,7 @@ Commands:
   index [dir]           Build the index and print timings (--no-cache, --json)
   model                 Download the embedding model now (33 MB, once) and show where it is.
                         REPOMAP_EMBED=0 keeps search keyword-only
+  licence status        Show the repomap Team licence (free to run); `licence activate <token>` stores one
   mcp                   Run the MCP server on stdio (default when stdin is not a terminal)
   version               Print the version
 
@@ -46,6 +48,7 @@ Common options:
   --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __fixtures__,
                         __snapshots__ with 1000+ files, under 10% named like tests), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
                         or --path inside one indexes it on demand.
+  --workspace <roots>   Several repository roots (comma-separated, or a repomap.workspace.toml): repomap Team
   --json                Machine-readable output
 
 Targets: path/to/file.ts, file.ts:42, Class.method, Class::method, or a name.
@@ -60,7 +63,7 @@ impl Args {
     fn parse(raw: Vec<String>) -> Args {
         let mut positional = Vec::new();
         let mut flags = std::collections::HashMap::new();
-        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command"];
+        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command", "workspace"];
         let mut it = raw.into_iter().peekable();
         while let Some(a) = it.next() {
             if let Some(name) = a.strip_prefix("--").or_else(|| a.strip_prefix('-').filter(|n| n.len() == 1)) {
@@ -125,6 +128,9 @@ fn run() -> Result<()> {
         raw.insert(0, "mcp".into());
     }
     let cmd = raw.remove(0);
+    if cmd == "licence" || cmd == "license" {
+        std::process::exit(mcp_kit::licence::run_cli(&team::POLICY, &raw));
+    }
     let args = Args::parse(raw);
     if args.on("include-fixtures") {
         // Read by `BuildOptions::default()`, so every command and the MCP server see it.
@@ -312,6 +318,9 @@ fn query_cmd(cmd: &str, args: &Args) -> Result<()> {
     }
     if let Some(v) = args.num("depth") {
         a.insert("depth".into(), json!(v));
+    }
+    if let Some(v) = args.flag("workspace") {
+        a.insert("workspace".into(), json!(v));
     }
     let ws = workspace::Workspace::default();
     let out = tools::call(&ws, cmd, &Value::Object(a), &root).map_err(|e| anyhow::anyhow!(e))?;
