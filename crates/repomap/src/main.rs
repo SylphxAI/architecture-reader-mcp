@@ -384,7 +384,8 @@ fn db_cmd(args: &Args) -> Result<()> {
 
 fn score_cmd(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
-    let idx = Index::build(&root, &BuildOptions::default())?;
+    // Score measures the whole repository, including fixture trees.
+    let idx = Index::build(&root, &BuildOptions { include_fixtures: true, ..Default::default() })?;
     let score = idx.agent_score();
     if args.on("json") {
         println!("{}", serde_json::to_string_pretty(&score)?);

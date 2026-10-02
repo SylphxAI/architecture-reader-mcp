@@ -1341,7 +1341,16 @@ impl Index {
         for t in targets {
             ts.push(self.resolve(t)?.0);
         }
-        Ok(self.impact_of(&ts, opts))
+        let mut r = self.impact_of(&ts, opts);
+        // A target that names a deferred tree has callers we cannot see.
+        let hidden = |t: &String| {
+            let t = t.trim().trim_start_matches("./");
+            self.deferred.iter().any(|d| t.contains(d.dir.as_str()))
+        };
+        if !self.deferred.is_empty() && targets.iter().any(hidden) {
+            r.risk = "unknown";
+        }
+        Ok(r)
     }
 
     /// Impact of the working-tree diff against `base` (default HEAD).

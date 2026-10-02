@@ -136,7 +136,7 @@ pub fn role_of(path: &str, is_test: bool) -> Role {
                 "example" | "examples" | "sample" | "samples" | "demo" | "demos" | "playground" | "playgrounds" | "showcase" | "tutorial" | "tutorials" => return Role::Example,
                 "docs" | "doc" | "documentation" | "website" => return Role::Doc,
                 "bench" | "benches" | "benchmark" | "benchmarks" => return Role::Bench,
-                "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "fixtures" | "__fixtures__" | "__snapshots__" | "__mocks__" | "e2e" | "testing" => return Role::Test,
+                "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "fixtures" | "__fixtures__" | "__mocks__" | "e2e" | "testing" => return Role::Test,
                 _ => {}
             }
         }
@@ -253,6 +253,12 @@ fn has_test_name(path: &str) -> bool {
         || name.contains("_spec.")
         || name.ends_with("test.java")
         || name.ends_with("tests.cs")
+        || {
+            // Java-like languages name tests by suffix: FooTest, FooTests, FooSpec, FooIT.
+            let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
+            matches!(ext, "java" | "kt" | "kts" | "scala" | "groovy" | "php" | "cs" | "swift")
+                && ["test", "tests", "spec", "it"].iter().any(|w| stem.ends_with(w))
+        }
 }
 
 pub struct BuildOptions {
@@ -308,7 +314,7 @@ pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Ve
             || segs[..depth - 1]
                 .iter()
                 .enumerate()
-                .any(|(i, s)| is_test_segment(s) && !matches!(segs[i + 1], "src" | "lib" | "source"))
+                .any(|(i, s)| is_test_segment(s) && !matches!(segs[i + 1], "src" | "lib" | "source") && !(i > 0 && segs[i - 1] == "src"))
     };
     let mut named: HashMap<&str, usize> = HashMap::new();
     let mut counts: HashMap<&str, usize> = HashMap::new();
@@ -380,33 +386,6 @@ fn defer_fixtures(candidates: Vec<Candidate>, opts: &BuildOptions) -> (Vec<Candi
     }
     left.retain(|d| d.files > 0);
     (kept, left)
-}
-
-/// Which of `targets` fall inside (or at) a fixture tree of `root`; walks once
-/// so a first build can include them up front instead of building twice.
-pub fn fixture_includes(root: &Path, targets: &[String]) -> Vec<String> {
-    let opts = BuildOptions::default();
-    if opts.include_fixtures || targets.is_empty() {
-        return Vec::new();
-    }
-    let Ok(cands) = walk(root) else { return Vec::new() };
-    let trees = fixture_trees(cands.iter().map(|c| c.path.as_str()), opts.fixture_threshold);
-    let mut out: Vec<String> = Vec::new();
-    for t in targets {
-        let t = t.trim().trim_start_matches("./");
-        let t = match t.rsplit_once(':') {
-            Some((p, l)) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => p,
-            _ => t,
-        };
-        let t = t.trim_end_matches('/');
-        if t.is_empty() || (!t.contains('/') && !t.contains('.')) {
-            continue;
-        }
-        if trees.iter().any(|d| d.dir == t || under(t, &d.dir) || under(&d.dir, t)) && !out.iter().any(|o| o == t) {
-            out.push(t.to_string());
-        }
-    }
-    out
 }
 
 struct Candidate {
@@ -831,7 +810,9 @@ mod fixture_tests {
         let rb = many_f(&|i| format!("spec/services/s{i}_spec.rb"));
         let ts = many_f(&|i| format!("packages/spec/src/f{i}.ts"));
         let cases = many_f(&|i| format!("tests/cases/c{i}.ts"));
-        for v in [&java, &rb, &ts] {
+        let maven = many_f(&|i| format!("core/src/test/java/a/FooTests{i}.java"));
+        let php = many_f(&|i| format!("php/tests/Unit/Foo{i}Test.php"));
+        for v in [&java, &rb, &ts, &maven, &php] {
             assert!(trees(v, 1000).is_empty(), "{:?}", v[0]);
         }
         assert_eq!(trees(&cases, 1000), vec![("tests/cases".to_string(), 1000)]);

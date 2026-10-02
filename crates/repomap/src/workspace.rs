@@ -56,8 +56,19 @@ impl Workspace {
                 }
             }
         } else {
-            // First build: find fixture targets up front so it builds once.
-            include = repomap_core::index::fixture_includes(&root, targets);
+            // First build: include the normalised path-like targets up front
+            // (harmless when not in a fixture tree) so it builds once.
+            for t in targets {
+                let t = t.trim().trim_start_matches("./");
+                let t = match t.rsplit_once(':') {
+                    Some((p, l)) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => p,
+                    _ => t,
+                };
+                let t = t.trim_end_matches('/');
+                if !t.is_empty() && (t.contains('/') || t.contains('.')) && !include.iter().any(|i| i == t) {
+                    include.push(t.to_string());
+                }
+            }
         }
         let opts = BuildOptions { include: include.clone(), ..Default::default() };
         let mut index = Arc::new(Index::build(&root, &opts)?);
