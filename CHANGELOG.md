@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Ready for crates.io.** The two crates, `sylphx-repomap-core` and `sylphx-repomap` (the binary stays `repomap`), carry full package metadata, a small `include` list, and a versioned path dependency, so `cargo publish --dry-run --locked` passes in dependency order. `cargo binstall sylphx-repomap` downloads the matching GitHub release binary. Publishing stays off until an owner sets `CRATES_IO_PUBLISH_ENABLED` and the trusted-publisher records exist.
+
 ## 1.6.0 - 2026-10-02
 
 - **Token-budgeted map.** `repomap map --tokens N` (MCP `map` argument `tokens`) fills the map with the highest-ranked modules, central files and symbols until the estimated size reaches N tokens (4 characters per token, rounded up), then ends with a line such as `… 31 more files, 40 more symbols omitted (budget 1000 tokens; lowest-ranked first)`. Under a tight budget the outline and key symbols go first, then files and modules, so the structure stays readable. Without `--tokens` the output is unchanged.
