@@ -19,6 +19,7 @@ pub mod score;
 pub mod semantic;
 pub use mcp_kit::search as tokenize;
 pub mod tune;
+pub mod workspace_graph;
 
 pub use index::{BuildOptions, Index};
 pub use query::{ContextOptions, Direction, ImpactOptions, MapOptions, SearchOptions, TraceOptions};
