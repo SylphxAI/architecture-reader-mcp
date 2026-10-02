@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Home URL.** The product's home is now https://repomap.sylphx.com in the package metadata, registry entries, plugin manifests, `--help` and the MCP server info. Links to specific docs pages stay on the current docs site until the redirect exists.
 - **`repomap licence buy`.** Opens the Team page; in-terminal purchase turns on when checkout is live. Updates `sylphx-mcp-kit` to 0.6.
 
 ## 1.7.0 - 2026-10-02

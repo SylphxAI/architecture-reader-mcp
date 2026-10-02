@@ -52,7 +52,7 @@ Common options:
   --json                Machine-readable output
 
 Targets: path/to/file.ts, file.ts:42, Class.method, Class::method, or a name.
-Docs: https://sylphxai.github.io/repomap/";
+Docs: https://repomap.sylphx.com";
 
 struct Args {
     positional: Vec<String>,

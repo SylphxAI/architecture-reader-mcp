@@ -2,7 +2,7 @@
   "name": "repomap",
   "description": "A map of your codebase for AI agents: code graph, search, symbol context with callers and callees, call paths and change impact, plus an interactive graph UI. Local, no API key.",
   "author": { "name": "Sylphx", "url": "https://github.com/SylphxAI" },
-  "homepage": "https://sylphxai.github.io/repomap/",
+  "homepage": "https://repomap.sylphx.com",
   "repository": "https://github.com/SylphxAI/repomap",
   "license": "MIT",
   "keywords": ["mcp", "code-graph", "code-search", "call-graph", "impact-analysis", "tree-sitter"],

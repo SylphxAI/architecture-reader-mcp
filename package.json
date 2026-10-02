@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "repomap monorepo: Rust engine (crates/), npm packages (packages/), graph UI (ui/), docs (docs/).",
-  "homepage": "https://sylphxai.github.io/repomap/",
+  "homepage": "https://repomap.sylphx.com",
   "license": "MIT",
   "packageManager": "bun@1.4.0",
   "scripts": {

@@ -13,7 +13,7 @@ documentation = "https://sylphxai.github.io/repomap/"
 keywords = ["code-graph", "mcp", "code-search", "ai-agents", "tree-sitter"]
 categories = ["development-tools", "command-line-utilities"]
 repository = "https://github.com/SylphxAI/repomap"
-homepage = "https://sylphxai.github.io/repomap/"
+homepage = "https://repomap.sylphx.com"
 
 [profile.release]
 lto = "thin"

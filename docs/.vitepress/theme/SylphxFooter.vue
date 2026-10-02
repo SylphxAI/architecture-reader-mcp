@@ -21,7 +21,7 @@ const site = computed(() => theme.value.sylphx as {
 
 const family = [
   { name: 'anymd', href: 'https://sylphxai.github.io/anymd/' },
-  { name: 'repomap', href: 'https://sylphxai.github.io/repomap/' },
+  { name: 'repomap', href: 'https://repomap.sylphx.com' },
   { name: 'lockdocs', href: 'https://sylphxai.github.io/lockdocs/' },
   { name: 'firestore_odm', href: 'https://sylphxai.github.io/firestore_odm/' },
   { name: 'Google Photos Delete Tool', href: 'https://sylphxai.github.io/Google-Photos-Delete-Tool/' },

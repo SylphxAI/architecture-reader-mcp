@@ -60,7 +60,7 @@ impl App for Repomap {
             name: "repomap".into(),
             title: "repomap".into(),
             version: crate::VERSION.into(),
-            website: "https://sylphxai.github.io/repomap/".into(),
+            website: "https://repomap.sylphx.com".into(),
             instructions: INSTRUCTIONS.into(),
         }
     }

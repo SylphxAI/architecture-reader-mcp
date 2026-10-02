@@ -3,7 +3,7 @@
 repomap gives AI agents a map of a codebase (code graph, search, call paths,
 change impact) as one local Rust binary that needs no API key. The goal is
 answers that are correct, fast, and cost few tokens. Docs:
-https://sylphxai.github.io/repomap/. Formerly Spine, Locus and CodeRAG; those
+https://repomap.sylphx.com. Formerly Spine, Locus and CodeRAG; those
 npm packages are thin aliases.
 
 ## Layout
