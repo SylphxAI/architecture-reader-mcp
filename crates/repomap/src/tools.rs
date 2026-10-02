@@ -194,7 +194,51 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
                 .filter_map(|r| Some((r.canonicalize().ok()?, ws.get(r).ok()?)))
                 .collect()
         },
+        // A database is not one graph: `db` answers once per root.
+        || (tool == "db").then(|| db_per_root(ws, args, &roots)),
     )
+}
+
+/// `db` over a workspace: one answer per root, never a merged schema. Without
+/// a URL each repo's own schema (its migrations and models) is shown with the
+/// code that queries it, because separate repos usually mean separate
+/// databases. With `url` or `url_env` the one live database is shown to each
+/// repo, so the answer says which repo's code queries each table.
+fn db_per_root(ws: &Workspace, args: &Value, roots: &[std::path::PathBuf]) -> Result<Output, String> {
+    let url = match (s(args, &["url"]), s(args, &["url_env"])) {
+        (Some(u), _) => Some(u.to_string()),
+        (None, Some(var)) => Some(std::env::var(var).map_err(|_| format!("environment variable `{var}` is not set"))?),
+        _ => None,
+    };
+    let table = s(args, &["table"]);
+    let mut text = format!(
+        "# db across {} repos\n\n{}\n",
+        roots.len(),
+        if url.is_some() {
+            "One live database, shown once per repo: each section lists the code in that repo that queries each table."
+        } else {
+            "No `url` given, so each repo's own schema is shown; repos are not assumed to share a database."
+        }
+    );
+    let mut repos = serde_json::Map::new();
+    for r in roots {
+        let mut name = r.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| r.display().to_string());
+        if repos.contains_key(&name) {
+            name = r.display().to_string();
+        }
+        let index = ws.get(r).map_err(|e| format!("indexing {} failed: {e}", r.display()))?;
+        let schema = db_schema(&index, url.as_deref()).map_err(|e| format!("{name}: {e}"))?;
+        let json = match table.and_then(|t| schema.table(t)) {
+            Some(t) => serde_json::to_value(t).unwrap_or(Value::Null),
+            None => serde_json::to_value(&schema).unwrap_or(Value::Null),
+        };
+        text.push_str(&format!("\n## Repo {name}\n\n{}", schema.text(table)));
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+        repos.insert(name, json);
+    }
+    Ok(Output { text, json: serde_json::json!({ "repos": repos }) })
 }
 
 /// Run a tool against one root.
@@ -332,5 +376,29 @@ mod tests {
             assert_eq!(canonical(name), Some(name), "tool `{name}` is not routed");
         }
         assert!(markdown().starts_with("Six tools"));
+    }
+
+    #[test]
+    fn db_answers_once_per_root_without_merging() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |root: &std::path::Path, rel: &str, body: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        let (a, b) = (d.path().join("api"), d.path().join("jobs"));
+        w(&a, "migrations/001.sql", "CREATE TABLE users (id int primary key, name text);\n");
+        w(&b, "migrations/001.sql", "CREATE TABLE queue (id int primary key, body text);\n");
+        let ws = Workspace::default();
+        let out = db_per_root(&ws, &serde_json::json!({}), &[a.clone(), b.clone()]).unwrap();
+        assert!(out.text.contains("## Repo api") && out.text.contains("## Repo jobs"), "{}", out.text);
+        assert!(out.text.contains("each repo's own schema"), "{}", out.text);
+        let repos = out.json["repos"].as_object().unwrap();
+        assert_eq!(repos.len(), 2);
+        assert!(repos["api"].to_string().contains("users") && !repos["api"].to_string().contains("queue"));
+        assert!(repos["jobs"].to_string().contains("queue") && !repos["jobs"].to_string().contains("users"));
+        // A missing environment variable is a clear error, not a silent fallback.
+        let e = db_per_root(&ws, &serde_json::json!({"url_env": "REPOMAP_TEST_NO_SUCH_URL"}), &[a, b]).err().unwrap();
+        assert!(e.contains("REPOMAP_TEST_NO_SUCH_URL"), "{e}");
     }
 }

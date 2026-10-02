@@ -1,4 +1,6 @@
-use repomap_core::query::{Direction, ImpactOptions, SearchOptions, TraceOptions};
+use repomap_core::query::{
+    ContextOptions, Direction, ImpactOptions, MapOptions, SearchOptions, TraceOptions,
+};
 use repomap_core::workspace_graph::*;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -322,4 +324,75 @@ fn join_does_not_reindex_unchanged_roots() {
     ));
 
     eprintln!("workspace join timings ({files} files in 2 roots): cold join {cold:?}, refresh unchanged {refresh:?}, rejoin from held indexes {rejoin:?}");
+}
+
+#[test]
+fn map_covers_every_repo_and_names_the_links() {
+    let d = tempfile::tempdir().unwrap();
+    let roots = fixture(d.path());
+    let g = join(&roots[..2]);
+    let m = g.map(
+        &MapOptions {
+            focus: None,
+            limit: 12,
+        },
+        None,
+    );
+    let names: Vec<&str> = m.repos.iter().map(|r| r.repo.as_str()).collect();
+    assert_eq!(names, ["core-lib", "app"]);
+    assert!(m.repos.iter().all(|r| r.map.code_files > 0));
+    let l = m
+        .links
+        .iter()
+        .find(|l| l.from == "app" && l.to == "core-lib" && l.package == "npm:@acme/core")
+        .expect("app imports @acme/core");
+    assert_eq!(l.files, 1);
+    let t = m.text();
+    assert!(
+        t.contains("## Repo app") && t.contains("app imports npm:@acme/core from core-lib"),
+        "{t}"
+    );
+
+    // A focus drops repos with nothing under it; a token budget is split across repos.
+    let f = g.map(
+        &MapOptions {
+            focus: Some("crate".into()),
+            limit: 12,
+        },
+        None,
+    );
+    assert_eq!(f.repos.len(), 1);
+    assert_eq!(f.repos[0].repo, "core-lib");
+    let b = g.map(
+        &MapOptions {
+            focus: None,
+            limit: 12,
+        },
+        Some(400),
+    );
+    assert_eq!(b.repos.len(), 2);
+    assert!(b
+        .repos
+        .iter()
+        .all(|r| r.map.budget.is_some() || r.map.text().len() < 4000));
+}
+
+#[test]
+fn context_finds_the_target_in_each_repo_and_who_uses_it() {
+    let d = tempfile::tempdir().unwrap();
+    let roots = fixture(d.path());
+    let g = join(&roots[..2]);
+    let opts = ContextOptions::default();
+    let c = g.context("greetUser", &opts).unwrap();
+    assert_eq!(c.found_in.len(), 1);
+    assert_eq!(c.found_in[0].repo, "core-lib");
+    assert_eq!(c.found_in[0].used_by, ["app:src/main.ts"]);
+    assert!(c.text().contains("Used by other repos (1)"), "{}", c.text());
+    // A repo prefix scopes the answer; a name only the other repo knows is found there.
+    let c = g.context("core-lib:src/greet.ts", &opts).unwrap();
+    assert_eq!(c.found_in[0].used_by, ["app:src/main.ts"]);
+    let c = g.context("render", &opts).unwrap();
+    assert_eq!(c.found_in[0].repo, "app");
+    assert!(c.found_in[0].used_by.is_empty());
+    assert!(g.context("noSuchThing", &opts).is_err());
 }

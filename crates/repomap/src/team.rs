@@ -111,6 +111,8 @@ fn read_roots(file: &Path) -> Vec<PathBuf> {
 /// root. Unlicensed: that answer plus `pro_required` and one line. Licensed:
 /// the joined answer, or the current root's answer with a note while the join
 /// is not available.
+/// `per_root` is for a tool the binary answers itself, once per root (`db`): it
+/// runs only with a licence, and `None` means "use the joined graph".
 pub fn gate(
     policy: &LicencePolicy,
     roots: &[PathBuf],
@@ -118,6 +120,7 @@ pub fn gate(
     args: &Value,
     single: impl FnOnce() -> Result<Output, String>,
     prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
+    per_root: impl FnOnce() -> Option<Result<Output, String>>,
 ) -> Result<Output, String> {
     match licence::require(policy, WORKSPACE_FEATURE) {
         Err(required) => {
@@ -128,17 +131,22 @@ pub fn gate(
             note(&mut out, "The other repos in this workspace were not joined; this answers for the current repo only.", Some(&required.to_string()), Some(notice));
             Ok(out)
         }
-        Ok(_) => match multirepo::join_workspace_with(roots, tool, args, prebuilt) {
-            Ok(joined) => Ok(Output {
-                text: joined.text,
-                json: joined.json,
-            }),
-            Err(NotJoined) => {
-                let mut out = single()?;
-                note(&mut out, "The other repos in this workspace were not joined (not yet joined); this answers for the current repo only.", None, None);
-                Ok(out)
+        Ok(_) => {
+            if let Some(answer) = per_root() {
+                return answer;
             }
-        },
+            match multirepo::join_workspace_with(roots, tool, args, prebuilt) {
+                Ok(joined) => Ok(Output {
+                    text: joined.text,
+                    json: joined.json,
+                }),
+                Err(NotJoined) => {
+                    let mut out = single()?;
+                    note(&mut out, "The other repos in this workspace were not joined (not yet joined); this answers for the current repo only.", None, None);
+                    Ok(out)
+                }
+            }
+        }
     }
 }
 
@@ -305,17 +313,40 @@ mod tests {
                 Some(t) => std::env::set_var(ENV, t),
                 None => std::env::remove_var(ENV),
             }
-            let out = gate(&policy, &roots, "impact", &args, single, Default::default).unwrap();
-            assert!(out.text.starts_with("one repo"), "{}", out.text);
-            assert!(out.text.contains("were not joined"), "{}", out.text);
-            assert!(
-                out.text.contains("https://example.com/team"),
-                "{}",
-                out.text
-            );
-            assert_eq!(out.json["pro_required"]["product"], "repomap", "{t:?}");
-            assert_eq!(out.json["pro_required"]["tier"], "Team");
-            assert_eq!(out.json["root"], "a");
+            for tool in ["map", "search", "context", "trace", "impact", "db"] {
+                let out = gate(
+                    &policy,
+                    &roots,
+                    tool,
+                    &args,
+                    single,
+                    Default::default,
+                    || None,
+                )
+                .unwrap();
+                assert!(out.text.starts_with("one repo"), "{tool}: {}", out.text);
+                assert!(out.text.contains("were not joined"), "{tool}: {}", out.text);
+                assert!(
+                    out.text.contains("https://example.com/team"),
+                    "{}",
+                    out.text
+                );
+                assert_eq!(out.json["pro_required"]["product"], "repomap", "{t:?}");
+                assert_eq!(out.json["pro_required"]["tier"], "Team");
+                assert_eq!(out.json["root"], "a");
+                // Not even the per-root hook runs without a licence.
+                let out = gate(
+                    &policy,
+                    &roots,
+                    tool,
+                    &args,
+                    single,
+                    Default::default,
+                    || panic!("per-root answer ran without a licence"),
+                )
+                .unwrap();
+                assert!(out.json.get("pro_required").is_some());
+            }
         }
 
         // Licensed: the hook is called; while it is not joined the answer is the current root's, no pro_required.
@@ -326,12 +357,39 @@ mod tests {
                 r#"{"plan":"team","issuedAt":1,"product":"repomap","seats":5}"#,
             ),
         );
-        let out = gate(&policy, &roots, "impact", &args, single, Default::default).unwrap();
+        let out = gate(
+            &policy,
+            &roots,
+            "impact",
+            &args,
+            single,
+            Default::default,
+            || None,
+        )
+        .unwrap();
         assert!(
             out.text.starts_with("one repo") && out.text.contains("not yet joined"),
             "{}",
             out.text
         );
+        assert!(out.json.get("pro_required").is_none());
+        // Licensed, a per-root answer is returned as is.
+        let out = gate(
+            &policy,
+            &roots,
+            "db",
+            &args,
+            single,
+            Default::default,
+            || {
+                Some(Ok(Output {
+                    text: "per root".into(),
+                    json: json!({"repos": {}}),
+                }))
+            },
+        )
+        .unwrap();
+        assert_eq!(out.text, "per root");
         assert!(out.json.get("pro_required").is_none());
         std::env::remove_var(ENV);
     }
