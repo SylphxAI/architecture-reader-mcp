@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Token-budgeted map.** `repomap map --tokens N` (MCP `map` argument `tokens`) fills the map with the highest-ranked modules, central files and symbols until the estimated size reaches N tokens (4 characters per token, rounded up), then ends with a line such as `… 31 more files, 40 more symbols omitted (budget 1000 tokens; lowest-ranked first)`. Under a tight budget the outline and key symbols go first, then files and modules, so the structure stays readable. Without `--tokens` the output is unchanged.
+
 - **Huge fixture trees are deferred by default.** A directory named `testdata`, `fixtures`, `__fixtures__` or `__snapshots__`, or the first directory below a `test`/`tests`/`spec`/`e2e` folder (for example `tests/cases`), with 1,000 or more files is no longer indexed up front. Folders where at least 10% of files are named like tests (`*_test.go`, `*.test.ts`, `*_spec.rb`, `*Test.java`), `src/test/**` and `src/**/test/**` layouts, and small fixture folders stay indexed. A `context`, `impact`, `trace`, `map --focus` or `search --path` that names a file or directory inside a deferred tree indexes it on demand; `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) indexes them all. `repomap index` and `map` say how many fixture files were deferred and where. On the TypeScript compiler repository (46,459 of 47,213 files deferred: `tests/baselines`, `tests/cases`) cold index goes from 12.1 s and 610 MB to 1.2 s and 159 MB (median of 3); zod and tokio are unchanged (0.2 to 0.4 s, under 70 MB).
 
 ## 1.5.0

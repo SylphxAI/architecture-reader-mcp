@@ -165,6 +165,26 @@ pub struct MapResult {
     pub aux: Vec<(String, usize)>,
     /// Fixture trees left out of the index until a query targets them.
     pub deferred: Vec<crate::index::DeferredDir>,
+    /// Set only when a token budget cut the map (`MapResult::fit_tokens`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<BudgetCut>,
+}
+
+/// What a token budget removed from a map, lowest-ranked items first.
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct BudgetCut {
+    pub tokens: usize,
+    pub modules: usize,
+    pub files: usize,
+    pub symbols: usize,
+    pub entry_points: usize,
+    pub outline_files: usize,
+    pub outline_symbols: usize,
+}
+
+/// Cheap token estimate used for `--tokens`: one token per 4 characters, rounded up.
+pub fn estimate_tokens(text: &str) -> usize {
+    text.chars().count().div_ceil(4)
 }
 
 /// One line saying which fixture trees were deferred and how to include them.
@@ -356,11 +376,56 @@ impl Index {
             outline,
             aux,
             deferred: self.deferred.clone(),
+            budget: None,
         }
     }
 }
 
 impl MapResult {
+    /// Trim the map until `text()` is estimated at or under `tokens`. Items leave
+    /// lowest-ranked first: outline symbols (down to 3 per file), then outline
+    /// files, then key symbols, central files and modules (the longest list gives
+    /// up an item first, so they shrink together), then entry points. The header
+    /// always stays. Build the map with a generous `limit` so there is enough to
+    /// fill the budget. Adds a note when anything was cut.
+    pub fn fit_tokens(&mut self, tokens: usize) {
+        self.budget = None;
+        if estimate_tokens(&self.text()) <= tokens {
+            return;
+        }
+        let mut cut = BudgetCut { tokens, ..Default::default() };
+        self.budget = Some(cut.clone());
+        loop {
+            if estimate_tokens(&self.text()) <= tokens {
+                break;
+            }
+            if let Some(f) = self.outline.iter_mut().rev().find(|f| f.symbols.len() > 3) {
+                f.symbols.pop();
+                cut.outline_symbols += 1;
+            } else if self.outline.pop().is_some() {
+                cut.outline_files += 1;
+            } else {
+                let (m, f, s) = (self.modules.len(), self.key_files.len(), self.key_symbols.len());
+                let most = m.max(f).max(s);
+                if most > 0 && s == most {
+                    self.key_symbols.pop();
+                    cut.symbols += 1;
+                } else if most > 0 && f == most {
+                    self.key_files.pop();
+                    cut.files += 1;
+                } else if most > 0 {
+                    self.modules.pop();
+                    cut.modules += 1;
+                } else if self.entry_points.pop().is_some() {
+                    cut.entry_points += 1;
+                } else {
+                    break;
+                }
+            }
+            self.budget = Some(cut.clone());
+        }
+    }
+
     pub fn text(&self) -> String {
         let mut o = String::new();
         let scope = self.focus.as_deref().map(|f| format!(" / {f}")).unwrap_or_default();
@@ -415,6 +480,21 @@ impl MapResult {
                     let _ = writeln!(o, "  {line:>5}  {kind} {name}  `{}`", truncate(sig, 100));
                 }
             }
+        }
+        if let Some(b) = &self.budget {
+            let parts: Vec<String> = [
+                (b.modules, "modules"),
+                (b.files, "files"),
+                (b.symbols, "symbols"),
+                (b.entry_points, "entry points"),
+                (b.outline_files, "outline files"),
+                (b.outline_symbols, "outline symbols"),
+            ]
+            .iter()
+            .filter(|(n, _)| *n > 0)
+            .map(|(n, l)| format!("{n} more {l}"))
+            .collect();
+            let _ = writeln!(o, "\n… {} omitted (budget {} tokens; lowest-ranked first)", parts.join(", "), b.tokens);
         }
         o
     }

@@ -323,7 +323,7 @@ Pick Serena if you want LSP-precise refactoring edits. repomap is for understand
 repomap setup [--client cursor,codex] [--claude-hooks] [--dry-run] [--remove]
 repomap serve [dir] [--port 7878] [--no-open]
 repomap export [dir] [--out repomap.html] [--json]
-repomap map [dir-to-focus] [-C root] [--json]
+repomap map [dir-to-focus] [-C root] [--tokens 1000] [--json]
 repomap search <query> [--path src/] [--kind function] [--limit 10]
 repomap context <target> [--code-lines 60]
 repomap trace <from> [to] [--callers] [--depth 3]
