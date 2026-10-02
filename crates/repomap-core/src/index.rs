@@ -251,8 +251,6 @@ fn has_test_name(path: &str) -> bool {
         || name.contains(".spec.")
         || name.contains("_test.")
         || name.contains("_spec.")
-        || name.ends_with("test.java")
-        || name.ends_with("tests.cs")
         || {
             // Java-like languages name tests by a capitalised suffix (FooTest, FooTests, FooSpec,
             // FooIT); match case-sensitively so `Commit.java` or `Latest.cs` stay source.
@@ -753,6 +751,7 @@ mod tests {
         assert!(!is_test_path("src/main/java/app/Commit.java"));
         assert!(!is_test_path("app/Audit.php"));
         assert!(!is_test_path("src/Latest.cs"));
+        assert!(!is_test_path("src/main/java/app/Latest.java") && is_test_path("src/FooTests.cs"));
         assert!(is_test_path("src/it/java/FooIT.java"));
         assert!(is_test_path("tests/Unit/FooTest.php"));
         assert!(is_test_path("core/src/test/java/a/FooTests.java"));
