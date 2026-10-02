@@ -162,3 +162,49 @@ fn map_budget_on_a_huge_focused_map_is_linear_and_exact() {
     let got = estimate_tokens(&m.text());
     assert!(got <= 2000 && got as f64 >= 2000.0 * 0.95, "{got}");
 }
+
+fn git_in(dir: &std::path::Path, args: &[&str]) {
+    let s = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"])
+        .args(args)
+        .status()
+        .expect("git");
+    assert!(s.success(), "git {args:?}");
+}
+
+#[test]
+fn impact_changed_rejects_option_like_base_and_accepts_real_refs() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    git_in(&root, &["init", "-q", "-b", "main"]);
+    std::fs::write(root.join("a.ts"), "export function a() { return 1; }\n").unwrap();
+    git_in(&root, &["add", "."]);
+    git_in(&root, &["commit", "-q", "-m", "one"]);
+    std::fs::write(root.join("a.ts"), "export function a() { return 2; }\n").unwrap();
+    git_in(&root, &["commit", "-q", "-am", "two"]);
+    // An uncommitted edit, so every ref below has a non-empty diff.
+    std::fs::write(root.join("a.ts"), "export function a() { return 3; }\n").unwrap();
+    let sha = String::from_utf8(std::process::Command::new("git").arg("-C").arg(&root).args(["rev-parse", "HEAD~1"]).output().unwrap().stdout).unwrap();
+    let idx = Index::build(&root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    let opts = ImpactOptions::default();
+
+    let victim = dir.path().join("pwned");
+    for bad in [format!("--output={}", victim.display()), "-p".to_string(), "--".to_string()] {
+        let e = idx.impact_changed(Some(&bad), &opts).err().expect("must reject");
+        assert!(e.contains("must not start with `-`"), "{e}");
+    }
+    assert!(!victim.exists(), "base must not create a file");
+
+    for ok in ["HEAD", "HEAD~1", "main", sha.trim()] {
+        idx.impact_changed(Some(ok), &opts).unwrap_or_else(|e| panic!("{ok}: {e}"));
+    }
+    // A remote-tracking ref also resolves.
+    git_in(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    idx.impact_changed(Some("origin/main"), &opts).expect("origin/main");
+    // The diff against HEAD~1 sees the edited function.
+    let r = idx.impact_changed(Some("HEAD~1"), &opts).unwrap();
+    assert!(!r.targets.is_empty());
+}

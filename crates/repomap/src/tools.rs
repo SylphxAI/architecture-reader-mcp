@@ -186,8 +186,8 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
     let changed_mode = canonical(name) == Some("impact")
         && (args.get("changed").and_then(|v| v.as_bool()).unwrap_or(false) || args.get("use_git_diff").and_then(|v| v.as_bool()).unwrap_or(false));
     if changed_mode {
-        let base = s(args, &["base", "git_base"]).unwrap_or("HEAD");
-        for a in [vec!["diff", "--name-only", base], vec!["ls-files", "--others", "--exclude-standard"]] {
+        let base = repomap_core::index::check_ref(s(args, &["base", "git_base"]).unwrap_or("HEAD"))?;
+        for a in [vec!["diff", "--name-only", "--end-of-options", base], vec!["ls-files", "--others", "--exclude-standard"]] {
             if let Some(out) = repomap_core::index::git_run(root, &a) {
                 targets.extend(out.lines().filter(|l| !l.is_empty()).map(str::to_string));
             }
