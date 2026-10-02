@@ -11,6 +11,7 @@ pub mod export;
 pub mod graph;
 pub mod index;
 pub mod lang;
+pub mod multirepo;
 pub mod parse;
 pub mod qterms;
 pub mod query;

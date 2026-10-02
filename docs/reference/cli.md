@@ -15,6 +15,7 @@ repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]            build and print timings
 
 repomap mcp [--root dir]                             MCP server on stdio
+repomap licence status | activate <token>            show or store a repomap Team licence (free to run)
 repomap hook                                         Claude Code PreToolUse hook (reads JSON on stdin)
 repomap version
 ```
@@ -23,8 +24,10 @@ Any command accepts `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) to in
 
 `map --tokens N` caps the map at about N tokens (estimated as 4 characters per token). It includes modules, central files and symbols in rank order and drops the lowest-ranked first (outline symbols, then key symbols, files and modules), ending with a line that says what was omitted. The MCP `map` tool takes the same `tokens` argument. Without it the map is not budgeted.
 
+`--workspace a,b` (or a `repomap.workspace.toml`) names several repository roots for the query commands. That is repomap [Team](../team); without a licence the answer covers the current repository only and says so.
+
 `-C/--root` sets the repository for the query commands (the default is the current directory). With no arguments, and stdin not a terminal, `repomap` runs the MCP server.
 
 ## Star reminder
 
-After the fifth successful interactive query run (`map`, `search`, `context`, `trace`, `impact`, `index`, `score`, `db`, `export`), repomap prints one line to stderr asking for a GitHub star, then never again. The run counter is the `star-hint` file in `REPOMAP_CACHE_DIR` when set, else `<user cache dir>/repomap` (or the temporary cache fallback). The hint and cache-root selection come from `sylphx-mcp-kit` 0.3. It stays silent for the MCP server and the hook, with `--json`, when stderr is not a terminal, and when `CI` is set. Set `REPOMAP_NO_STAR_HINT=1` to turn it off.
+After the fifth successful interactive query run (`map`, `search`, `context`, `trace`, `impact`, `index`, `score`, `db`, `export`), repomap prints one line to stderr asking for a GitHub star, then never again. The run counter is the `star-hint` file in `REPOMAP_CACHE_DIR` when set, else `<user cache dir>/repomap` (or the temporary cache fallback). The hint and cache-root selection come from `sylphx-mcp-kit`. It stays silent for the MCP server and the hook, with `--json`, when stderr is not a terminal, and when `CI` is set. Set `REPOMAP_NO_STAR_HINT=1` to turn it off.

@@ -4,7 +4,8 @@ use crate::tools;
 use crate::workspace::Workspace;
 use mcp_kit::roots::{self, Sources};
 use mcp_kit::server::{run_stdio, App, Call, Info};
-use serde_json::Value;
+use mcp_kit::rmcp::model::{CallToolResult, ContentBlock};
+use serde_json::{json, Value};
 use std::path::PathBuf;
 
 const INSTRUCTIONS: &str = "repomap is a map of this codebase. Start with `map` to see modules, central files and key symbols. Use `search` to find code by words or identifiers, `context` for a 360° view of a symbol or file (code, callers, callees, tests), `trace` for call paths, and `impact` before editing to see what could break (or `impact` with changed=true to review the current diff). `db` maps the database schema and where the code queries each table. Every answer cites file:line.";
@@ -19,6 +20,17 @@ struct Repomap {
 }
 
 impl Repomap {
+    fn answer(&self, name: &str, args: &Value, call: &Call) -> Result<(String, Option<Value>), String> {
+        let out = tools::call(&self.ws, name, args, &self.root(args, call)?)?;
+        let pro_required = out.json.get("pro_required").cloned();
+        let text = if args.get("format").and_then(|v| v.as_str()) == Some("json") {
+            serde_json::to_string_pretty(&out.json).unwrap_or_default()
+        } else {
+            out.text
+        };
+        Ok((text, pro_required))
+    }
+
     fn root(&self, args: &Value, call: &Call) -> Result<PathBuf, String> {
         let explicit = ["root", "repo_root"].iter().find_map(|k| args.get(*k).and_then(|v| v.as_str())).map(PathBuf::from);
         roots::pick(&Sources { explicit, env: ROOT_ENV, default: self.default_root.clone(), client: &call.client_roots })
@@ -41,11 +53,20 @@ impl App for Repomap {
     }
 
     fn call(&self, name: &str, args: &Value, call: &Call) -> Result<String, String> {
-        let out = tools::call(&self.ws, name, args, &self.root(args, call)?)?;
-        if args.get("format").and_then(|v| v.as_str()) == Some("json") {
-            Ok(serde_json::to_string_pretty(&out.json).unwrap_or_default())
-        } else {
-            Ok(out.text)
+        self.answer(name, args, call).map(|(text, _)| text)
+    }
+
+    /// Free calls answer as plain text. A multi-root call without a Team
+    /// licence answers for the current root and carries `pro_required` in the
+    /// structured content, never as an error.
+    fn call_result(&self, name: &str, args: &Value, call: &Call) -> CallToolResult {
+        match self.answer(name, args, call) {
+            Ok((text, pro_required)) => {
+                let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
+                result.structured_content = pro_required.map(|p| json!({"pro_required": p}));
+                result
+            }
+            Err(text) => CallToolResult::error(vec![ContentBlock::text(text)]),
         }
     }
 

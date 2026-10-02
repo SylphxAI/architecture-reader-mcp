@@ -23,7 +23,7 @@ anyhow = "1"
 repomap-core = { package = "sylphx-repomap-core", path = "../repomap-core", version = "1.6.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sylphx-mcp-kit = "0.3"
+sylphx-mcp-kit = { version = "0.5", features = ["licence"] }
 tiny_http = "0.12"
 dirs = "6"
 tokio = { version = "1", default-features = false, features = ["rt", "time"] }
@@ -50,3 +50,7 @@ pkg-url = "{ repo }/releases/download/v{ version }/repomap-darwin-x64.tar.gz"
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
 pkg-url = "{ repo }/releases/download/v{ version }/repomap-win32-x64-msvc.zip"
 pkg-fmt = "zip"
+[dev-dependencies]
+base64 = "0.22"
+ed25519-dalek = "2"
+tempfile = "3"
