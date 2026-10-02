@@ -86,3 +86,5 @@ acknowledge that once it is supplied you lose your right to cancel.
 Already bought? Run `repomap licence activate <token>`, and paste the same
 token on the repomap Review setup page. `repomap licence status` shows what is
 active.
+
+`repomap licence buy` opens the Team page; in-terminal purchase turns on when checkout is live.
