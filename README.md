@@ -406,7 +406,7 @@ locally and send nothing anywhere. The one network request repomap makes is a
 single download of the embedding model from Hugging Face the first time you
 search; it sends no code. Set `REPOMAP_EMBED=0` to skip it and use keyword
 search only. `repomap export` files hold paths, symbol names and line numbers,
-never source. See [SECURITY.md](SECURITY.md) for the full boundary.
+never source. See [SECURITY.md](https://github.com/SylphxAI/repomap/blob/main/SECURITY.md) for the full boundary.
 
 ## Support
 
