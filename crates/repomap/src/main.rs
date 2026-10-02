@@ -85,7 +85,7 @@ impl Args {
         self.flags.get(k).map(|s| s.as_str())
     }
     fn on(&self, k: &str) -> bool {
-        self.flags.get(k).map_or(false, |v| v != "false")
+        self.flags.get(k).is_some_and(|v| v != "false")
     }
     fn num(&self, k: &str) -> Option<usize> {
         self.flag(k).and_then(|v| v.parse().ok())

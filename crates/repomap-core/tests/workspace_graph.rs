@@ -220,7 +220,7 @@ fn workspace_file_lists_roots() {
     std::fs::create_dir_all(&sub).unwrap();
     let f = find_workspace_file(&sub).unwrap();
     let roots = read_workspace_file(&f).unwrap();
-    assert_eq!(roots, vec![d.path().join("../a"), d.path().join("/abs/b")]);
+    assert_eq!(roots, vec![d.path().join("../a"), std::path::PathBuf::from("/abs/b")]);
     write(d.path(), "empty.toml", "name = 1\n");
     assert!(read_workspace_file(&d.path().join("empty.toml")).is_err());
 }

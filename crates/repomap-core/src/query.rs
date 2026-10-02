@@ -67,7 +67,7 @@ impl Index {
         if let Some(f) = self.find_file(q) {
             return Ok((Target::File(f), vec![]));
         }
-        let parts: Vec<&str> = q.split(|c| c == '.' || c == '#' || c == ':').filter(|s| !s.is_empty()).collect();
+        let parts: Vec<&str> = q.split(['.', '#', ':']).filter(|s| !s.is_empty()).collect();
         let (owner, name) = if parts.len() >= 2 {
             (Some(parts[parts.len() - 2]), parts[parts.len() - 1])
         } else {
@@ -390,7 +390,7 @@ impl Index {
         let mut outline = Vec::new();
         if focus.is_some() {
             for &f in ranked.iter().take(limit.max(20)) {
-                let mut ss: Vec<usize> = self.file_symbols(f).filter(|s| self.symbols[*s].parent.map_or(true, |p| self.symbols[p as usize].kind.is_container())).collect();
+                let mut ss: Vec<usize> = self.file_symbols(f).filter(|s| self.symbols[*s].parent.is_none_or(|p| self.symbols[p as usize].kind.is_container())).collect();
                 ss.truncate(30);
                 outline.push(Outline {
                     path: self.files[f as usize].path.clone(),
@@ -842,11 +842,11 @@ impl Index {
         let mut pick: Vec<usize> = vec![first];
         pick.extend(scored.iter().take(n.saturating_sub(1)).map(|(i, _)| *i));
         if pick.len() < n {
-            for i in first + 1..lines.len() {
+            for (i, line) in lines.iter().enumerate().skip(first + 1) {
                 if pick.len() >= n {
                     break;
                 }
-                if !pick.contains(&i) && !lines[i].trim().is_empty() {
+                if !pick.contains(&i) && !line.trim().is_empty() {
                     pick.push(i);
                 }
             }
@@ -974,7 +974,6 @@ impl Index {
             None
         };
         let tests = self.tests_calling(s);
-        let mut callers = callers;
         callers.sort_by(|a, b| (a.symbol.file.as_str(), a.at).cmp(&(b.symbol.file.as_str(), b.at)));
         callers.truncate(opts.limit);
         let mut callees = callees;
@@ -1014,7 +1013,7 @@ impl Index {
         imported_by.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0)));
         let members: Vec<SymRef> = self
             .file_symbols(f)
-            .filter(|i| self.symbols[*i].parent.map_or(true, |p| self.symbols[p as usize].kind.is_container()))
+            .filter(|i| self.symbols[*i].parent.is_none_or(|p| self.symbols[p as usize].kind.is_container()))
             .map(|i| self.sym_ref(i as u32))
             .take(opts.limit * 4)
             .collect();
@@ -1748,7 +1747,7 @@ fn looks_like_symbol(q: &str) -> bool {
         return false;
     }
     let ident = |p: &str| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_');
-    let parts: Vec<&str> = q.split(|c| c == '.' || c == ':' || c == '\\').filter(|p| !p.is_empty()).collect();
+    let parts: Vec<&str> = q.split(['.', ':', '\\']).filter(|p| !p.is_empty()).collect();
     if parts.is_empty() || !parts.iter().all(|p| ident(p)) {
         return false;
     }

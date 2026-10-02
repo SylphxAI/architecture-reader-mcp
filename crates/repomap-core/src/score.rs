@@ -130,7 +130,7 @@ impl Index {
                 .communities
                 .iter()
                 .filter(|c| c.kind == "core")
-                .filter(|c| c.name.split(['/', ' ']).next().map_or(false, |seg| seg.len() > 2 && text.contains(seg)))
+                .filter(|c| c.name.split(['/', ' ']).next().is_some_and(|seg| seg.len() > 2 && text.contains(seg)))
                 .count();
             let lower = text.to_ascii_lowercase();
             if dirs_named >= 2 || lower.contains("architecture") || lower.contains("layout") || lower.contains("structure") {
@@ -152,7 +152,7 @@ impl Index {
             let mut build_cmd: Option<String> = None;
             if let Some(pj) = read(root, "package.json").and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) {
                 if let Some(scripts) = pj.get("scripts").and_then(|v| v.as_object()) {
-                    if scripts.get("test").and_then(|v| v.as_str()).map_or(false, |v| !v.contains("no test specified")) {
+                    if scripts.get("test").and_then(|v| v.as_str()).is_some_and(|v| !v.contains("no test specified")) {
                         test_cmd = Some("npm test".into());
                     }
                     if scripts.contains_key("build") || scripts.contains_key("lint") || scripts.contains_key("typecheck") {
@@ -228,7 +228,7 @@ impl Index {
             let inline = self
                 .code_files()
                 .filter(|(_, f)| f.role == Role::Core && f.lang == Some(Lang::Rust))
-                .filter(|(_, f)| read(root, &f.path).map_or(false, |t| t.contains("#[test]") || t.contains("#[cfg(test)]")))
+                .filter(|(_, f)| read(root, &f.path).is_some_and(|t| t.contains("#[test]") || t.contains("#[cfg(test)]")))
                 .count();
             let tests = self.code_files().filter(|(_, f)| f.role == Role::Test).count() + inline;
             let ratio = if core == 0 { 1.0 } else { tests as f32 / core as f32 };
@@ -322,7 +322,7 @@ impl Index {
             let big = core.iter().filter(|(_, l)| *l > 1000).count();
             let frac = if core.is_empty() { 0.0 } else { big as f32 / core.len() as f32 };
             let s = pts(10, 1.0 - frac / 0.2);
-            core.sort_by(|a, b| b.1.cmp(&a.1));
+            core.sort_by_key(|a| std::cmp::Reverse(a.1));
             let mut fixes = Vec::new();
             if s < 10 {
                 let top: Vec<String> = core.iter().take(4).map(|(f, l)| format!("{} ({l} lines)", self.files[*f as usize].path)).collect();
@@ -369,7 +369,7 @@ impl Index {
             let tsconfig = read(root, "tsconfig.json").unwrap_or_default();
             let ts_strict = tsconfig.contains("\"strict\": true") || tsconfig.contains("\"strict\":true");
             let py_typed = ["mypy.ini", ".mypy.ini", "pyrightconfig.json"].iter().any(|p| exists(root, p))
-                || read(root, "pyproject.toml").map_or(false, |t| t.contains("[tool.mypy]") || t.contains("[tool.pyright]"));
+                || read(root, "pyproject.toml").is_some_and(|t| t.contains("[tool.mypy]") || t.contains("[tool.pyright]"));
             let mut weighted = 0f32;
             for (lang, lines) in &lines_by {
                 let q = match lang {
@@ -401,8 +401,8 @@ impl Index {
                 }
             }
             let mut mix: Vec<(Lang, u32)> = lines_by.into_iter().collect();
-            mix.sort_by(|a, b| b.1.cmp(&a.1));
-            let detail = mix.iter().take(3).map(|(l, n)| format!("{} {}%", l.name(), if total == 0 { 0 } else { n * 100 / total })).collect::<Vec<_>>().join(", ");
+            mix.sort_by_key(|a| std::cmp::Reverse(a.1));
+            let detail = mix.iter().take(3).map(|(l, n)| format!("{} {}%", l.name(), (n * 100).checked_div(total).unwrap_or(0))).collect::<Vec<_>>().join(", ");
             checks.push(Check { id: "types", name: "Types", score: s, max: 10, detail, fixes });
         }
 
@@ -422,7 +422,7 @@ impl Score {
             let _ = writeln!(o, "  {mark} {:<22} {:>2}/{:<2}  {}", c.name, c.score, c.max, c.detail);
         }
         let mut fixes: Vec<&(u32, String)> = self.checks.iter().flat_map(|c| c.fixes.iter()).collect();
-        fixes.sort_by(|a, b| b.0.cmp(&a.0));
+        fixes.sort_by_key(|a| std::cmp::Reverse(a.0));
         if !fixes.is_empty() {
             let _ = writeln!(o, "\n## Fixes (most points first)");
             for (i, (p, f)) in fixes.iter().enumerate() {
