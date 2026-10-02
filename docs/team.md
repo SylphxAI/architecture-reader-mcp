@@ -25,6 +25,22 @@ graph. `impact` and `trace` follow your shared packages from one repository into
 the next, so your agent sees the service a change really breaks. It runs on
 your machine.
 
+Every tool takes the whole workspace:
+
+- `map` gives one map per repository and lists which repository imports which
+  package from which.
+- `search` ranks hits across all repositories, and says which other repositories
+  use the file a hit is in.
+- `context` finds a file or symbol in every repository that has it and lists the
+  files in other repositories that import it. Write `api:src/auth.ts` to ask one
+  repository only.
+- `trace` and `impact` follow imports across repository borders.
+- `db` answers once per repository and never merges them: separate repositories
+  are usually separate databases, so a merged schema would be a guess. Without a
+  URL you get each repository's own schema and the code that queries it. With
+  `url` or `url_env` you get the one live database shown to each repository, so
+  you can see which repository queries each table.
+
 ```toml
 # repomap.workspace.toml
 roots = ["../api", "../web", "../shared"]

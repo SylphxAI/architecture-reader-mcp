@@ -22,8 +22,8 @@
 use crate::index::{BuildOptions, Index};
 use crate::lang::Lang;
 use crate::query::{
-    Direction, ImpactOptions, ImpactResult, SearchHit, SearchOptions, Target, TraceOptions,
-    TraceResult,
+    ContextOptions, ContextResult, Direction, ImpactOptions, ImpactResult, MapOptions, MapResult,
+    SearchHit, SearchOptions, Target, TraceOptions, TraceResult,
 };
 use anyhow::{bail, Context, Result};
 use serde::Serialize;
@@ -1189,6 +1189,210 @@ impl WorkspaceTrace {
         }
         if let Some(n) = &self.note {
             let _ = writeln!(o, "\n{n}");
+        }
+        o
+    }
+}
+
+// ------------------------------------------------------------ map, context
+
+/// One repo's map inside a workspace map.
+#[derive(Debug, Serialize)]
+pub struct RepoMap {
+    pub repo: String,
+    pub map: MapResult,
+}
+
+/// Files in `from` that import a package `to` publishes.
+#[derive(Debug, Serialize)]
+pub struct RepoLink {
+    pub from: String,
+    pub to: String,
+    /// The package the import names (`kind:key`).
+    pub package: String,
+    pub files: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceMap {
+    pub repos: Vec<RepoMap>,
+    /// Which repo depends on which, by package, most files first.
+    pub links: Vec<RepoLink>,
+}
+
+impl WorkspaceGraph {
+    /// One map per repo plus the cross-repo package links between them. A
+    /// `focus` path applies to every repo and repos with nothing under it are
+    /// left out. A token budget is split evenly across the repos shown.
+    pub fn map(&self, opts: &MapOptions, tokens: Option<usize>) -> WorkspaceMap {
+        let build = |m: &Member, limit: usize| RepoMap {
+            repo: m.name.clone(),
+            map: m.index.map(&MapOptions {
+                focus: opts.focus.clone(),
+                limit,
+            }),
+        };
+        let limit = if tokens.is_some() {
+            opts.limit.max(500)
+        } else {
+            opts.limit
+        };
+        let mut repos: Vec<RepoMap> = self.members.iter().map(|m| build(m, limit)).collect();
+        if opts.focus.is_some() && repos.iter().any(|r| r.map.code_files > 0) {
+            repos.retain(|r| r.map.code_files > 0);
+        }
+        if let Some(t) = tokens {
+            let each = (t / repos.len().max(1)).max(1);
+            for r in &mut repos {
+                r.map.fit_tokens(each);
+            }
+        }
+        let mut count: BTreeMap<(String, String, String), HashSet<(usize, u32)>> = BTreeMap::new();
+        for e in &self.edges {
+            let p = &self.packages[e.package];
+            count
+                .entry((
+                    self.members[e.from_repo].name.clone(),
+                    self.members[p.repo].name.clone(),
+                    format!("{}:{}", p.kind, p.key),
+                ))
+                .or_default()
+                .insert((e.from_repo, e.from_file));
+        }
+        let mut links: Vec<RepoLink> = count
+            .into_iter()
+            .map(|((from, to, package), files)| RepoLink {
+                from,
+                to,
+                package,
+                files: files.len(),
+            })
+            .collect();
+        links.sort_by(|a, b| {
+            b.files
+                .cmp(&a.files)
+                .then_with(|| (&a.from, &a.to, &a.package).cmp(&(&b.from, &b.to, &b.package)))
+        });
+        WorkspaceMap { repos, links }
+    }
+}
+
+impl WorkspaceMap {
+    pub fn text(&self) -> String {
+        let mut o = format!("# Workspace map: {} repos\n", self.repos.len());
+        if self.links.is_empty() {
+            o.push_str("\nNo repo imports a package another repo in this workspace publishes.\n");
+        } else {
+            o.push_str("\n## Cross-repo links\n");
+            for l in &self.links {
+                let _ = writeln!(
+                    o,
+                    "- {} imports {} from {} ({} files)",
+                    l.from, l.package, l.to, l.files
+                );
+            }
+        }
+        for r in &self.repos {
+            let _ = write!(o, "\n## Repo {}\n\n{}", r.repo, r.map.text());
+            if !o.ends_with('\n') {
+                o.push('\n');
+            }
+        }
+        o
+    }
+}
+
+/// A target's context inside one repo.
+#[derive(Debug, Serialize)]
+pub struct RepoContext {
+    pub repo: String,
+    pub context: ContextResult,
+    /// Files in other repos (`repo:path`) that import this file, or the file
+    /// holding this symbol, through a package this repo publishes.
+    pub used_by: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceContext {
+    pub target: String,
+    pub found_in: Vec<RepoContext>,
+}
+
+impl WorkspaceGraph {
+    /// `target` in every repo that knows it (or only the repo named by a
+    /// `repo:` prefix), each with the other-repo files that import it.
+    pub fn context(&self, target: &str, opts: &ContextOptions) -> Result<WorkspaceContext, String> {
+        let mut scoped: Option<(usize, &str)> = None;
+        if let Some((p, rest)) = target.split_once(':') {
+            if let Some(i) = self.members.iter().position(|m| m.name == p) {
+                if !rest.is_empty() && self.members[i].index.resolve(rest).is_ok() {
+                    scoped = Some((i, rest));
+                }
+            }
+        }
+        let tries: Vec<(usize, &str)> = match scoped {
+            Some(s) => vec![s],
+            None => (0..self.members.len()).map(|i| (i, target)).collect(),
+        };
+        let mut found_in = Vec::new();
+        let mut first_err = None;
+        for (r, q) in tries {
+            let m = &self.members[r];
+            match m.index.context(q, opts) {
+                Ok(context) => {
+                    let file = match m.index.resolve(q).map(|x| x.0) {
+                        Ok(Target::File(f)) => Some(f),
+                        Ok(Target::Symbol(s)) => Some(m.index.symbols[s as usize].file),
+                        Err(_) => None,
+                    };
+                    let mut used_by: Vec<String> = file
+                        .map(|f| {
+                            self.importers_of(r, f)
+                                .iter()
+                                .map(|e| self.label(e.from_repo, e.from_file))
+                                .collect::<BTreeSet<_>>()
+                                .into_iter()
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    used_by.truncate(opts.limit);
+                    found_in.push(RepoContext {
+                        repo: m.name.clone(),
+                        context,
+                        used_by,
+                    });
+                }
+                Err(e) => first_err = first_err.or(Some(e)),
+            }
+        }
+        if found_in.is_empty() {
+            return Err(first_err.unwrap_or_else(|| "empty workspace".into()));
+        }
+        Ok(WorkspaceContext {
+            target: target.to_string(),
+            found_in,
+        })
+    }
+}
+
+impl WorkspaceContext {
+    pub fn text(&self) -> String {
+        let mut o = format!(
+            "# Workspace context: {} (found in {} repos)\n",
+            self.target,
+            self.found_in.len()
+        );
+        for r in &self.found_in {
+            let _ = write!(o, "\n## Repo {}\n\n{}", r.repo, r.context.text());
+            if !o.ends_with('\n') {
+                o.push('\n');
+            }
+            if !r.used_by.is_empty() {
+                let _ = writeln!(o, "\n## Used by other repos ({})", r.used_by.len());
+                for u in &r.used_by {
+                    let _ = writeln!(o, "- {u}");
+                }
+            }
         }
         o
     }
