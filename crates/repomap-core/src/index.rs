@@ -238,7 +238,7 @@ fn root_slug(root: &Path) -> String {
 
 pub fn is_test_path(path: &str) -> bool {
     let p = path.to_ascii_lowercase();
-    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e")) || has_test_name(&p)
+    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e")) || has_test_name(path)
 }
 
 /// The filename half of `is_test_path`.
@@ -254,10 +254,12 @@ fn has_test_name(path: &str) -> bool {
         || name.ends_with("test.java")
         || name.ends_with("tests.cs")
         || {
-            // Java-like languages name tests by suffix: FooTest, FooTests, FooSpec, FooIT.
-            let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
-            matches!(ext, "java" | "kt" | "kts" | "scala" | "groovy" | "php" | "cs" | "swift")
-                && ["test", "tests", "spec", "it"].iter().any(|w| stem.ends_with(w))
+            // Java-like languages name tests by a capitalised suffix (FooTest, FooTests, FooSpec,
+            // FooIT); match case-sensitively so `Commit.java` or `Latest.cs` stay source.
+            let orig = path.rsplit('/').next().unwrap_or(path);
+            let (stem, ext) = orig.rsplit_once('.').unwrap_or((orig, ""));
+            matches!(ext.to_ascii_lowercase().as_str(), "java" | "kt" | "kts" | "scala" | "groovy" | "php" | "cs" | "swift")
+                && ["Test", "Tests", "Spec", "IT"].iter().any(|w| stem.ends_with(w))
         }
 }
 
@@ -747,6 +749,13 @@ mod tests {
         assert!(is_test_path("a/b.spec.ts"));
         assert!(!is_test_path("src/testing_utils.ts"));
         assert!(is_test_path("tests_x/test_app.py") && !is_test_path("lib/bats-core/test_functions.bash"));
+        // Java-like suffixes are case-sensitive: ordinary classes ending in "it"/"test" stay source.
+        assert!(!is_test_path("src/main/java/app/Commit.java"));
+        assert!(!is_test_path("app/Audit.php"));
+        assert!(!is_test_path("src/Latest.cs"));
+        assert!(is_test_path("src/it/java/FooIT.java"));
+        assert!(is_test_path("tests/Unit/FooTest.php"));
+        assert!(is_test_path("core/src/test/java/a/FooTests.java"));
         assert_eq!(role_of("examples/tutorial/flaskr/db.py", false), Role::Example);
         assert_eq!(role_of("src/flask/app.py", false), Role::Core);
         assert_eq!(role_of("benchmarks/jsx/a.ts", false), Role::Bench);
