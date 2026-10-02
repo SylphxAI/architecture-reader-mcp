@@ -109,7 +109,7 @@ ${legend}\n${grid}\n${groups}
 export function heroCopy(data: HeroData, docs = false): string {
   const benchmarks = docs ? "/repomap/benchmarks" : "https://sylphxai.github.io/repomap/benchmarks";
   const table = methods.map(method => `<tr><th scope="row">${labels[method]}</th>${ks.map(k => `<td>${pct(data.scores[method][`acc@${k}`])}</td>`).join("")}</tr>`).join("\n");
-  const image = docs ? heroSvg(data, false) : `<img src="docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for ${pct(data.scores.repomap["acc@10"])} of ${data.count} issues; semble ${pct(data.scores.semble["acc@10"])}, BM25 ${pct(data.scores.bm25["acc@10"])}. Full Acc@1, 5 and 10 values follow in the table.">`;
+  const image = docs ? heroSvg(data, false) : `<img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for ${pct(data.scores.repomap["acc@10"])} of ${data.count} issues; semble ${pct(data.scores.semble["acc@10"])}, BM25 ${pct(data.scores.bm25["acc@10"])}. Full Acc@1, 5 and 10 values follow in the table.">`;
   return `<p>One issue-text search finds every fix file in the top 10 for <strong>${pct(data.scores.repomap["acc@10"])} of SWE-bench Verified issues</strong> (semble: ${pct(data.scores.semble["acc@10"])}). File retrieval, not issue resolution.</p>
 ${image}
 <details><summary>Chart values and evaluation protocol</summary>

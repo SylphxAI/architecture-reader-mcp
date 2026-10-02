@@ -14,6 +14,16 @@ const { oneliner, cargoInstall } = JSON.parse(readFileSync("brand.json", "utf8")
 if (oneliner.length > 100) throw new Error(`oneliner is ${oneliner.length} chars; the MCP Registry allows 100`);
 const problems: string[] = [];
 
+// The README is the npm landing page: npm resolves relative URLs against packages/repomap, so they 404.
+if (mode === "check") {
+  readFileSync("README.md", "utf8").split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(/(?:src|href)="([^"]*)"|\]\(([^)\s]*)/g)) {
+      const url = m[1] ?? m[2] ?? "";
+      if (url && !/^(https?:|#|mailto:)/.test(url)) problems.push(`README.md:${i + 1} relative link ${url}; use an absolute URL`);
+    }
+  });
+}
+
 function sync(path: string, update: (s: string) => string) {
   const before = existsSync(path) ? readFileSync(path, "utf8") : "";
   const after = update(before);
@@ -34,7 +44,7 @@ const between = (start: string, end: string, body: string) => (s: string) => {
 
 sync("packages/repomap/package.json", json("description"));
 sync("server.json", json("description"));
-sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `**${oneliner}**`));
+sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `<strong>${oneliner}</strong>`));
 sync("docs/index.md", (s) => s.replace(/^  tagline: .*$/m, `  tagline: ${JSON.stringify(oneliner)}`));
 
 for (const path of ["README.md", "docs/guide/quickstart.md"]) {
