@@ -144,8 +144,7 @@ impl Lang {
 
     /// Compiled query, built lazily once per language per process.
     pub fn query(self) -> &'static Query {
-        const EMPTY: OnceLock<Query> = OnceLock::new();
-        static CACHE: [OnceLock<Query>; 14] = [EMPTY; 14];
+        static CACHE: [OnceLock<Query>; 14] = [const { OnceLock::new() }; 14];
         let idx = Lang::ALL.iter().position(|l| *l == self).expect("lang in table");
         CACHE[idx].get_or_init(|| {
             Query::new(&self.grammar(), &self.source())

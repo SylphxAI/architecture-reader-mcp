@@ -193,7 +193,7 @@ fn impact_changed_rejects_option_like_base_and_accepts_real_refs() {
 
     let victim = dir.path().join("pwned");
     for bad in [format!("--output={}", victim.display()), "-p".to_string(), "--".to_string()] {
-        let e = idx.impact_changed(Some(&bad), &opts).err().expect("must reject");
+        let e = idx.impact_changed(Some(&bad), &opts).expect_err("must reject");
         assert!(e.contains("must not start with `-`"), "{e}");
     }
     assert!(!victim.exists(), "base must not create a file");

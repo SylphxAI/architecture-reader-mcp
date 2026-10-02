@@ -393,7 +393,7 @@ fn parse_code(lang: Lang, src: &str, line_starts: &[usize], facts: &mut FileFact
                 owner = Some(ty.clone());
             }
         }
-        if kind == Kind::Function && owner.is_some() && parent.map_or(true, |p| symbols[p].kind.is_container()) {
+        if kind == Kind::Function && owner.is_some() && parent.is_none_or(|p| symbols[p].kind.is_container()) {
             kind = Kind::Method;
         }
         let start = line_of(line_starts, d.start_byte);
@@ -468,7 +468,7 @@ fn qualifier(raw: &str) -> String {
         return String::new();
     }
     let t = t.trim_start_matches('&').trim_start_matches('*').trim_start_matches('$').trim_start_matches('@');
-    let last = t.rsplit(|c| c == '.' || c == ':' || c == '>' || c == '\\').find(|s| !s.is_empty()).unwrap_or(t);
+    let last = t.rsplit(['.', ':', '>', '\\']).find(|s| !s.is_empty()).unwrap_or(t);
     last.split('<').next().unwrap_or(last).to_string()
 }
 

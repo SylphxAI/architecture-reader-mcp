@@ -518,7 +518,7 @@ pub fn parse_sql(schema: &mut DbSchema, path: &str, src: &str) {
                             let (_, n) = split_name(&toks[2]);
                             t.name = n;
                         } else {
-                            let k = if upper(&toks.get(1).map(|s| s.as_str()).unwrap_or("")) == "COLUMN" { 2 } else { 1 };
+                            let k = if upper(toks.get(1).map(|s| s.as_str()).unwrap_or("")) == "COLUMN" { 2 } else { 1 };
                             if toks.len() > k + 2 && upper(&toks[k + 1]) == "TO" {
                                 let (from, to) = (unquote(&toks[k]), unquote(&toks[k + 2]));
                                 if let Some(col) = t.col_mut(&from) {
@@ -785,7 +785,7 @@ pub fn parse_sqlalchemy(schema: &mut DbSchema, path: &str, src: &str) {
             let name = re_str.captures(args).map(|x| x[1].to_string()).unwrap_or(attr);
             let ty = m.get(2).and_then(|a| re_mapped.captures(a.as_str()).map(|x| x[1].to_string())).or_else(|| re_type.captures(args).map(|x| x[1].to_string())).unwrap_or_default();
             let pk = args.contains("primary_key=True");
-            let nullable = !(args.contains("nullable=False") || pk) && !m.get(2).map_or(false, |a| !a.as_str().contains("Optional") && !a.as_str().contains("None"));
+            let nullable = !(args.contains("nullable=False") || pk) && !m.get(2).is_some_and(|a| !a.as_str().contains("Optional") && !a.as_str().contains("None"));
             if let Some(fk) = re_fk.captures(args) {
                 t.foreign_keys.push(ForeignKey { columns: vec![name.clone()], ref_table: fk[1].to_string(), ref_columns: vec![fk[2].to_string()] });
             } else if let Some(fk) = re_fk_attr.captures(args) {
@@ -1749,7 +1749,7 @@ pub fn from_repo(index: &Index) -> DbSchema {
     django_schema(&mut schema, django_files, auth_user_model.as_deref());
     sources.dedup();
     schema.sources = sources;
-    schema.tables.sort_by(|a, b| a.key().cmp(&b.key()));
+    schema.tables.sort_by_key(|a| a.key());
     schema
 }
 
@@ -1767,7 +1767,7 @@ pub fn link_code(index: &Index, schema: &mut DbSchema) {
     let names: Vec<String> = schema.tables.iter().map(|t| t.name.clone()).collect();
     let alt = names.iter().map(|n| esc(n)).collect::<Vec<_>>().join("|");
     let Ok(re_sql) = Regex::new(&format!(r#"(?i)\b(?:from|join|into|update|table|exists)\s+["`\[]?(?:\w+["`\]]?\.["`\[]?)?({alt})\b"#)) else { return };
-    let prisma: Vec<(usize, String)> = schema.tables.iter().enumerate().flat_map(|(i, t)| t.aliases.iter().filter(|a| a.chars().next().map_or(false, |c| c.is_ascii_lowercase())).map(move |a| (i, a.clone()))).collect();
+    let prisma: Vec<(usize, String)> = schema.tables.iter().enumerate().flat_map(|(i, t)| t.aliases.iter().filter(|a| a.chars().next().is_some_and(|c| c.is_ascii_lowercase())).map(move |a| (i, a.clone()))).collect();
     let re_prisma = if prisma.is_empty() { None } else { Regex::new(&format!(r"\b(?:prisma|db|tx|client)\.({})\s*\.\s*(?:find|create|update|delete|upsert|count|aggregate|groupBy)", prisma.iter().map(|(_, a)| esc(a)).collect::<Vec<_>>().join("|"))).ok() };
     let re_diesel = Regex::new(&format!(r"\b({alt})::(?:table|dsl|columns)\b")).ok();
 
@@ -1785,7 +1785,7 @@ pub fn link_code(index: &Index, schema: &mut DbSchema) {
         if let Some((f, _)) = t.source.rsplit_once(':') {
             if let Some(&fid) = index.path_ix.get(f) {
                 for a in &t.aliases {
-                    if a.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) && a.len() >= 3 {
+                    if a.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) && a.len() >= 3 {
                         alias_home.insert(a.clone(), (i, fid));
                     }
                 }
@@ -1903,7 +1903,7 @@ impl DbSchema {
             };
             let i = self.tables.iter().position(|x| x.key() == t.key()).unwrap();
             let _ = writeln!(o, "# {} {} ({})", t.kind, t.key(), t.source);
-            if t.aliases.len() > 0 {
+            if !t.aliases.is_empty() {
                 let _ = writeln!(o, "Code names: {}", t.aliases.join(", "));
             }
             let _ = writeln!(o, "\n## Columns ({})", t.columns.len());
@@ -2363,7 +2363,7 @@ class Memo(Searchable):
         // its own columns (the parent's table keeps the inherited ones).
         let b = s.table("blogposts").unwrap();
         assert_eq!(b.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["post_ptr_id", "subtitle"]);
-        assert_eq!(b.columns[0].primary_key, true);
+        assert!(b.columns[0].primary_key);
         assert_eq!(b.foreign_keys[0].ref_table, "articles");
         assert_eq!(b.foreign_keys[0].ref_columns, vec!["id"]);
         // A base from a library (`AbstractUser`) still makes a model.
