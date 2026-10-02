@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **`repomap licence buy`.** Opens the Team page; in-terminal purchase turns on when checkout is live. Updates `sylphx-mcp-kit` to 0.6.
+
 ## 1.7.0 - 2026-10-02
 
 - **Ready for crates.io.** The two crates, `sylphx-repomap-core` and `sylphx-repomap` (the binary stays `repomap`), carry full package metadata, a small `include` list, and a versioned path dependency, so `cargo publish --dry-run --locked` passes in dependency order. `cargo binstall sylphx-repomap` downloads the matching GitHub release binary. Publishing stays off until an owner sets `CRATES_IO_PUBLISH_ENABLED` and the trusted-publisher records exist.

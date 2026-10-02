@@ -39,7 +39,7 @@ Commands:
   index [dir]           Build the index and print timings (--no-cache, --json)
   model                 Download the embedding model now (33 MB, once) and show where it is.
                         REPOMAP_EMBED=0 keeps search keyword-only
-  licence status        Show the repomap Team licence (free to run); `licence activate <token>` stores one
+  licence status        Show the repomap Team licence (free to run); `licence activate <token>` stores one, `licence buy` opens the Team page
   mcp                   Run the MCP server on stdio (default when stdin is not a terminal)
   version               Print the version
 

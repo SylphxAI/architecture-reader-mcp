@@ -15,7 +15,7 @@ repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]            build and print timings
 
 repomap mcp [--root dir]                             MCP server on stdio
-repomap licence status | activate <token>            show or store a repomap Team licence (free to run)
+repomap licence status | activate <token> | buy    show, store or buy a repomap Team licence (free to run)
 repomap hook                                         Claude Code PreToolUse hook (reads JSON on stdin)
 repomap version
 ```
