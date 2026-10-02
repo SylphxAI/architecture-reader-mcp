@@ -30,6 +30,8 @@ pub const POLICY: LicencePolicy<'static> = LicencePolicy {
     env_var: "REPOMAP_LICENCE_TOKEN",
     file_name: "licence",
     upgrade_url: "https://sylphxai.github.io/repomap/team",
+    // Some("https://buy.sylphx.com") once it serves /api/v1/claims and a live purchase reads back
+    checkout_base: None,
 };
 
 /// The feature name in the `pro_required` notice.

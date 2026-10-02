@@ -365,8 +365,10 @@ repomap db [table] [--url-env VAR | --url URL] [--serve | --out db.html] [--json
 repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]
 repomap mcp [--root dir]
-repomap licence status | activate <token>
+repomap licence status | activate <token> | buy
 ```
+
+`repomap licence buy` opens the Team page; in-terminal purchase turns on when checkout is live.
 
 Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
 
