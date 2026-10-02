@@ -17,7 +17,7 @@ npx -y @sylphx/repomap setup
 [![MCP Registry](https://mark.sylphx.com/badge/MCP%20Registry-io.github.SylphxAI%2Frepomap-42d6a4)](https://registry.modelcontextprotocol.io/)
 [![License: MIT](https://mark.sylphx.com/badge/license-MIT-ffb454)](https://github.com/SylphxAI/repomap/blob/main/LICENSE) <!-- repomap:agent-ready -->[![agent-ready 93/100](https://mark.sylphx.com/badge/agent--ready-93%2F100-brightgreen)](https://github.com/SylphxAI/repomap#agent-readiness-score)<!-- /repomap:agent-ready -->
 
-[**Live demo**](https://sylphxai.github.io/repomap/demo) · [Docs](https://sylphxai.github.io/repomap/) · [Quickstart](https://github.com/SylphxAI/repomap#quickstart) · [Tools](https://github.com/SylphxAI/repomap#what-your-agent-gets) · [Graph UI](https://github.com/SylphxAI/repomap#the-graph-ui) · [Benchmarks](https://sylphxai.github.io/repomap/benchmarks) · [Compare](https://github.com/SylphxAI/repomap#how-it-compares)
+[**Live demo**](https://sylphxai.github.io/repomap/demo) · [Docs](https://repomap.sylphx.com) · [Quickstart](https://github.com/SylphxAI/repomap#quickstart) · [Tools](https://github.com/SylphxAI/repomap#what-your-agent-gets) · [Graph UI](https://github.com/SylphxAI/repomap#the-graph-ui) · [Benchmarks](https://sylphxai.github.io/repomap/benchmarks) · [Compare](https://github.com/SylphxAI/repomap#how-it-compares)
 
 <img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/demo.gif" alt="repomap demo: the map of excalidraw, searching restoreElements, its code and callers, then the impact of changing it" width="100%">
 

@@ -8,7 +8,7 @@
     "source": "github"
   },
   "version": "1.6.0",
-  "websiteUrl": "https://sylphxai.github.io/repomap/",
+  "websiteUrl": "https://repomap.sylphx.com",
   "packages": [
     {
       "registryType": "npm",
