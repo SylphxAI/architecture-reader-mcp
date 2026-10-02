@@ -26,4 +26,7 @@ json("server.json", (s) => {
 json("package.json", (p) => (p.version = v));
 const cargo = readFileSync("Cargo.toml", "utf8").replace(/(\[workspace\.package\][^\[]*?version = ")[^"]+(")/, `$1${v}$2`);
 writeFileSync("Cargo.toml", cargo);
+// The binary crate pins its path dependency to the same version for crates.io.
+const bin = readFileSync("crates/repomap/Cargo.toml", "utf8").replace(/(\nrepomap-core = \{[^\n}]*version = ")[^"]+(")/, `$1${v}$2`);
+writeFileSync("crates/repomap/Cargo.toml", bin);
 console.log(`version set to ${v}; run cargo update -w to refresh Cargo.lock`);

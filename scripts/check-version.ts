@@ -17,6 +17,8 @@ eq("server.json", s.version);
 eq("server.json package", s.packages[0].version);
 const cargo = readFileSync("Cargo.toml", "utf8").match(/\[workspace\.package\][^\[]*?version = "([^"]+)"/)?.[1] ?? "";
 eq("Cargo.toml", cargo);
+const dep = readFileSync("crates/repomap/Cargo.toml", "utf8").match(/\nrepomap-core = \{[^\n}]*version = "([^"]+)"/)?.[1] ?? "";
+eq("crates/repomap/Cargo.toml (repomap-core dependency)", dep);
 if (bad.length) {
   console.error(`version mismatch (want ${v}):\n  ${bad.join("\n  ")}`);
   process.exit(1);
