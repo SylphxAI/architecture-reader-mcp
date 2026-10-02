@@ -2443,7 +2443,7 @@ from .models import Post
 def index(request):
     return Post.objects.filter(author=request.user)
 "#);
-        let index = Index::build(root, &crate::BuildOptions { use_cache: false }).unwrap();
+        let index = Index::build(root, &crate::BuildOptions { use_cache: false, ..Default::default() }).unwrap();
         let mut s = from_repo(&index);
         link_code(&index, &mut s);
         // App label from the directory; Meta.db_table wins over it.

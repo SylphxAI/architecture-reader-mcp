@@ -43,6 +43,9 @@ Commands:
 
 Common options:
   -C, --root <dir>      Repository root (default: current directory)
+  --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __fixtures__,
+                        __snapshots__ with 1000+ files, under 10% named like tests), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
+                        or --path inside one indexes it on demand.
   --json                Machine-readable output
 
 Targets: path/to/file.ts, file.ts:42, Class.method, Class::method, or a name.
@@ -123,6 +126,10 @@ fn run() -> Result<()> {
     }
     let cmd = raw.remove(0);
     let args = Args::parse(raw);
+    if args.on("include-fixtures") {
+        // Read by `BuildOptions::default()`, so every command and the MCP server see it.
+        std::env::set_var("REPOMAP_INCLUDE_FIXTURES", "1");
+    }
     // Commands that search fetch the embedding model on first use. The MCP
     // server answers at once and picks the model up when it has arrived.
     match cmd.as_str() {
@@ -198,7 +205,7 @@ fn run() -> Result<()> {
 
 fn index_cmd(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
-    let idx = Index::build(&root, &BuildOptions { use_cache: !args.on("no-cache") })?;
+    let idx = Index::build(&root, &BuildOptions { use_cache: !args.on("no-cache"), ..Default::default() })?;
     let s = &idx.stats;
     let v = json!({
         "root": idx.root.display().to_string(),
@@ -211,6 +218,8 @@ fn index_cmd(args: &Args) -> Result<()> {
         "terms": idx.bm25.terms(),
         "model": repomap_core::semantic::model_id(),
         "communities": idx.communities.len(),
+        "deferred_fixture_files": idx.deferred.iter().map(|d| d.files).sum::<usize>(),
+        "deferred_fixture_dirs": idx.deferred,
         "parsed": s.files_parsed,
         "cached": s.files_cached,
         "walk_ms": s.walk_ms,
@@ -229,6 +238,9 @@ fn index_cmd(args: &Args) -> Result<()> {
                 id => format!("keywords + embeddings ({id})"),
             }
         );
+        if let Some(note) = repomap_core::query::deferred_note(&idx.deferred) {
+            println!("{note}");
+        }
     }
     Ok(())
 }
@@ -372,7 +384,8 @@ fn db_cmd(args: &Args) -> Result<()> {
 
 fn score_cmd(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
-    let idx = Index::build(&root, &BuildOptions::default())?;
+    // Score measures the whole repository, including fixture trees.
+    let idx = Index::build(&root, &BuildOptions { include_fixtures: true, ..Default::default() })?;
     let score = idx.agent_score();
     if args.on("json") {
         println!("{}", serde_json::to_string_pretty(&score)?);

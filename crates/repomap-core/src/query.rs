@@ -95,7 +95,7 @@ impl Index {
                 .collect();
         }
         if cands.is_empty() {
-            return Err(format!("no file or symbol matches `{q}`. Try `search` first."));
+            return Err(format!("no file or symbol matches `{q}`. Try `search` first.{}", self.not_analysed_note()));
         }
         cands.sort_by(|a, b| {
             let fa = self.files[self.symbols[*a as usize].file as usize].is_test;
@@ -163,6 +163,24 @@ pub struct MapResult {
     pub outline: Vec<Outline>,
     /// Tests, examples, docs and benchmarks, grouped by role (not modules).
     pub aux: Vec<(String, usize)>,
+    /// Fixture trees left out of the index until a query targets them.
+    pub deferred: Vec<crate::index::DeferredDir>,
+}
+
+/// One line saying which fixture trees were deferred and how to include them.
+pub fn deferred_note(deferred: &[crate::index::DeferredDir]) -> Option<String> {
+    if deferred.is_empty() {
+        return None;
+    }
+    let total: usize = deferred.iter().map(|d| d.files).sum();
+    let mut dirs: Vec<&crate::index::DeferredDir> = deferred.iter().collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.files));
+    let shown: Vec<String> = dirs.iter().take(5).map(|d| format!("{} ({})", d.dir, d.files)).collect();
+    let more = if dirs.len() > 5 { format!(", +{} more", dirs.len() - 5) } else { String::new() };
+    Some(format!(
+        "{total} fixture files deferred, not indexed: {}{more}. Target one of these paths (context, impact, map --focus, search --path) to index it on demand, or pass --include-fixtures (REPOMAP_INCLUDE_FIXTURES=1) for all.",
+        shown.join(", ")
+    ))
 }
 
 #[derive(Debug, Serialize)]
@@ -337,6 +355,7 @@ impl Index {
             focus,
             outline,
             aux,
+            deferred: self.deferred.clone(),
         }
     }
 }
@@ -377,6 +396,9 @@ impl MapResult {
             let parts: Vec<String> = self.aux.iter().map(|(n, c)| format!("{n} ({c} files)")).collect();
             let _ = writeln!(o, "Also: {}", parts.join(", "));
         }
+        if let Some(note) = deferred_note(&self.deferred) {
+            let _ = writeln!(o, "{note}");
+        }
         let _ = writeln!(o, "\n## Most central files");
         for f in &self.key_files {
             let _ = writeln!(o, "- {} ({} symbols, imported by {})", f.path, f.symbols, f.imported_by);
@@ -413,6 +435,8 @@ pub struct SearchHit {
 
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub query: String,
     pub hits: Vec<SearchHit>,
 }
@@ -664,7 +688,7 @@ impl Index {
                 }
             })
             .collect();
-        SearchResult { query: query.to_string(), hits }
+        SearchResult { query: query.to_string(), hits, deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), }
     }
 
     /// The first line plus the lines that best match the query terms.
@@ -709,6 +733,7 @@ impl SearchResult {
         let mut o = String::new();
         if self.hits.is_empty() {
             let _ = writeln!(o, "No matches for `{}`.", self.query);
+            o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
             return o;
         }
         let _ = writeln!(o, "# Search: {}", self.query);
@@ -727,6 +752,7 @@ impl SearchResult {
                 last = *line;
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -735,6 +761,8 @@ impl SearchResult {
 
 #[derive(Debug, Serialize)]
 pub struct ContextResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub target: String,
     pub module: String,
     pub symbol: Option<SymRef>,
@@ -819,7 +847,7 @@ impl Index {
         callers.truncate(opts.limit);
         let mut callees = callees;
         callees.truncate(opts.limit);
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: self.target_label(Target::Symbol(s)),
             module: self.community_name(sym.file).to_string(),
             symbol: Some(self.sym_ref(s)),
@@ -871,7 +899,7 @@ impl Index {
         callers.dedup_by(|a, b| a.symbol.name == b.symbol.name && a.symbol.file == b.symbol.file);
         callers.truncate(opts.limit);
         let syms: Vec<u32> = self.file_symbols(f).map(|s| s as u32).collect();
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: file.path.clone(),
             module: self.community_name(f).to_string(),
             symbol: None,
@@ -997,6 +1025,7 @@ impl ContextResult {
         paths(&mut o, "Imports", &self.imports);
         paths(&mut o, "Imported by", &self.imported_by);
         paths(&mut o, "Tests", &self.tests);
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -1014,6 +1043,8 @@ pub struct Hop {
 
 #[derive(Debug, Serialize)]
 pub struct TraceResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub from: String,
     pub to: Option<String>,
     pub found: bool,
@@ -1061,10 +1092,10 @@ impl Index {
         let sources = self.symbols_of(ft);
         let targets: HashSet<u32> = self.symbols_of(tt).into_iter().collect();
         if let Some(path) = self.bfs_sym(&sources, &targets, false) {
-            return Ok(TraceResult { from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
         }
         if let Some(path) = self.bfs_sym(&self.symbols_of(tt), &sources.iter().copied().collect(), false) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -1076,7 +1107,7 @@ impl Index {
         }
         let (a, b) = (self.file_of(ft), self.file_of(tt));
         if let Some(path) = self.bfs_file(a, b) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -1086,7 +1117,7 @@ impl Index {
                 note: Some("No call path; this is the file dependency path.".into()),
             });
         }
-        Ok(TraceResult {
+        Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: from_label,
             to: Some(to_label),
             found: false,
@@ -1207,7 +1238,7 @@ impl Index {
                 q.push_back((v, d + 1));
             }
         }
-        TraceResult {
+        TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: label,
             to: None,
             found: !tree.is_empty(),
@@ -1245,6 +1276,7 @@ impl TraceResult {
                 }
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -1262,6 +1294,34 @@ pub struct ImpactResult {
     pub modules: Vec<String>,
     pub tests: Vec<String>,
     pub importers: Vec<String>,
+    /// Fixture files left out of the index, and the trees they sit in.
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
+    /// Set while fixture files are deferred: the risk covers indexed code only.
+    pub risk_caveat: Option<String>,
+}
+
+impl Index {
+    pub fn deferred_files(&self) -> usize {
+        self.deferred.iter().map(|d| d.files).sum()
+    }
+
+    pub fn deferred_dirs(&self) -> Vec<String> {
+        self.deferred.iter().map(|d| d.dir.clone()).collect()
+    }
+
+    /// A trailing note when fixture trees were left out of this index.
+    pub fn not_analysed_note(&self) -> String {
+        if self.deferred.is_empty() {
+            return String::new();
+        }
+        format!(
+            "
+Not analysed: {} fixture files in {} (target the dir or pass --include-fixtures).",
+            self.deferred_files(),
+            self.deferred_dirs().join(", ")
+        )
+    }
 }
 
 pub struct ImpactOptions {
@@ -1281,7 +1341,16 @@ impl Index {
         for t in targets {
             ts.push(self.resolve(t)?.0);
         }
-        Ok(self.impact_of(&ts, opts))
+        let mut r = self.impact_of(&ts, opts);
+        // A target that names a deferred tree has callers we cannot see.
+        let hidden = |t: &String| {
+            let t = t.trim().trim_start_matches("./");
+            self.deferred.iter().any(|d| t.contains(d.dir.as_str()))
+        };
+        if !self.deferred.is_empty() && targets.iter().any(hidden) {
+            r.risk = "unknown";
+        }
+        Ok(r)
     }
 
     /// Impact of the working-tree diff against `base` (default HEAD).
@@ -1440,6 +1509,11 @@ impl Index {
             plural(modules.len(), "module"),
             plural(importers.len(), "file"),
             match tests.len() {
+                0 if !self.deferred.is_empty() => format!(
+                    "no indexed tests reach this; {} fixture files in {} were not analysed (callers there are not shown; target the dir or pass --include-fixtures)",
+                    self.deferred_files(),
+                    self.deferred_dirs().join(", ")
+                ),
                 0 => "no tests reach this".to_string(),
                 n => format!("{} to run", plural(n, "test file")),
             }
@@ -1457,6 +1531,10 @@ impl Index {
             modules,
             tests,
             importers,
+            deferred_files: self.deferred_files(),
+            deferred_dirs: self.deferred_dirs(),
+            risk_caveat: (!self.deferred.is_empty())
+                .then(|| format!("indexed code only; {} fixture files not analysed", self.deferred_files())),
         }
     }
 }
@@ -1464,9 +1542,19 @@ impl Index {
 impl ImpactResult {
     pub fn text(&self) -> String {
         let mut o = String::new();
-        let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+        match &self.risk_caveat {
+            Some(c) => {
+                let _ = writeln!(o, "# Impact ({} risk; {c})", self.risk.to_uppercase());
+            }
+            None => {
+                let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+            }
+        }
         let _ = writeln!(o, "Changing: {}", self.targets.join("; "));
         let _ = writeln!(o, "{}", self.summary);
+        if self.deferred_files > 0 {
+            let _ = writeln!(o, "\n## Not analysed\n{} fixture files in {} (callers there are not shown; target the dir or pass --include-fixtures); the risk above excludes them.", self.deferred_files, self.deferred_dirs.join(", "));
+        }
         let titles = ["Direct callers (will break if the contract changes)", "Indirect (depth 2)", "Indirect (depth 3)", "Depth 4", "Depth 5", "Depth 6"];
         for (i, level) in self.by_depth.iter().enumerate() {
             let _ = writeln!(o, "\n## {}", titles[i.min(5)]);
@@ -1491,6 +1579,13 @@ impl ImpactResult {
         }
         o
     }
+}
+
+fn deferred_tail(files: usize, dirs: &[String]) -> String {
+    if files == 0 {
+        return String::new();
+    }
+    format!("\nNot analysed: {files} fixture files in {} (target the dir or pass --include-fixtures).\n", dirs.join(", "))
 }
 
 fn plural(n: usize, word: &str) -> String {

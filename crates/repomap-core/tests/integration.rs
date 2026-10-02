@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 fn fixture() -> Index {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixture");
-    Index::build(&root, &BuildOptions { use_cache: false }).expect("index")
+    Index::build(&root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index")
 }
 
 #[test]

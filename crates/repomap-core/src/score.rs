@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn scores_fixture() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixture");
-        let idx = Index::build(&root, &crate::BuildOptions { use_cache: false }).unwrap();
+        let idx = Index::build(&root, &crate::BuildOptions { use_cache: false, ..Default::default() }).unwrap();
         let s = idx.agent_score();
         assert_eq!(s.checks.len(), 8);
         assert_eq!(s.checks.iter().map(|c| c.max).sum::<u32>(), 100);
