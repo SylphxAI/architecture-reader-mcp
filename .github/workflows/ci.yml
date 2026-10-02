@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -24,6 +24,7 @@ jobs:
     outputs:
       db: ${{ steps.f.outputs.db }}
       docker: ${{ steps.f.outputs.docker }}
+      code: ${{ steps.c.outputs.code }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
@@ -41,9 +42,24 @@ jobs:
               - '.dockerignore'
               - 'crates/repomap/src/mcp.rs'
               - '.github/workflows/ci.yml'
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
+        id: c
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!LICENSE'
+              - '!CHANGELOG.md'
+              - '!CONTRIBUTING.md'
+              - '!SECURITY.md'
 
+  # Skipped (so `ci` still passes) when a change touches only files no check
+  # reads: licence, changelog, contributing, security, issue templates.
   build:
-    if: github.event_name != 'merge_group'
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || (github.event_name != 'merge_group' && needs.changes.outputs.code == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
