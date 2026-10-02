@@ -162,7 +162,7 @@ Agents burn most of their context on `grep`, `ls` and reading whole files just t
 - **What breaks if I change this?** Direct and indirect callers, importing files, modules touched, tests to run, and a risk level. Point it at your `git diff` before you commit.
 - **What does this repo look like?** Modules found from real dependencies (not just folders), the most central files, the most used symbols, and entry points.
 
-All of it comes from a local index: tree-sitter parsing, a resolved import and call graph, PageRank, Louvain communities, BM25 over AST chunks, and a small static code embedding model (33 MB, downloaded once from Hugging Face, then offline). Nothing leaves your machine, and no API is called.
+All of it comes from a local index: tree-sitter parsing, a resolved import and call graph, PageRank, Louvain communities, BM25 over AST chunks, and a small static code embedding model (33 MB, downloaded once from Hugging Face, then offline). Nothing leaves your machine, and no API is called; the model download is the only network request (set `REPOMAP_EMBED=0` to skip it).
 
 ## What your agent gets
 
@@ -398,6 +398,15 @@ More from Sylphx: https://sylphx.com/open-source
 ## Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=SylphxAI/repomap&type=Date)](https://star-history.com/#SylphxAI/repomap&Date)
+
+## Privacy
+
+repomap runs on your machine. Indexing, search and every query read your code
+locally and send nothing anywhere. The one network request repomap makes is a
+single download of the embedding model from Hugging Face the first time you
+search; it sends no code. Set `REPOMAP_EMBED=0` to skip it and use keyword
+search only. `repomap export` files hold paths, symbol names and line numbers,
+never source. See [SECURITY.md](SECURITY.md) for the full boundary.
 
 ## Support
 

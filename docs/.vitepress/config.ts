@@ -70,6 +70,8 @@ export default defineConfig({
       { text: 'More', items: [
         { text: 'Benchmarks', link: '/benchmarks' },
         { text: 'Comparison', link: '/compare' },
+        { text: 'Vision', link: '/vision' },
+        { text: 'Capabilities', link: '/capabilities' },
         { text: 'Team', link: '/team' },
       ] },
     ],
