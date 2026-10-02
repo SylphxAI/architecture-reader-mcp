@@ -5,6 +5,7 @@
 //! npm, Cargo, Go and Python manifests) lands here; until then the hook answers
 //! [`NotJoined`] and the binary falls back to the current root.
 
+use crate::index::Index;
 use crate::query::{Direction, ImpactOptions, SearchOptions, TraceOptions};
 use crate::workspace_graph::{join_roots, JoinOptions, WorkspaceGraph};
 use serde_json::Value;
@@ -12,6 +13,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 /// A tool answer over the joined graph, in the same shape as a single-root answer.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,30 +44,97 @@ impl std::error::Error for NotJoined {}
 /// per root set and refreshed on each call, so only changed roots are
 /// re-indexed.
 pub fn join_workspace(roots: &[PathBuf], tool: &str, args: &Value) -> Result<Joined, NotJoined> {
+    join_workspace_with(roots, tool, args, HashMap::new)
+}
+
+/// [`join_workspace`] with indexes the caller already holds (keyed by canonical
+/// root). `prebuilt` is only called when the graph is built, so a root the
+/// free single-repo path already indexed is not indexed twice.
+pub fn join_workspace_with(
+    roots: &[PathBuf],
+    tool: &str,
+    args: &Value,
+    prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
+) -> Result<Joined, NotJoined> {
     if !matches!(tool, "search" | "trace" | "impact") {
         return Err(NotJoined);
     }
-    let graph = graph_for(roots).ok_or(NotJoined)?;
+    let graph = graph_for(roots, prebuilt).ok_or(NotJoined)?;
     let g = graph.lock().map_err(|_| NotJoined)?;
     answer(&g, tool, args).ok_or(NotJoined)
 }
 
-type Cache = Mutex<HashMap<Vec<PathBuf>, Arc<Mutex<WorkspaceGraph>>>>;
+/// Graphs kept, least recently used dropped first.
+const MAX_GRAPHS: usize = 4;
+/// Disk is rechecked at most this often per graph (same as the free workspace).
+const RECHECK: Duration = Duration::from_millis(1500);
 
-fn graph_for(roots: &[PathBuf]) -> Option<Arc<Mutex<WorkspaceGraph>>> {
+struct Cached {
+    key: Vec<PathBuf>,
+    graph: Arc<Mutex<WorkspaceGraph>>,
+    checked: Instant,
+}
+
+/// Most recently used last.
+type Cache = Mutex<Vec<Cached>>;
+
+fn graph_for(
+    roots: &[PathBuf],
+    prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
+) -> Option<Arc<Mutex<WorkspaceGraph>>> {
     static CACHE: OnceLock<Cache> = OnceLock::new();
-    let key: Vec<PathBuf> = roots
+    let mut key: Vec<PathBuf> = roots
         .iter()
         .map(|r| r.canonicalize().unwrap_or_else(|_| r.clone()))
         .collect();
+    // The first root is the current one; the rest are a set, so order does not matter.
+    if key.len() > 1 {
+        key[1..].sort();
+    }
     let cache = CACHE.get_or_init(Default::default);
-    let held = cache.lock().ok()?.get(&key).cloned();
-    if let Some(g) = held {
-        g.lock().ok()?.refresh().ok()?;
+    let held = {
+        let mut c = cache.lock().ok()?;
+        match c.iter().position(|e| e.key == key) {
+            Some(i) => {
+                let e = c.remove(i);
+                let held = (e.graph.clone(), e.checked.elapsed() < RECHECK);
+                c.push(e);
+                Some(held)
+            }
+            None => None,
+        }
+    };
+    if let Some((g, fresh)) = held {
+        if fresh {
+            return Some(g);
+        }
+        let refreshed = g.lock().ok().is_some_and(|mut w| w.refresh().is_ok());
+        let mut c = cache.lock().ok()?;
+        if !refreshed {
+            // Drop the stale graph so the next call rebuilds it.
+            c.retain(|e| !Arc::ptr_eq(&e.graph, &g));
+            return None;
+        }
+        if let Some(e) = c.iter_mut().find(|e| Arc::ptr_eq(&e.graph, &g)) {
+            e.checked = Instant::now();
+        }
         return Some(g);
     }
-    let g = Arc::new(Mutex::new(join_roots(roots, &JoinOptions::default()).ok()?));
-    cache.lock().ok()?.insert(key, g.clone());
+    let opts = JoinOptions {
+        prebuilt: prebuilt(),
+        ..Default::default()
+    };
+    let g = Arc::new(Mutex::new(join_roots(roots, &opts).ok()?));
+    let mut c = cache.lock().ok()?;
+    c.retain(|e| e.key != key);
+    c.push(Cached {
+        key,
+        graph: g.clone(),
+        checked: Instant::now(),
+    });
+    while c.len() > MAX_GRAPHS {
+        c.remove(0);
+    }
     Some(g)
 }
 

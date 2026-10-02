@@ -45,15 +45,23 @@ const MAX_REPO_HOPS: usize = 3;
 /// The roots a `repomap.workspace.toml` lists, resolved against its directory.
 ///
 /// Accepted form (a minimal TOML subset, no dependency on a TOML crate):
-/// `roots = ["../api", "../web"]`, over one or several lines.
+/// a top-level `roots = ["../api", "../web"]`, over one or several lines (a
+/// `roots` key inside a `[table]` is not read).
 pub fn read_workspace_file(file: &Path) -> Result<Vec<PathBuf>> {
     let text =
         std::fs::read_to_string(file).with_context(|| format!("cannot read {}", file.display()))?;
     let base = file.parent().unwrap_or(Path::new("."));
     let mut roots = Vec::new();
     let mut in_roots = false;
+    let mut in_table = false;
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
+        if !in_roots && line.starts_with('[') {
+            in_table = true;
+        }
+        if in_table {
+            continue;
+        }
         let rest = if in_roots {
             line
         } else if let Some(r) = line.strip_prefix("roots") {

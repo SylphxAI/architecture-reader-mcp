@@ -181,7 +181,20 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
         return call_root(ws, name, args, root);
     }
     let tool = canonical(name).unwrap_or(name);
-    crate::team::gate(&crate::team::POLICY, &roots, tool, args, || call_root(ws, name, args, root))
+    crate::team::gate(
+        &crate::team::POLICY,
+        &roots,
+        tool,
+        args,
+        || call_root(ws, name, args, root),
+        // The free workspace's indexes, so a join does not index a root twice.
+        || {
+            roots
+                .iter()
+                .filter_map(|r| Some((r.canonicalize().ok()?, ws.get(r).ok()?)))
+                .collect()
+        },
+    )
 }
 
 /// Run a tool against one root.

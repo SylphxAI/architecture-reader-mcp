@@ -30,8 +30,9 @@ your machine.
 roots = ["../api", "../web", "../shared"]
 ```
 
-Every tool takes the same list as a `workspace` argument, and the CLI as
-`--workspace ../api,../web`. Without a Team licence the call answers for the
+The workspace file is found in the current repository or a parent folder. The
+same list also works as a `workspace` argument on every tool (not listed in the
+tool schemas, to keep them small), and on the CLI as `--workspace ../api,../web`. Without a Team licence the call answers for the
 current repository, says that the other repositories were not joined, and
 carries a `pro_required` field your agent can relay.
 

@@ -5,9 +5,13 @@
 
 use crate::tools::Output;
 use mcp_kit::licence::{self, LicencePolicy};
+use repomap_core::index::Index;
 use repomap_core::multirepo::{self, NotJoined};
+use repomap_core::workspace_graph::{find_workspace_file, read_workspace_file};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Marker for the key list below. No token verifies while it is the only entry.
 pub const KEY_PLACEHOLDER: &str = "PLACEHOLDER-repomap-team-issuer-public-key-not-issued-yet";
@@ -32,7 +36,7 @@ pub const POLICY: LicencePolicy<'static> = LicencePolicy {
 pub const WORKSPACE_FEATURE: &str = "Multi-repository workspace";
 
 /// The file that lists several repository roots: `roots = ["../api", "../web"]`.
-pub const WORKSPACE_FILE: &str = "repomap.workspace.toml";
+pub use repomap_core::workspace_graph::WORKSPACE_FILE;
 
 /// The one decision: does this request name more than one workspace root?
 /// A `workspace` argument (a list of roots, a comma-separated string, or the
@@ -66,21 +70,25 @@ pub fn named_roots(args: &Value, root: &Path) -> Vec<PathBuf> {
             }
         }
         Some(_) => Vec::new(),
-        None => {
-            let file = root.join(WORKSPACE_FILE);
-            if file.is_file() {
-                read_roots(&file)
-            } else {
-                Vec::new()
-            }
-        }
+        None => find_workspace_file(root)
+            .map(|f| read_roots(&f))
+            .unwrap_or_default(),
     };
     let key = |p: &Path| p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
     let mut roots = vec![root.to_path_buf()];
-    let mut seen = vec![key(root)];
+    let current = key(root);
+    let home = dirs::home_dir().map(|h| key(&h));
+    let mut seen = vec![current.clone()];
     for p in listed {
         let k = key(&p);
-        if !seen.contains(&k) {
+        // A root must be an existing directory, and never `/`, the home
+        // directory or a parent of the current root (indexing those would
+        // walk the whole machine).
+        let unsafe_root = !k.is_dir()
+            || k.parent().is_none()
+            || home.as_ref() == Some(&k)
+            || current.starts_with(&k);
+        if !unsafe_root && !seen.contains(&k) {
             seen.push(k);
             roots.push(p);
         }
@@ -94,48 +102,7 @@ pub fn named_roots(args: &Value, root: &Path) -> Vec<PathBuf> {
 
 /// The roots in a workspace file, resolved against the file's directory.
 fn read_roots(file: &Path) -> Vec<PathBuf> {
-    let base = file.parent().unwrap_or(Path::new("."));
-    let Ok(text) = std::fs::read_to_string(file) else {
-        return Vec::new();
-    };
-    parse_roots(&text)
-        .into_iter()
-        .map(|r| base.join(r))
-        .collect()
-}
-
-/// The quoted strings of the `roots = [...]` array (comments skipped).
-fn parse_roots(text: &str) -> Vec<String> {
-    let text: String = text
-        .lines()
-        .map(|l| l.split('#').next().unwrap_or(""))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let Some(at) = text.find("roots") else {
-        return Vec::new();
-    };
-    let rest = &text[at + "roots".len()..];
-    let Some(open) = rest.find('[') else {
-        return Vec::new();
-    };
-    let Some(close) = rest[open..].find(']') else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    let mut quote = None;
-    let mut cur = String::new();
-    for c in rest[open + 1..open + close].chars() {
-        match (quote, c) {
-            (None, '"' | '\'') => quote = Some(c),
-            (Some(q), c) if c == q => {
-                out.push(std::mem::take(&mut cur));
-                quote = None;
-            }
-            (Some(_), c) => cur.push(c),
-            _ => {}
-        }
-    }
-    out
+    read_workspace_file(file).unwrap_or_default()
 }
 
 /// Gate a request that names several roots. `single` answers for the current
@@ -148,6 +115,7 @@ pub fn gate(
     tool: &str,
     args: &Value,
     single: impl FnOnce() -> Result<Output, String>,
+    prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
 ) -> Result<Output, String> {
     match licence::require(policy, WORKSPACE_FEATURE) {
         Err(required) => {
@@ -158,7 +126,7 @@ pub fn gate(
             note(&mut out, "The other repos in this workspace were not joined; this answers for the current repo only.", Some(&required.to_string()), Some(notice));
             Ok(out)
         }
-        Ok(_) => match multirepo::join_workspace(roots, tool, args) {
+        Ok(_) => match multirepo::join_workspace_with(roots, tool, args, prebuilt) {
             Ok(joined) => Ok(Output {
                 text: joined.text,
                 json: joined.json,
@@ -210,10 +178,30 @@ mod tests {
     }
 
     #[test]
-    fn roots_parse() {
-        let t = "# repos\nroots = [\n  \"../api\", # the api\n  '../web',\n]\n";
-        assert_eq!(parse_roots(t), vec!["../api", "../web"]);
-        assert!(parse_roots("name = 'x'").is_empty());
+    fn workspace_file_is_read_by_the_core_parser() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join(WORKSPACE_FILE);
+        std::fs::write(
+            &f,
+            "# repos\nroots = [\n  \"../api\", # the api\n  '../web',\n]\n",
+        )
+        .unwrap();
+        assert_eq!(read_roots(&f).len(), 2);
+        std::fs::write(&f, "[other]\nroots = [\"../x\"]\n").unwrap();
+        assert!(read_roots(&f).is_empty());
+    }
+
+    #[test]
+    fn unsafe_and_missing_roots_are_dropped() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path().join("a/app");
+        std::fs::create_dir_all(&r).unwrap();
+        let args = json!({"workspace": ["/", "..", "../..", "../missing", "../../../.."]});
+        assert!(named_roots(&args, &r).is_empty());
+        if let Some(h) = dirs::home_dir() {
+            let args = json!({"workspace": [h.to_string_lossy()]});
+            assert!(named_roots(&args, &r).is_empty());
+        }
     }
 
     #[test]
@@ -315,7 +303,7 @@ mod tests {
                 Some(t) => std::env::set_var(ENV, t),
                 None => std::env::remove_var(ENV),
             }
-            let out = gate(&policy, &roots, "impact", &args, single).unwrap();
+            let out = gate(&policy, &roots, "impact", &args, single, Default::default).unwrap();
             assert!(out.text.starts_with("one repo"), "{}", out.text);
             assert!(out.text.contains("were not joined"), "{}", out.text);
             assert!(
@@ -336,7 +324,7 @@ mod tests {
                 r#"{"plan":"team","issuedAt":1,"product":"repomap","seats":5}"#,
             ),
         );
-        let out = gate(&policy, &roots, "impact", &args, single).unwrap();
+        let out = gate(&policy, &roots, "impact", &args, single, Default::default).unwrap();
         assert!(
             out.text.starts_with("one repo") && out.text.contains("not yet joined"),
             "{}",
