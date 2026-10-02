@@ -43,7 +43,7 @@ seat. Maps hold file paths and symbol names, never source code.
 
 ## Support
 
-Email support, with a reply within two business days.
+Email support at [hi@sylphx.com](mailto:hi@sylphx.com), with a reply within two business days.
 
 ## What stays free
 
