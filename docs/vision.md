@@ -51,3 +51,5 @@ Team. [The Team page](team.md) has the price and what each part does.
 - `impact` names the callers and tests a change actually reaches, measured
   against a caller/callee gold set.
 - A pull request review appears within a minute of the push.
+
+Current capabilities and their code: [capabilities.md](capabilities.md).
