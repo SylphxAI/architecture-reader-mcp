@@ -90,3 +90,75 @@ fn graph_json_is_complete() {
     assert_eq!(g["nodes"].as_array().unwrap().len(), 4);
     assert!(!g["edges"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn map_token_budget_trims_by_rank_and_default_is_unchanged() {
+    use repomap_core::query::estimate_tokens;
+    // The test fixture is the small repository; this workspace's `crates` is the medium one.
+    let small = fixture();
+    let medium_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+    let medium = Index::build(&medium_root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    for idx in [&small, &medium] {
+        let base = idx.map(&MapOptions { focus: None, limit: 500 });
+        let full = base.text();
+        // Unbudgeted output carries no note, and a budget that is large enough changes nothing.
+        assert!(!full.contains("(budget"));
+        let mut same = idx.map(&MapOptions { focus: None, limit: 500 });
+        same.fit_tokens(usize::MAX);
+        assert_eq!(same.text(), full);
+        let total = estimate_tokens(&full);
+        for b in [150usize, 400, 1000, 2000] {
+            if b >= total {
+                continue;
+            }
+            let mut m = idx.map(&MapOptions { focus: None, limit: 500 });
+            m.fit_tokens(b);
+            let t = m.text();
+            let got = estimate_tokens(&t);
+            assert!(t.contains("omitted (budget"), "{t}");
+            // Items are cut one at a time (about 30 tokens each), so the +-5% bound holds from 1,000 up.
+            if got > b {
+                assert!(m.key_files.is_empty() && m.key_symbols.is_empty() && m.modules.is_empty(), "{got} > {b}");
+            } else if b >= 1000 {
+                assert!(got as f64 >= b as f64 * 0.95, "{got} under 95% of {b}");
+            }
+            // Survivors are a rank-order prefix of the unbudgeted lists.
+            let full_files: Vec<_> = base.key_files.iter().map(|f| &f.path).collect();
+            let kept: Vec<_> = m.key_files.iter().map(|f| &f.path).collect();
+            assert_eq!(kept, full_files[..kept.len()].to_vec());
+            let full_syms: Vec<_> = base.key_symbols.iter().map(|s| (&s.symbol.name, &s.symbol.file)).collect();
+            let kept: Vec<_> = m.key_symbols.iter().map(|s| (&s.symbol.name, &s.symbol.file)).collect();
+            assert_eq!(kept, full_syms[..kept.len()].to_vec());
+        }
+    }
+}
+
+#[test]
+fn map_budget_on_an_empty_repo_has_no_empty_note() {
+    let dir = std::env::temp_dir().join(format!("repomap-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let idx = Index::build(&dir, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    let mut m = idx.map(&MapOptions { focus: None, limit: 500 });
+    m.fit_tokens(5);
+    assert!(m.budget.is_none());
+    assert!(!m.text().contains("omitted"));
+    assert!(serde_json::to_value(&m).unwrap().get("budget").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn map_budget_on_a_huge_focused_map_is_linear_and_exact() {
+    use repomap_core::query::{estimate_tokens, KeyFile, Outline};
+    let idx = fixture();
+    let mut m = idx.map(&MapOptions { focus: None, limit: 10 });
+    m.key_files = (0..20_000).map(|i| KeyFile { path: format!("src/dir{}/file{i}.rs", i % 50), rank: 0.1, symbols: 3, imported_by: 2 }).collect();
+    m.outline = (0..20_000)
+        .map(|i| Outline { path: format!("src/f{i}.rs"), symbols: (0..30).map(|j| (format!("sym{j}"), "function", j, "fn sym()".to_string())).collect() })
+        .collect();
+    let start = std::time::Instant::now();
+    m.fit_tokens(2000);
+    // A rebuild per removed item (600k+ items over a ~30 MB text) would take minutes.
+    assert!(start.elapsed().as_secs() < 5, "{:?}", start.elapsed());
+    let got = estimate_tokens(&m.text());
+    assert!(got <= 2000 && got as f64 >= 2000.0 * 0.95, "{got}");
+}

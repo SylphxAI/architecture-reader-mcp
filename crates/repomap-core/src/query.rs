@@ -165,6 +165,74 @@ pub struct MapResult {
     pub aux: Vec<(String, usize)>,
     /// Fixture trees left out of the index until a query targets them.
     pub deferred: Vec<crate::index::DeferredDir>,
+    /// Set only when a token budget cut the map (`MapResult::fit_tokens`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<BudgetCut>,
+}
+
+/// What a token budget removed from a map, lowest-ranked items first.
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct BudgetCut {
+    pub tokens: usize,
+    pub modules: usize,
+    pub files: usize,
+    pub symbols: usize,
+    pub entry_points: usize,
+    pub outline_files: usize,
+    pub outline_symbols: usize,
+}
+
+fn entry_points_line(e: &[String]) -> String {
+    if e.is_empty() { String::new() } else { format!("Entry points: {}\n", e.join(", ")) }
+}
+
+fn module_line(m: &ModuleSummary) -> String {
+    let mut o = format!("- **{}** ({} files): {}", m.name, m.files, m.key_files.join(", "));
+    if !m.key_symbols.is_empty() {
+        let _ = write!(o, " | key: {}", m.key_symbols.join(", "));
+    }
+    if !m.depends_on.is_empty() {
+        let _ = write!(o, " | uses: {}", m.depends_on.join(", "));
+    }
+    o.push('\n');
+    o
+}
+
+fn key_file_line(f: &KeyFile) -> String {
+    format!("- {} ({} symbols, imported by {})\n", f.path, f.symbols, f.imported_by)
+}
+
+fn key_symbol_line(s: &KeySymbol) -> String {
+    format!("- {} {} — {}:{} ({} callers)\n", s.symbol.kind, s.symbol.name, s.symbol.file, s.symbol.line, s.callers)
+}
+
+fn outline_symbol_line(name: &str, kind: &str, line: u32, sig: &str) -> String {
+    format!("  {line:>5}  {kind} {name}  `{}`\n", truncate(sig, 100))
+}
+
+/// The trailing "omitted" line, or None when nothing was cut.
+fn note_text(b: &BudgetCut) -> Option<String> {
+    let parts: Vec<String> = [
+        (b.modules, "modules"),
+        (b.files, "files"),
+        (b.symbols, "symbols"),
+        (b.entry_points, "entry points"),
+        (b.outline_files, "outline files"),
+        (b.outline_symbols, "outline symbols"),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, l)| format!("{n} more {l}"))
+    .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    Some(format!("\n… {} omitted (budget {} tokens; lowest-ranked first)\n", parts.join(", "), b.tokens))
+}
+
+/// Cheap token estimate used for `--tokens`: one token per 4 characters, rounded up.
+pub fn estimate_tokens(text: &str) -> usize {
+    text.chars().count().div_ceil(4)
 }
 
 /// One line saying which fixture trees were deferred and how to include them.
@@ -356,11 +424,81 @@ impl Index {
             outline,
             aux,
             deferred: self.deferred.clone(),
+            budget: None,
         }
     }
 }
 
 impl MapResult {
+    /// Trim the map until `text()` is estimated at or under `tokens`. Items leave
+    /// lowest-ranked first: outline symbols (down to 3 per file), then outline
+    /// files, then key symbols, central files and modules (the longest list gives
+    /// up an item first, so they shrink together), then entry points. The header
+    /// always stays. Build the map with a generous `limit` so there is enough to
+    /// fill the budget. Adds a note when anything was cut. The size is counted
+    /// once and each removed line is subtracted, so the cost is linear.
+    pub fn fit_tokens(&mut self, tokens: usize) {
+        self.budget = None;
+        let mut chars = self.text().chars().count();
+        if chars.div_ceil(4) <= tokens {
+            return;
+        }
+        let len = |s: &str| s.chars().count();
+        let mut cut = BudgetCut { tokens, ..Default::default() };
+        let mut ocur = self.outline.len();
+        loop {
+            let note = note_text(&cut).map_or(0, |n| len(&n));
+            if (chars + note).div_ceil(4) <= tokens {
+                break;
+            }
+            // Cursor over files still above 3 symbols, from the lowest-ranked end.
+            while ocur > 0 && self.outline[ocur - 1].symbols.len() <= 3 {
+                ocur -= 1;
+            }
+            if ocur > 0 {
+                let f = &mut self.outline[ocur - 1];
+                let (name, kind, line, sig) = f.symbols.pop().unwrap();
+                chars -= len(&outline_symbol_line(&name, kind, line, &sig));
+                cut.outline_symbols += 1;
+            } else if let Some(f) = self.outline.pop() {
+                ocur = ocur.min(self.outline.len());
+                chars -= len(&format!("{}\n", f.path));
+                for (name, kind, line, sig) in &f.symbols {
+                    chars -= len(&outline_symbol_line(name, kind, *line, sig));
+                }
+                if self.outline.is_empty() {
+                    chars -= len("\n## Outline\n");
+                }
+                cut.outline_files += 1;
+            } else {
+                let (m, f, s) = (self.modules.len(), self.key_files.len(), self.key_symbols.len());
+                let most = m.max(f).max(s);
+                if most > 0 && s == most {
+                    chars -= len(&key_symbol_line(&self.key_symbols.pop().unwrap()));
+                    cut.symbols += 1;
+                } else if most > 0 && f == most {
+                    chars -= len(&key_file_line(&self.key_files.pop().unwrap()));
+                    cut.files += 1;
+                } else if most > 0 {
+                    chars -= len(&module_line(&self.modules.pop().unwrap()));
+                    cut.modules += 1;
+                } else if !self.entry_points.is_empty() {
+                    let before = len(&entry_points_line(&self.entry_points));
+                    self.entry_points.pop();
+                    chars -= before - len(&entry_points_line(&self.entry_points));
+                    cut.entry_points += 1;
+                } else {
+                    // Only the header is left; nothing was cut, so there is no note.
+                    if note_text(&cut).is_none() {
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+        self.budget = note_text(&cut).map(|_| cut);
+    }
+
     pub fn text(&self) -> String {
         let mut o = String::new();
         let scope = self.focus.as_deref().map(|f| format!(" / {f}")).unwrap_or_default();
@@ -378,19 +516,10 @@ impl MapResult {
             self.parsed,
             self.cached
         );
-        if !self.entry_points.is_empty() {
-            let _ = writeln!(o, "Entry points: {}", self.entry_points.join(", "));
-        }
+        o.push_str(&entry_points_line(&self.entry_points));
         let _ = writeln!(o, "\n## Modules");
         for m in &self.modules {
-            let _ = write!(o, "- **{}** ({} files): {}", m.name, m.files, m.key_files.join(", "));
-            if !m.key_symbols.is_empty() {
-                let _ = write!(o, " | key: {}", m.key_symbols.join(", "));
-            }
-            if !m.depends_on.is_empty() {
-                let _ = write!(o, " | uses: {}", m.depends_on.join(", "));
-            }
-            o.push('\n');
+            o.push_str(&module_line(m));
         }
         if !self.aux.is_empty() {
             let parts: Vec<String> = self.aux.iter().map(|(n, c)| format!("{n} ({c} files)")).collect();
@@ -401,20 +530,23 @@ impl MapResult {
         }
         let _ = writeln!(o, "\n## Most central files");
         for f in &self.key_files {
-            let _ = writeln!(o, "- {} ({} symbols, imported by {})", f.path, f.symbols, f.imported_by);
+            o.push_str(&key_file_line(f));
         }
         let _ = writeln!(o, "\n## Most used symbols");
         for s in &self.key_symbols {
-            let _ = writeln!(o, "- {} {} — {}:{} ({} callers)", s.symbol.kind, s.symbol.name, s.symbol.file, s.symbol.line, s.callers);
+            o.push_str(&key_symbol_line(s));
         }
         if !self.outline.is_empty() {
             let _ = writeln!(o, "\n## Outline");
             for f in &self.outline {
                 let _ = writeln!(o, "{}", f.path);
                 for (name, kind, line, sig) in &f.symbols {
-                    let _ = writeln!(o, "  {line:>5}  {kind} {name}  `{}`", truncate(sig, 100));
+                    o.push_str(&outline_symbol_line(name, kind, *line, sig));
                 }
             }
+        }
+        if let Some(n) = self.budget.as_ref().and_then(note_text) {
+            o.push_str(&n);
         }
         o
     }

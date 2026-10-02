@@ -24,7 +24,7 @@ Commands:
   serve [dir]           Open the interactive graph UI in your browser (alias: ui)
                         (--host 0.0.0.0 requires a token: --token/REPOMAP_TOKEN, or one is generated)
   export [dir]          Write a self-contained HTML map (--out repomap.html) or --json
-  map [dir]             Modules, central files, key symbols (--focus <dir> to zoom in)
+  map [dir]             Modules, central files, key symbols (--focus <dir> to zoom in, --tokens N to cap the size)
   search <query>        Hybrid search: symbol names, BM25 and a local code embedding model
   context <target>      Code, callers, callees, tests for a symbol or file
   trace <from> [to]     Call path between two symbols, or a call tree (--callers)
@@ -60,7 +60,7 @@ impl Args {
     fn parse(raw: Vec<String>) -> Args {
         let mut positional = Vec::new();
         let mut flags = std::collections::HashMap::new();
-        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command"];
+        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command"];
         let mut it = raw.into_iter().peekable();
         while let Some(a) = it.next() {
             if let Some(name) = a.strip_prefix("--").or_else(|| a.strip_prefix('-').filter(|n| n.len() == 1)) {
@@ -305,6 +305,10 @@ fn query_cmd(cmd: &str, args: &Args) -> Result<()> {
     }
     if let Some(v) = args.num("limit") {
         a.insert("limit".into(), json!(v));
+    }
+    if let Some(v) = args.flag("tokens") {
+        let n: usize = v.parse().map_err(|_| anyhow::anyhow!("--tokens needs a non-negative integer, got `{v}`"))?;
+        a.insert("tokens".into(), json!(n));
     }
     if let Some(v) = args.num("depth") {
         a.insert("depth".into(), json!(v));

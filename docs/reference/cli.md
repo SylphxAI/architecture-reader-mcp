@@ -5,7 +5,7 @@ repomap setup [--client a,b] [--claude-hooks] [--dry-run] [--remove]
                                                      configure MCP clients (+ Claude Code hook)
 repomap serve [dir] [--port 7878] [--host 127.0.0.1] [--no-open]
 repomap export [dir] [--out repomap.html] [--json]    self-contained HTML (or graph JSON)
-repomap map [focus-dir] [-C root] [--limit N] [--json]
+repomap map [focus-dir] [-C root] [--limit N] [--tokens N] [--json]
 repomap search <query…> [--path P] [--kind K] [--limit N] [--json]
 repomap context <target> [--code-lines N] [--json]
 repomap trace <from> [to] [--callers] [--depth N] [--json]
@@ -20,6 +20,8 @@ repomap version
 ```
 
 Any command accepts `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) to index huge fixture trees (`tests/cases`, `testdata`, `fixtures`, `__fixtures__`, `__snapshots__` with 1,000+ files, under 10% named like tests), which are deferred by default. A target or `--path` inside one indexes it on demand; results say how many files were not analysed.
+
+`map --tokens N` caps the map at about N tokens (estimated as 4 characters per token). It includes modules, central files and symbols in rank order and drops the lowest-ranked first (outline symbols, then key symbols, files and modules), ending with a line that says what was omitted. The MCP `map` tool takes the same `tokens` argument. Without it the map is not budgeted.
 
 `-C/--root` sets the repository for the query commands (the default is the current directory). With no arguments, and stdin not a terminal, `repomap` runs the MCP server.
 

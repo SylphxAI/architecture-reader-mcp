@@ -30,6 +30,7 @@ pub fn definitions(include_legacy: bool) -> Vec<Value> {
             "inputSchema": {"type": "object", "properties": {
                 "focus": {"type": "string", "description": "Directory to zoom into, e.g. src/server."},
                 "limit": {"type": "integer", "description": "Items per section (default 12)."},
+                "tokens": {"type": "integer", "description": "Token budget (estimated at 4 characters per token). Fills the map with the highest-ranked modules, files and symbols up to the budget and says what was omitted. Default: no budget."},
                 "root": root, "format": format
             }},
             "annotations": {"readOnlyHint": true, "openWorldHint": false}
@@ -203,7 +204,16 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
     match tool {
         "map" => {
             let focus = s(args, &["focus", "path", "scope"]).map(String::from);
-            out!(index.map(&MapOptions { focus, limit: n(args, &["limit"]).unwrap_or(12) }))
+            let limit = n(args, &["limit"]).unwrap_or(12);
+            // With a token budget, build a generous map and let `fit_tokens` trim it by rank.
+            match n(args, &["tokens", "max_tokens"]) {
+                Some(t) => {
+                    let mut m = index.map(&MapOptions { focus, limit: limit.max(500) });
+                    m.fit_tokens(t);
+                    out!(m)
+                }
+                None => out!(index.map(&MapOptions { focus, limit })),
+            }
         }
         "search" => {
             let query = s(args, &["query", "q", "text"]).ok_or("`query` is required")?;
