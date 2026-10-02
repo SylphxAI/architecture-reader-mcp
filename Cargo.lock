@@ -1725,7 +1725,7 @@ dependencies = [
 
 [[package]]
 name = "sylphx-repomap"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -1740,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "sylphx-repomap-core"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "ignore",
