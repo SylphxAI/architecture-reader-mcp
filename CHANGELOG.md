@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Ready for crates.io.** The two crates, `sylphx-repomap-core` and `sylphx-repomap` (the binary stays `repomap`), carry full package metadata, a small `include` list, and a versioned path dependency, so `cargo publish --dry-run --locked` passes in dependency order. `cargo binstall sylphx-repomap` downloads the matching GitHub release binary. Publishing stays off until an owner sets `CRATES_IO_PUBLISH_ENABLED` and the trusted-publisher records exist.
+- **Security: `base` could be used to write files.** The `base` value of `impact --changed` (CLI `--base`, MCP argument `base` or `git_base`) was passed to `git diff` as-is, so a value such as `--output=/path` made git write a file. repomap now rejects any ref that starts with `-` with a clear error, and passes `--end-of-options` before the ref so git always reads it as a revision. No other user input reaches a git or other command line.
 
 ## 1.6.0 - 2026-10-02
 

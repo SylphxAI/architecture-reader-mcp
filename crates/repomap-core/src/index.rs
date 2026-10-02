@@ -732,6 +732,18 @@ fn remote_to_web(url: &str) -> Option<String> {
     None
 }
 
+/// Reject a user-supplied git ref that git would read as an option (for
+/// example `--output=/path`), or that is empty or holds a NUL byte.
+pub fn check_ref(r: &str) -> Result<&str, String> {
+    if r.starts_with('-') {
+        return Err(format!("invalid git ref `{r}`: a ref must not start with `-`"));
+    }
+    if r.is_empty() || r.contains('\0') {
+        return Err("invalid git ref: empty or contains a NUL byte".to_string());
+    }
+    Ok(r)
+}
+
 pub fn git_run(root: &Path, args: &[&str]) -> Option<String> {
     git(root, args)
 }

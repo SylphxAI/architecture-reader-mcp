@@ -1487,8 +1487,8 @@ impl Index {
 
     /// Impact of the working-tree diff against `base` (default HEAD).
     pub fn impact_changed(&self, base: Option<&str>, opts: &ImpactOptions) -> Result<ImpactResult, String> {
-        let base = base.unwrap_or("HEAD");
-        let diff = crate::index::git_run(&self.root, &["diff", "--unified=0", "--no-color", "--no-ext-diff", base])
+        let base = crate::index::check_ref(base.unwrap_or("HEAD"))?;
+        let diff = crate::index::git_run(&self.root, &["diff", "--unified=0", "--no-color", "--no-ext-diff", "--end-of-options", base])
             .unwrap_or_default();
         let mut targets: Vec<Target> = Vec::new();
         let mut cur: Option<u32> = None;
