@@ -132,3 +132,33 @@ fn map_token_budget_trims_by_rank_and_default_is_unchanged() {
         }
     }
 }
+
+#[test]
+fn map_budget_on_an_empty_repo_has_no_empty_note() {
+    let dir = std::env::temp_dir().join(format!("repomap-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let idx = Index::build(&dir, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    let mut m = idx.map(&MapOptions { focus: None, limit: 500 });
+    m.fit_tokens(5);
+    assert!(m.budget.is_none());
+    assert!(!m.text().contains("omitted"));
+    assert!(serde_json::to_value(&m).unwrap().get("budget").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn map_budget_on_a_huge_focused_map_is_linear_and_exact() {
+    use repomap_core::query::{estimate_tokens, KeyFile, Outline};
+    let idx = fixture();
+    let mut m = idx.map(&MapOptions { focus: None, limit: 10 });
+    m.key_files = (0..20_000).map(|i| KeyFile { path: format!("src/dir{}/file{i}.rs", i % 50), rank: 0.1, symbols: 3, imported_by: 2 }).collect();
+    m.outline = (0..20_000)
+        .map(|i| Outline { path: format!("src/f{i}.rs"), symbols: (0..30).map(|j| (format!("sym{j}"), "function", j, "fn sym()".to_string())).collect() })
+        .collect();
+    let start = std::time::Instant::now();
+    m.fit_tokens(2000);
+    // A rebuild per removed item (600k+ items over a ~30 MB text) would take minutes.
+    assert!(start.elapsed().as_secs() < 5, "{:?}", start.elapsed());
+    let got = estimate_tokens(&m.text());
+    assert!(got <= 2000 && got as f64 >= 2000.0 * 0.95, "{got}");
+}

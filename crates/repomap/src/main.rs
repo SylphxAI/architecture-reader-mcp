@@ -306,8 +306,9 @@ fn query_cmd(cmd: &str, args: &Args) -> Result<()> {
     if let Some(v) = args.num("limit") {
         a.insert("limit".into(), json!(v));
     }
-    if let Some(v) = args.num("tokens") {
-        a.insert("tokens".into(), json!(v));
+    if let Some(v) = args.flag("tokens") {
+        let n: usize = v.parse().map_err(|_| anyhow::anyhow!("--tokens needs a non-negative integer, got `{v}`"))?;
+        a.insert("tokens".into(), json!(n));
     }
     if let Some(v) = args.num("depth") {
         a.insert("depth".into(), json!(v));
