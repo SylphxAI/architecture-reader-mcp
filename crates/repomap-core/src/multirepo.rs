@@ -2,11 +2,14 @@
 //!
 //! This is the hook the binary calls once a request names more than one root
 //! and a Team licence is present. The join itself (package identity across
-//! npm, Cargo, Go and Python manifests) lands here; until then the hook answers
-//! [`NotJoined`] and the binary falls back to the current root.
+//! npm, Cargo, Go and Python manifests) lives in [`crate::workspace_graph`];
+//! a tool this hook cannot answer returns [`NotJoined`] and the binary falls
+//! back to the current root.
 
 use crate::index::Index;
-use crate::query::{Direction, ImpactOptions, SearchOptions, TraceOptions};
+use crate::query::{
+    ContextOptions, Direction, ImpactOptions, MapOptions, SearchOptions, TraceOptions,
+};
 use crate::workspace_graph::{join_roots, JoinOptions, WorkspaceGraph};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -38,9 +41,9 @@ impl std::error::Error for NotJoined {}
 /// `db`) with `args` over the graph joined from `roots`. `roots` holds every
 /// root named by the request, current root first, already resolved.
 ///
-/// `search`, `trace` and `impact` cross repo boundaries (see
-/// [`crate::workspace_graph`]); the other tools answer [`NotJoined`], so the
-/// binary falls back to the current root for them. The joined graph is kept
+/// `map`, `search`, `context`, `trace` and `impact` cross repo boundaries (see
+/// [`crate::workspace_graph`]). `db` is answered by the binary, one schema per
+/// root, because a database is not one graph; here it is [`NotJoined`]. The joined graph is kept
 /// per root set and refreshed on each call, so only changed roots are
 /// re-indexed.
 pub fn join_workspace(roots: &[PathBuf], tool: &str, args: &Value) -> Result<Joined, NotJoined> {
@@ -56,7 +59,7 @@ pub fn join_workspace_with(
     args: &Value,
     prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
 ) -> Result<Joined, NotJoined> {
-    if !matches!(tool, "search" | "trace" | "impact") {
+    if !matches!(tool, "map" | "search" | "context" | "trace" | "impact") {
         return Err(NotJoined);
     }
     let graph = graph_for(roots, prebuilt).ok_or(NotJoined)?;
@@ -171,6 +174,32 @@ fn answer(g: &WorkspaceGraph, tool: &str, args: &Value) -> Option<Joined> {
         })
     }
     match tool {
+        "map" => {
+            let opts = MapOptions {
+                focus: str_arg(args, &["focus", "path", "scope"]).map(String::from),
+                limit: num_arg(args, &["limit"]).unwrap_or(12),
+            };
+            let r = g.map(&opts, num_arg(args, &["tokens", "max_tokens"]));
+            joined(r.text(), &r)
+        }
+        "context" => {
+            let target = match (
+                str_arg(args, &["target", "symbol", "node", "focus", "id", "file"]),
+                str_arg(args, &["path"]),
+                num_arg(args, &["line"]),
+            ) {
+                (Some(t), _, _) => t.to_string(),
+                (None, Some(p), Some(l)) => format!("{p}:{l}"),
+                (None, Some(p), None) => p.to_string(),
+                _ => return None,
+            };
+            let opts = ContextOptions {
+                code_lines: num_arg(args, &["code_lines"]).unwrap_or(60),
+                limit: num_arg(args, &["limit"]).unwrap_or(25),
+            };
+            let r = g.context(&target, &opts).ok()?;
+            joined(r.text(), &r)
+        }
         "search" => {
             let opts = SearchOptions {
                 limit: num_arg(args, &["limit"]).unwrap_or(10).clamp(1, 100),
@@ -257,7 +286,7 @@ mod tests {
             PathBuf::from("/nonexistent/a"),
             PathBuf::from("/nonexistent/b"),
         ];
-        for tool in ["map", "context", "db", "impact"] {
+        for tool in ["map", "context", "db", "impact", "search", "trace"] {
             assert_eq!(
                 join_workspace(&roots, tool, &Value::Null)
                     .unwrap_err()
@@ -295,5 +324,43 @@ mod tests {
             .unwrap()
             .iter()
             .any(|h| h["repo"] == "b"));
+    }
+
+    #[test]
+    fn map_and_context_join_across_roots() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |root: &std::path::Path, rel: &str, body: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        let (a, b) = (d.path().join("liba"), d.path().join("appb"));
+        w(&a, "package.json", r#"{"name":"@x/liba"}"#);
+        w(&a, "src/f.ts", "export function fa() {\n  return 1;\n}\n");
+        w(&b, "package.json", r#"{"name":"appb"}"#);
+        w(
+            &b,
+            "src/g.ts",
+            "import { fa } from '@x/liba';\nexport function gb() {\n  return fa();\n}\n",
+        );
+        let roots = [a, b];
+        let m = join_workspace(&roots, "map", &Value::Null).unwrap();
+        assert_eq!(m.json["repos"].as_array().unwrap().len(), 2);
+        assert!(m.text.contains("## Repo liba") && m.text.contains("## Repo appb"));
+        assert_eq!(m.json["links"][0]["from"], "appb");
+        let c = join_workspace(
+            &roots,
+            "context",
+            &serde_json::json!({"target": "src/f.ts"}),
+        )
+        .unwrap();
+        assert_eq!(c.json["found_in"][0]["repo"], "liba");
+        assert_eq!(c.json["found_in"][0]["used_by"][0], "appb:src/g.ts");
+        let c =
+            join_workspace(&roots, "context", &serde_json::json!({"path": "src/g.ts"})).unwrap();
+        assert_eq!(c.json["found_in"][0]["repo"], "appb");
+        // No target, or one nobody knows, is not joined (the binary answers for the current repo).
+        assert!(join_workspace(&roots, "context", &Value::Null).is_err());
+        assert!(join_workspace(&roots, "context", &serde_json::json!({"target": "zzz"})).is_err());
     }
 }
