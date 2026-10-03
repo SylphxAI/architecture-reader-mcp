@@ -1844,7 +1844,7 @@ dependencies = [
 
 [[package]]
 name = "sylphx-repomap"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1858,11 +1858,12 @@ dependencies = [
  "tempfile",
  "tiny_http",
  "tokio",
+ "ureq",
 ]
 
 [[package]]
 name = "sylphx-repomap-core"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "anyhow",
  "ignore",

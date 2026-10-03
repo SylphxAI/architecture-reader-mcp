@@ -910,6 +910,9 @@ pub struct ContextResult {
     pub alternatives: Vec<String>,
     pub lines: Option<u32>,
     pub language: Option<String>,
+    /// A shared map holds no source: a GitHub permalink to read it instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 pub struct ContextOptions {
@@ -931,6 +934,12 @@ impl Index {
             Target::Symbol(s) => Ok(self.symbol_context(s, alternatives, opts)),
             Target::File(f) => Ok(self.file_context(f, alternatives, opts)),
         }
+    }
+
+    /// On a shared map, where to read the code on GitHub.
+    fn source_url(&self, file: u32, lines: Option<(u32, u32)>) -> Option<String> {
+        let info = self.shared.as_ref()?;
+        Some(info.permalink(self.git.remote_web.as_deref(), &self.files[file as usize].path, lines))
     }
 
     fn symbol_context(&self, s: u32, alternatives: Vec<String>, opts: &ContextOptions) -> ContextResult {
@@ -994,6 +1003,7 @@ impl Index {
             alternatives,
             lines: None,
             language: self.files[sym.file as usize].lang.map(|l| l.name().to_string()),
+            source_url: self.source_url(sym.file, Some((sym.start, sym.end))),
         }
     }
 
@@ -1046,6 +1056,7 @@ impl Index {
             alternatives,
             lines: Some(file.lines),
             language: file.lang.map(|l| l.name().to_string()),
+            source_url: self.source_url(f, None),
         }
     }
 
@@ -1117,6 +1128,9 @@ impl ContextResult {
         }
         if let (Some(code), Some(sym)) = (&self.code, &self.symbol) {
             let _ = writeln!(o, "\n```\n{}\n```", number(code, sym.line));
+        }
+        if let Some(url) = &self.source_url {
+            let _ = writeln!(o, "\nSource (shared map, no code stored): {url}");
         }
         let site = |o: &mut String, title: &str, v: &[Site], caller: bool| {
             if v.is_empty() {

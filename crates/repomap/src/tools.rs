@@ -20,7 +20,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
 }
 
 pub fn definitions(include_legacy: bool) -> Vec<Value> {
-    let root = json!({"type": "string", "description": "Repository root. Defaults to the client's workspace root or the server's working directory."});
+    let root = json!({"type": "string", "description": "Repository root, or a shared map link (https://review.repomap.sylphx.com/m/{owner}/{repo}) for a repository you can read on GitHub but have not cloned. Defaults to the client's workspace root or the server's working directory."});
     let format = json!({"type": "string", "enum": ["text", "json"], "description": "text (default, compact, file:line cited) or json."});
     let mut tools = vec![
         json!({
@@ -168,6 +168,7 @@ fn strings(a: &Value, keys: &[&str]) -> Vec<String> {
     Vec::new()
 }
 
+#[derive(Debug)]
 pub struct Output {
     pub text: String,
     pub json: Value,
@@ -175,12 +176,19 @@ pub struct Output {
 
 /// Run a tool. `root` must already be resolved. A request that names more than
 /// one workspace root goes through the Team gate; every other request is free.
+/// A root or workspace entry may be a shared-map link (see `remote`).
 pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
     let roots = crate::team::named_roots(args, root);
     if roots.len() < 2 {
+        if crate::team::is_link(root) {
+            return call_shared(name, args, root.to_str().unwrap_or_default());
+        }
         return call_root(ws, name, args, root);
     }
     let tool = canonical(name).unwrap_or(name);
+    if roots.iter().any(|r| crate::team::is_link(r)) {
+        return call_with_shared(ws, name, tool, args, root, &roots);
+    }
     crate::team::gate(
         &crate::team::POLICY,
         &roots,
@@ -197,6 +205,137 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
         // A database is not one graph: `db` answers once per root.
         || (tool == "db").then(|| db_per_root(ws, args, &roots)),
     )
+}
+
+/// The notice for a shared map whose publisher's Team is not active.
+fn team_inactive() -> Output {
+    let required = mcp_kit::licence::ProRequired {
+        feature: "Private shared maps".into(),
+        product: crate::team::POLICY.product.into(),
+        tier: crate::team::POLICY.tier.into(),
+        url: crate::team::POLICY.upgrade_url.into(),
+    };
+    let notice = mcp_kit::licence::required_result_json(&required)["structuredContent"]["pro_required"].clone();
+    Output { text: format!("{}\n", required), json: json!({ "pro_required": notice }) }
+}
+
+/// One shared-map link as the whole request.
+fn call_shared(name: &str, args: &Value, link: &str) -> Result<Output, String> {
+    let cfg = crate::remote::Config::from_env();
+    let l = cfg.link(link)?;
+    match crate::remote::load(&cfg, &l) {
+        Ok(index) => run_shared(name, args, &index),
+        Err(crate::remote::Fail::TeamInactive) => Ok(team_inactive()),
+        Err(f) => Err(f.message()),
+    }
+}
+
+/// A tool against a shared map, which has a graph and names but no source and
+/// no working tree.
+fn run_shared(name: &str, args: &Value, index: &repomap_core::Index) -> Result<Output, String> {
+    let tool = canonical(name).ok_or_else(|| format!("unknown tool `{name}`"))?;
+    match tool {
+        "db" => {
+            let text = "db is not available on a shared map: it holds names, paths and the graph, no schema files or queries. Run repomap in a clone of the repository.".to_string();
+            Ok(Output { json: json!({ "unavailable": text }), text })
+        }
+        "impact" if is_changed(args) || strings(args, &["target", "targets", "symbol", "paths", "changed_paths", "files"]).is_empty() => {
+            Err("a shared map has no working tree; pass `target` (a symbol or file)".into())
+        }
+        _ => {
+            let mut out = run_index(tool, args, index)?;
+            if tool == "search" {
+                let line = "Search on a shared map matches symbol names and file paths only; it holds no source text.";
+                out.text.push_str(&format!("\n{line}\n"));
+                if let Value::Object(m) = &mut out.json {
+                    m.insert("note".into(), json!(line));
+                }
+            }
+            Ok(out)
+        }
+    }
+}
+
+fn is_changed(args: &Value) -> bool {
+    args.get("changed").and_then(|v| v.as_bool()).unwrap_or(false) || args.get("use_git_diff").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+/// A request whose roots include shared-map links. A map the server answered
+/// is licensed by its publisher's Team and the reader's GitHub access, so a
+/// join with at least one served shared map needs no local licence.
+fn call_with_shared(ws: &Workspace, name: &str, tool: &str, args: &Value, root: &std::path::Path, roots: &[std::path::PathBuf]) -> Result<Output, String> {
+    use std::path::PathBuf;
+    if tool == "db" {
+        return db_per_root(ws, args, roots);
+    }
+    let cfg = crate::remote::Config::from_env();
+    // Each link keyed with its commit, so a newer map is a new graph.
+    let mut served: std::collections::HashMap<PathBuf, std::sync::Arc<repomap_core::Index>> = Default::default();
+    let mut keyed: Vec<PathBuf> = Vec::new();
+    let mut notes: Vec<String> = Vec::new();
+    let mut inactive = false;
+    for r in roots {
+        let Some(link) = r.to_str().filter(|s| repomap_core::shared::is_link(s)) else {
+            keyed.push(r.clone());
+            continue;
+        };
+        let loaded = cfg.link(link).map_err(crate::remote::Fail::Other).and_then(|l| crate::remote::load(&cfg, &l));
+        match loaded {
+            Ok(index) => {
+                let key = PathBuf::from(format!("{link}#{}", index.shared.as_ref().and_then(|i| i.commit.clone()).unwrap_or_default()));
+                served.insert(key.clone(), index);
+                keyed.push(key);
+            }
+            Err(f) if r.as_path() == root => {
+                return match f {
+                    crate::remote::Fail::TeamInactive => Ok(team_inactive()),
+                    f => Err(f.message()),
+                }
+            }
+            Err(f) => {
+                inactive |= f == crate::remote::Fail::TeamInactive;
+                notes.push(format!("{link} was not joined: {}.", f.message()));
+            }
+        }
+    }
+    let mut out = if served.is_empty() {
+        let mut o = call_root(ws, name, args, root)?;
+        if inactive {
+            o.json = match o.json {
+                Value::Object(mut m) => {
+                    m.insert("pro_required".into(), team_inactive().json["pro_required"].clone());
+                    Value::Object(m)
+                }
+                other => json!({ "result": other, "pro_required": team_inactive().json["pro_required"] }),
+            };
+        }
+        o
+    } else {
+        let current = keyed.first().cloned().unwrap_or_default();
+        let shared = served.clone();
+        let joined = repomap_core::multirepo::join_workspace_shared(&keyed, shared, tool, args, || {
+            keyed
+                .iter()
+                .filter(|r| !served.contains_key(*r))
+                .filter_map(|r| Some((r.canonicalize().ok()?, ws.get(r).ok()?)))
+                .collect()
+        });
+        match joined {
+            Ok(j) => Output { text: j.text, json: j.json },
+            Err(_) => {
+                let mut o = match served.get(&current) {
+                    Some(index) => run_shared(name, args, index)?,
+                    None => call_root(ws, name, args, root)?,
+                };
+                crate::team::note(&mut o, "The other repos in this workspace were not joined (not yet joined); this answers for the current repo only.", None, None);
+                o
+            }
+        }
+    };
+    for n in notes {
+        crate::team::note(&mut out, &n, None, None);
+    }
+    Ok(out)
 }
 
 /// `db` over a workspace: one answer per root, never a merged schema. Without
@@ -222,6 +361,11 @@ fn db_per_root(ws: &Workspace, args: &Value, roots: &[std::path::PathBuf]) -> Re
     );
     let mut repos = serde_json::Map::new();
     for r in roots {
+        if crate::team::is_link(r) {
+            let label = r.to_str().and_then(repomap_core::shared::parse_link).map_or_else(|| r.display().to_string(), |l| l.repo);
+            text.push_str(&format!("\n## Repo {label}\n\nNot in shared maps: a shared map holds names, paths and the graph, no schema files or queries.\n"));
+            continue;
+        }
         let mut name = r.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| r.display().to_string());
         if repos.contains_key(&name) {
             name = r.display().to_string();
@@ -262,7 +406,11 @@ fn call_root(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -
         }
     }
     let index = ws.get_with(root, &targets).map_err(|e| format!("indexing {} failed: {e}", root.display()))?;
-    let index = &*index;
+    run_index(tool, args, &index)
+}
+
+/// Run a canonical tool against an index.
+fn run_index(tool: &str, args: &Value, index: &repomap_core::Index) -> Result<Output, String> {
     macro_rules! out {
         ($r:expr) => {{
             let r = $r;
@@ -339,7 +487,7 @@ fn call_root(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -
             };
             Ok(Output { text: schema.text(table), json })
         }
-        _ => Err(format!("unknown tool `{name}`")),
+        _ => Err(format!("unknown tool `{tool}`")),
     }
 }
 
@@ -400,5 +548,111 @@ mod tests {
         // A missing environment variable is a clear error, not a silent fallback.
         let e = db_per_root(&ws, &serde_json::json!({"url_env": "REPOMAP_TEST_NO_SUCH_URL"}), &[a, b]).err().unwrap();
         assert!(e.contains("REPOMAP_TEST_NO_SUCH_URL"), "{e}");
+    }
+
+    fn call_json(name: &str, args: Value) -> Result<Output, String> {
+        call(&Workspace::default(), name, &args, std::path::Path::new(args["root"].as_str().unwrap_or(".")))
+    }
+
+    // One test owns the process-global environment the remote path reads.
+    #[test]
+    fn shared_map_links_answer_the_six_tools() {
+        use crate::remote::fake::{reply, serve, Reply};
+        use crate::remote::tests::sample_map;
+        let api = sample_map(
+            &[
+                ("package.json", r#"{"name":"@acme/api"}"#),
+                ("src/greet.ts", "export function greetUser(name: string): string {\n  return decorate(name);\n}\nexport function decorate(s: string): string {\n  return s;\n}\n"),
+                ("src/tests/greet.test.ts", "import { greetUser } from '../greet';\nexport function testGreet() {\n  return greetUser('x');\n}\n"),
+            ],
+            "c0ffee",
+        );
+        let mode = std::sync::Arc::new(std::sync::Mutex::new(200u16));
+        let m2 = mode.clone();
+        let fake = serve(move |r| {
+            let status = *m2.lock().unwrap();
+            if status != 200 {
+                return reply(status, r#"{"error":{"type":"authentication_error","code":"x","message":"m"}}"#);
+            }
+            assert_eq!(r.header("authorization"), Some("Bearer rms_test"));
+            Reply { status: 200, headers: vec![("etag", "\"c0ffee.1\"".into())], body: api.clone() }
+        });
+        let d = tempfile::tempdir().unwrap();
+        std::env::set_var("REPOMAP_REVIEW_URL", &fake.base);
+        std::env::set_var("REPOMAP_TOKEN", "rms_test");
+        std::env::set_var("REPOMAP_CACHE_DIR", d.path());
+        let link = format!("{}/m/acme/api", fake.base);
+
+        // map, trace, impact(target) and context answer from the downloaded map.
+        let out = call_json("map", json!({"root": link})).unwrap();
+        assert!(out.text.contains("greet.ts"), "{}", out.text);
+        let out = call_json("context", json!({"root": link, "target": "greetUser"})).unwrap();
+        assert!(out.text.contains("https://github.com/acme/api/blob/c0ffee/src/greet.ts#L1-L3"), "{}", out.text);
+        assert!(!out.text.contains("```"), "no code in a shared map: {}", out.text);
+        assert!(out.json["callers"].to_string().contains("testGreet"), "{}", out.json);
+        let out = call_json("trace", json!({"root": link, "from": "testGreet", "to": "decorate"})).unwrap();
+        assert!(out.text.contains("greetUser"), "{}", out.text);
+        let out = call_json("impact", json!({"root": link, "target": "decorate"})).unwrap();
+        assert!(out.text.contains("greetUser"), "{}", out.text);
+
+        // search: names and paths only, and it says so.
+        let out = call_json("search", json!({"root": link, "query": "greetUser"})).unwrap();
+        assert!(out.text.contains("names and file paths only"), "{}", out.text);
+        assert!(out.text.contains("src/greet.ts"));
+
+        // impact --changed and db say so.
+        let e = call_json("impact", json!({"root": link, "changed": true})).unwrap_err();
+        assert!(e.contains("no working tree"), "{e}");
+        let out = call_json("db", json!({"root": link})).unwrap();
+        assert!(out.text.contains("not available on a shared map"), "{}", out.text);
+
+        // A local repo and the shared map join into one cross-repo answer,
+        // with no local licence: the publisher's Team and GitHub access cover it.
+        let app = d.path().join("app");
+        std::fs::create_dir_all(app.join("src")).unwrap();
+        std::fs::write(app.join("package.json"), r#"{"name":"app"}"#).unwrap();
+        std::fs::write(app.join("src/main.ts"), "import { greetUser } from '@acme/api/src/greet';\nexport function render(n: string) {\n  return greetUser(n);\n}\n").unwrap();
+        let out = call_json("impact", json!({"root": app.to_string_lossy(), "workspace": [link], "target": "api:src/greet.ts"})).unwrap();
+        assert!(out.json.get("pro_required").is_none(), "{}", out.json);
+        assert!(out.text.contains("Other repos affected") && out.text.contains("src/main.ts"), "{}", out.text);
+        // db over the same workspace says where it is not available.
+        let out = call_json("db", json!({"root": app.to_string_lossy(), "workspace": [link]})).unwrap();
+        assert!(out.text.contains("## Repo api") && out.text.contains("Not in shared maps"), "{}", out.text);
+
+        // Errors reach the agent in one clear line each.
+        *mode.lock().unwrap() = 401;
+        std::env::set_var("REPOMAP_CACHE_DIR", d.path().join("fresh1"));
+        crate::remote::forget_memory();
+        let e = call_json("map", json!({"root": link})).unwrap_err();
+        assert!(e.contains("repomap login"), "{e}");
+        *mode.lock().unwrap() = 404;
+        std::env::set_var("REPOMAP_CACHE_DIR", d.path().join("fresh2"));
+        crate::remote::forget_memory();
+        let e = call_json("map", json!({"root": link})).unwrap_err();
+        assert!(e.contains("no map you can read at this link"), "{e}");
+        *mode.lock().unwrap() = 402;
+        std::env::set_var("REPOMAP_CACHE_DIR", d.path().join("fresh3"));
+        crate::remote::forget_memory();
+        let out = call_json("map", json!({"root": link})).unwrap();
+        assert_eq!(out.json["pro_required"]["tier"], "Team", "{}", out.json);
+        assert!(out.text.contains("Team"), "{}", out.text);
+        // A workspace link that fails leaves the local answer, with a note.
+        let out = call_json("map", json!({"root": app.to_string_lossy(), "workspace": [link]})).unwrap();
+        assert!(out.text.contains("was not joined"), "{}", out.text);
+        assert!(out.json.get("pro_required").is_some());
+        // A link to another host is never sent a token.
+        let e = call_json("map", json!({"root": "https://evil.example/m/acme/api"})).unwrap_err();
+        assert!(e.contains("not on the repomap review server"), "{e}");
+        assert!(fake.seen.lock().unwrap().iter().all(|r| r.header("authorization").is_some() || r.url.starts_with("/v1/")));
+    }
+
+    #[test]
+    fn the_root_text_names_the_link_and_there_are_still_six_tools() {
+        let defs = definitions(false);
+        assert_eq!(defs.len(), 6);
+        for d in &defs {
+            let text = d["inputSchema"]["properties"]["root"]["description"].as_str().unwrap();
+            assert!(text.contains("shared map link"), "{text}");
+        }
     }
 }

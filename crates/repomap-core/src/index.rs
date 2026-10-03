@@ -187,6 +187,9 @@ pub struct Index {
     pub model_id: &'static str,
     /// Fixture trees left out of the index (see `fixture_trees`).
     pub deferred: Vec<DeferredDir>,
+    /// Set when this index came from a shared map (`Index::from_shared`):
+    /// there is no source on disk, only the graph.
+    pub shared: Option<crate::shared::SharedInfo>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -607,6 +610,10 @@ impl Index {
     }
 
     pub fn read_lines(&self, file: u32, start: u32, end: u32) -> Option<String> {
+        // A shared map holds no source, and its root is not a directory.
+        if self.shared.is_some() {
+            return None;
+        }
         let abs = self.root.join(&self.files[file as usize].path);
         let src = std::fs::read_to_string(abs).ok()?;
         let lines: Vec<&str> = src.lines().collect();
@@ -695,6 +702,7 @@ fn assemble(root: PathBuf, kept: &[(&Candidate, CacheEntry)]) -> Index {
         fingerprint: 0,
         model_id: "",
         deferred: Vec::new(),
+        shared: None,
     };
     let facts: Vec<&FileFacts> = kept.iter().map(|(_, e)| &e.facts).collect();
     graph::link(&mut index, &facts);

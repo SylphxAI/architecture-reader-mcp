@@ -45,6 +45,10 @@ impl Repomap {
             .iter()
             .find_map(|k| args.get(*k).and_then(|v| v.as_str()))
             .map(PathBuf::from);
+        // A shared-map link is not a directory.
+        if let Some(link) = explicit.as_ref().filter(|p| p.to_str().is_some_and(repomap_core::shared::is_link)) {
+            return Ok(link.clone());
+        }
         roots::pick(&Sources {
             explicit,
             env: ROOT_ENV,

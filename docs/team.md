@@ -54,9 +54,41 @@ carries a `pro_required` field your agent can relay.
 
 ## Private shared maps
 
-Publish the map of any repository to a private link that only your GitHub org
-can open, refreshed on every push to your default branch. Viewers don't need a
-seat. Maps hold file paths and symbol names, never source code.
+Every repository in your Team installation gets a map at one link, refreshed on
+every push to the default branch:
+
+```text
+https://review.repomap.sylphx.com/m/acme/api
+```
+
+Only people who can read the repository on GitHub can open it. Viewers don't
+need a seat. Maps hold file paths, symbol names and the call graph, never source
+code, comments or string literals. The server checks your GitHub access on every
+read, so someone removed from the repository loses the link within minutes.
+
+- **In a browser** the link shows the graph viewer, after you sign in with GitHub.
+- **For your agent**, run `repomap login` once (GitHub's device flow, nothing to
+  paste; for CI set `REPOMAP_TOKEN` to a session token). Then pass the link as
+  `root`, as `repomap map --root <link>`, or as an entry in `roots` or
+  `workspace`. All six tools stay; they answer from the map:
+  - `map`, `trace` and `impact` with a `target` work as on a local clone.
+  - `context` gives the outline, callers, callees and tests, and a GitHub
+    permalink in place of the code, so your agent reads the source with its own
+    GitHub access.
+  - `search` matches symbol names and file paths only. It holds no source text.
+  - `impact --changed` and `db` are not available on a shared map: it has no
+    working tree and no schema files.
+  - A link next to your local repository in a workspace gives the
+    cross-repository graph, with no seat needed: your org paid for the map and
+    GitHub says you may read it.
+
+```toml
+# repomap.workspace.toml
+roots = ["../web", "https://review.repomap.sylphx.com/m/acme/api"]
+```
+
+`repomap export --shared map.json --out map.html` writes the same source-free
+map locally, so you can check what a shared map holds.
 
 ## Support
 

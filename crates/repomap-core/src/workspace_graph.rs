@@ -79,7 +79,8 @@ pub fn read_workspace_file(file: &Path) -> Result<Vec<PathBuf>> {
             match c {
                 '"' | '\'' => {
                     let s: String = chars.by_ref().take_while(|x| *x != c).collect();
-                    roots.push(base.join(s));
+                    // A shared-map link is not relative to the file.
+                    roots.push(if crate::shared::is_link(&s) { PathBuf::from(s) } else { base.join(s) });
                 }
                 ']' => in_roots = false,
                 _ => {}
@@ -432,6 +433,9 @@ pub struct JoinOptions {
     /// Indexes the caller already holds (the CLI/MCP workspace cache), keyed by
     /// canonical root. A root found here is not built again.
     pub prebuilt: HashMap<PathBuf, Arc<Index>>,
+    /// Indexes from shared maps, keyed by the link that names them. They hold
+    /// no files on disk, so they are never canonicalized, rebuilt or refreshed.
+    pub shared: HashMap<PathBuf, Arc<Index>>,
     /// Identity sources beyond the built-in package ecosystems.
     pub sources: Vec<Arc<dyn IdentitySource>>,
 }
@@ -466,6 +470,14 @@ pub fn join_roots(roots: &[PathBuf], opts: &JoinOptions) -> Result<WorkspaceGrap
     let mut members: Vec<Member> = Vec::new();
     let mut seen: HashSet<PathBuf> = HashSet::new();
     for r in roots {
+        if let Some(index) = opts.shared.get(r) {
+            if seen.insert(r.clone()) {
+                let base = index.shared.as_ref().map_or("repo".to_string(), |i| i.repo.clone());
+                let name = unique_name(&members, base);
+                members.push(Member { name, root: r.clone(), index: index.clone() });
+            }
+            continue;
+        }
         let root = r
             .canonicalize()
             .with_context(|| format!("cannot open {}", r.display()))?;
@@ -479,12 +491,7 @@ pub fn join_roots(roots: &[PathBuf], opts: &JoinOptions) -> Result<WorkspaceGrap
         let base = root
             .file_name()
             .map_or("repo".to_string(), |n| n.to_string_lossy().to_string());
-        let mut name = base.clone();
-        let mut n = 2;
-        while members.iter().any(|m| m.name == name) {
-            name = format!("{base}-{n}");
-            n += 1;
-        }
+        let name = unique_name(&members, base);
         members.push(Member { name, root, index });
     }
     let mut sources = builtin_sources();
@@ -505,14 +512,48 @@ pub fn join_roots(roots: &[PathBuf], opts: &JoinOptions) -> Result<WorkspaceGrap
     Ok(g)
 }
 
+fn unique_name(members: &[Member], base: String) -> String {
+    let mut name = base.clone();
+    let mut n = 2;
+    while members.iter().any(|m| m.name == name) {
+        name = format!("{base}-{n}");
+        n += 1;
+    }
+    name
+}
+
+/// The package identities of a local index, for a shared map: read once from
+/// the manifests, so a reader never needs the manifest text.
+pub fn shared_packages(index: &Arc<Index>) -> crate::shared::SharedPackages {
+    use crate::shared::{SharedConsumed, SharedPackages, SharedPublished};
+    let m = Member { name: String::new(), root: index.root.clone(), index: index.clone() };
+    let mut out = SharedPackages::default();
+    for src in builtin_sources() {
+        out.published.extend(src.published(&m).into_iter().map(|p| SharedPublished { kind: p.kind, key: p.key, dir: p.dir }));
+        out.consumed.extend(src.consumed(&m).into_iter().map(|c| SharedConsumed { file: c.file, kind: src.kind().to_string(), candidates: c.candidates }));
+    }
+    out
+}
+
 impl WorkspaceGraph {
     fn scan(&self, repo: usize) -> Scan {
         let m = &self.members[repo];
         let mut s = Scan::default();
+        // A member from a shared map answers from the packages stored in it.
+        let shared = m.index.shared.as_ref();
+        if let Some(info) = shared {
+            s.published.extend(info.packages.published_list());
+        }
         for src in &self.sources {
-            s.published.extend(src.published(m));
+            let consumed = match shared {
+                Some(info) => info.packages.consumed_of(src.kind()),
+                None => {
+                    s.published.extend(src.published(m));
+                    src.consumed(m)
+                }
+            };
             // Consumed identities are tagged with the source kind via a prefix.
-            for mut c in src.consumed(m) {
+            for mut c in consumed {
                 for cand in &mut c.candidates {
                     cand.0 = format!("{}\u{0}{}", src.kind(), cand.0);
                 }
@@ -585,6 +626,9 @@ impl WorkspaceGraph {
         for i in 0..self.members.len() {
             let opts = build_opts(self.use_cache);
             let m = &self.members[i];
+            if m.index.shared.is_some() {
+                continue;
+            }
             let fresh = crate::index::fingerprint(&m.root, &opts).ok() == Some(m.index.fingerprint)
                 && m.index.model_id == crate::semantic::model_id();
             if fresh {
