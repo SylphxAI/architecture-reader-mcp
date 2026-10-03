@@ -155,6 +155,23 @@ Even plain BM25 scores higher there than on our run, which shows that the two su
 
 Method: [`bench/localization`](https://github.com/SylphxAI/repomap/tree/main/bench/localization), run by the [`bench-localization` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench-localization.yml) on `ubuntu-latest` runners in 10 shards. BM25 is `rank_bm25` over the tracked text files, with identifiers split at camelCase and underscores. semble is at commit `2449784`. repomap ran with frozen defaults selected only on the disjoint tuning split above, never on Verified.
 
+## Impact
+
+How well `repomap impact <file>` names the callers and tests a change reaches, scored at file level on 30 changes from the history of five public repositories (ripgrep, fd, hono, flask, cobra; Rust, TypeScript, Python, Go). The gold set comes from the commits themselves: the call sites and tests a commit changed together with the seed file. Method, the rule and the cases are in [`bench/impact`](https://github.com/SylphxAI/repomap/tree/main/bench/impact); run it with the [`bench-impact` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench-impact.yml).
+
+<!-- IMPACT:START -->
+RESULTS_PENDING
+<!-- IMPACT:END -->
+
+Weaknesses, read before quoting a number:
+
+- Precision is a lower bound. A real caller the commit did not need to edit counts as a false positive.
+- Recall only covers dependents a developer edited together with the seed.
+- Callers are matched by a shared identifier, not by a compiler, so aliases and re-exports can be missed and same-named symbols can enter.
+- Rust unit tests sit inside source files and never count as test files.
+- 30 cases, ours and not independent; Rust has 12, the other languages 6 each.
+- Seeds are files; symbol targets and `--changed` diffs are not measured.
+
 ## Indexing speed
 
 Measured by [`scripts/bench.py`](https://github.com/SylphxAI/repomap/blob/main/scripts/bench.py) in the [`bench` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench.yml) on a standard GitHub-hosted `ubuntu-latest` runner. Anyone can re-run it.

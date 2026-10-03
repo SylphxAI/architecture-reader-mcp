@@ -1,0 +1,518 @@
+{
+ "repos": [
+  {
+   "name": "ripgrep",
+   "language": "rust",
+   "url": "https://github.com/BurntSushi/ripgrep.git",
+   "pin": "3fce3b5bb0236da2df6d99672afb8a719642eca7"
+  },
+  {
+   "name": "fd",
+   "language": "rust",
+   "url": "https://github.com/sharkdp/fd.git",
+   "pin": "ce97e473ebaec49697c07daa50a7bc2b32f713d2"
+  },
+  {
+   "name": "hono",
+   "language": "typescript",
+   "url": "https://github.com/honojs/hono.git",
+   "pin": "f23b146afcec63606144cde50b5fbd360dd60238"
+  },
+  {
+   "name": "flask",
+   "language": "python",
+   "url": "https://github.com/pallets/flask.git",
+   "pin": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35"
+  },
+  {
+   "name": "cobra",
+   "language": "go",
+   "url": "https://github.com/spf13/cobra.git",
+   "pin": "adbc8813901bba65827259daa8e22ff94ec1f30e"
+  }
+ ],
+ "cases": [
+  {
+   "id": "ripgrep-1",
+   "repo": "ripgrep",
+   "commit": "2ed0c006fee4c441add774a711d9122a88477619",
+   "subject": "flags: disable many flags when indexing is enabled",
+   "seed": "crates/core/flags/hiargs.rs",
+   "callers": [],
+   "callees": [
+    "crates/core/flags/defs.rs"
+   ],
+   "tests": [
+    "tests/index/disallowed.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-2",
+   "repo": "ripgrep",
+   "commit": "b610d1cb1506feab33459c5853e4c0d0cb16a6e2",
+   "subject": "ignore: fix global gitignore bug that arises with absolute paths",
+   "seed": "crates/ignore/src/gitignore.rs",
+   "callers": [
+    "crates/ignore/src/dir.rs",
+    "crates/ignore/src/walk.rs"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/regression.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-3",
+   "repo": "ripgrep",
+   "commit": "f596a5d8750a6a6db1b87ad95a78667322c06cbd",
+   "subject": "globset: add `allow_unclosed_class` toggle",
+   "seed": "crates/ignore/src/gitignore.rs",
+   "callers": [
+    "crates/ignore/src/overrides.rs"
+   ],
+   "callees": [
+    "crates/globset/src/glob.rs",
+    "crates/ignore/src/overrides.rs"
+   ],
+   "tests": [
+    "tests/regression.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-4",
+   "repo": "ripgrep",
+   "commit": "126bbeab8c1cbbc1d6cb36b4c2d560574233856d",
+   "subject": "printer: fix handling of `has_match` for summary printer",
+   "seed": "crates/core/flags/hiargs.rs",
+   "callers": [
+    "crates/printer/src/summary.rs"
+   ],
+   "callees": [
+    "crates/printer/src/summary.rs"
+   ],
+   "tests": [
+    "tests/regression.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-5",
+   "repo": "ripgrep",
+   "commit": "292bc54e64e55b69fec806bf3ee6481958e2946f",
+   "subject": "printer: support `-r/--replace` with `--json`",
+   "seed": "crates/printer/src/json.rs",
+   "callers": [
+    "crates/core/flags/hiargs.rs",
+    "crates/printer/src/jsont.rs"
+   ],
+   "callees": [
+    "crates/core/flags/hiargs.rs",
+    "crates/printer/src/jsont.rs"
+   ],
+   "tests": [
+    "tests/json.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-6",
+   "repo": "ripgrep",
+   "commit": "9ed7565fcb47d02e76398d41f24ba0817f6b9c2f",
+   "subject": "cli: error when searching for NUL",
+   "seed": "crates/regex/src/error.rs",
+   "callers": [
+    "crates/regex/src/ban.rs",
+    "crates/regex/src/matcher.rs"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/regression.rs"
+   ]
+  },
+  {
+   "id": "ripgrep-7",
+   "repo": "ripgrep",
+   "commit": "6abb962f0d655a186972462d88d2de4e5caf4a33",
+   "subject": "cli: fix non-path sorting behavior",
+   "seed": "crates/core/args.rs",
+   "callers": [
+    "crates/core/main.rs"
+   ],
+   "callees": [
+    "crates/core/main.rs"
+   ],
+   "tests": [
+    "tests/feature.rs",
+    "tests/misc.rs"
+   ]
+  },
+  {
+   "id": "fd-1",
+   "repo": "fd",
+   "commit": "24198d904a074f2943b2a3be925e53134c994734",
+   "subject": "fix: Better sanitizing",
+   "seed": "src/cli.rs",
+   "callers": [
+    "src/main.rs"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/testenv/mod.rs",
+    "tests/tests.rs"
+   ]
+  },
+  {
+   "id": "fd-2",
+   "repo": "fd",
+   "commit": "4ffc34956f9a00d3d5279758feabb5862f5dc9c4",
+   "subject": "Make --strip-cwd-prefix apply to -x/-X",
+   "seed": "src/exec/job.rs",
+   "callers": [
+    "src/app.rs",
+    "src/main.rs",
+    "src/walk.rs"
+   ],
+   "callees": [
+    "src/dir_entry.rs",
+    "src/main.rs",
+    "src/walk.rs"
+   ],
+   "tests": [
+    "tests/tests.rs"
+   ]
+  },
+  {
+   "id": "fd-3",
+   "repo": "fd",
+   "commit": "40b368e76187ac6fbe0e0f4c590a7af28cd1a1b7",
+   "subject": "exec: Execute batches before they get too long",
+   "seed": "src/exec/job.rs",
+   "callers": [],
+   "callees": [
+    "src/exec/mod.rs"
+   ],
+   "tests": [
+    "tests/tests.rs"
+   ]
+  },
+  {
+   "id": "fd-4",
+   "repo": "fd",
+   "commit": "17dd2a6dfec1ca2086c3d279f5c458758bc9a71b",
+   "subject": "Implement `--batch-size` (#866)",
+   "seed": "src/exec/job.rs",
+   "callers": [
+    "src/app.rs",
+    "src/main.rs",
+    "src/walk.rs"
+   ],
+   "callees": [
+    "src/main.rs"
+   ],
+   "tests": [
+    "tests/tests.rs"
+   ]
+  },
+  {
+   "id": "fd-5",
+   "repo": "fd",
+   "commit": "d63c63be8cf8b6ecf75c1b5b8a2033ec7bb899f9",
+   "subject": "Add --min-depth and --exact-depth",
+   "seed": "src/walk.rs",
+   "callers": [
+    "src/app.rs",
+    "src/main.rs",
+    "src/options.rs"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/tests.rs"
+   ]
+  },
+  {
+   "id": "hono-1",
+   "repo": "hono",
+   "commit": "2b8ed402cdab6dfc5e829b480806dcd8db94161e",
+   "subject": "Merge commit from fork",
+   "seed": "src/jsx/base.ts",
+   "callers": [
+    "src/jsx/components.ts",
+    "src/jsx/context.ts",
+    "src/jsx/dom/server.ts",
+    "src/jsx/intrinsic-element/components.ts",
+    "src/jsx/streaming.ts"
+   ],
+   "callees": [
+    "src/jsx/context.ts",
+    "src/jsx/streaming.ts"
+   ],
+   "tests": [
+    "src/jsx/base.test.tsx",
+    "src/jsx/components.test.tsx",
+    "src/jsx/dom/server.test.tsx",
+    "src/jsx/index.test.tsx",
+    "src/jsx/intrinsic-element/components.test.tsx",
+    "src/jsx/streaming.test.tsx"
+   ]
+  },
+  {
+   "id": "hono-2",
+   "repo": "hono",
+   "commit": "3a67f7f3997e1437d108f7bcba2dbcee2df69221",
+   "subject": "Merge commit from fork",
+   "seed": "src/helper/ssg/ssg.ts",
+   "callers": [
+    "src/helper/ssg/utils.ts"
+   ],
+   "callees": [],
+   "tests": [
+    "src/helper/ssg/ssg.test.tsx",
+    "src/helper/ssg/utils.test.ts"
+   ]
+  },
+  {
+   "id": "hono-3",
+   "repo": "hono",
+   "commit": "a10592f3e1864cbe277619633db953450a6b1e4b",
+   "subject": "fix(reg-exp-router): associate wildcard middleware with matching routes (#5266)",
+   "seed": "src/router/reg-exp-router/node.ts",
+   "callers": [
+    "src/router/reg-exp-router/router.ts"
+   ],
+   "callees": [],
+   "tests": [
+    "src/router/common.case.test.ts",
+    "src/router/linear-router/router.test.ts"
+   ]
+  },
+  {
+   "id": "hono-4",
+   "repo": "hono",
+   "commit": "b20d4225c9aa9e615717ca74e437852cc9fd5b94",
+   "subject": "fix(utils/body,validator): normalize Content-Type media type for case-insensitive matching (#5067)",
+   "seed": "src/utils/body.ts",
+   "callers": [
+    "src/utils/buffer.ts"
+   ],
+   "callees": [
+    "src/utils/buffer.ts"
+   ],
+   "tests": [
+    "src/utils/body.test.ts",
+    "src/validator/validator.test.ts"
+   ]
+  },
+  {
+   "id": "hono-5",
+   "repo": "hono",
+   "commit": "cd3f6f7194f0e5c9d4b26ae0cf232018d0f388fc",
+   "subject": "Merge commit from fork",
+   "seed": "src/helper/css/common.ts",
+   "callers": [
+    "src/helper/css/index.ts"
+   ],
+   "callees": [],
+   "tests": [
+    "src/helper/css/index.test.tsx"
+   ]
+  },
+  {
+   "id": "hono-6",
+   "repo": "hono",
+   "commit": "fab3b13639339cbd5ba1166a5b23d9ac30c5f64f",
+   "subject": "Merge commit from fork",
+   "seed": "src/jsx/base.ts",
+   "callers": [
+    "src/jsx/components.ts",
+    "src/jsx/context.ts",
+    "src/jsx/streaming.ts"
+   ],
+   "callees": [
+    "src/jsx/context.ts"
+   ],
+   "tests": [
+    "src/jsx/context-isolation.test.ts",
+    "src/jsx/index.test.tsx",
+    "src/jsx/streaming.test.tsx"
+   ]
+  },
+  {
+   "id": "flask-1",
+   "repo": "flask",
+   "commit": "9b44bf2818d8e3cde422ad7f43fb33dfc6737289",
+   "subject": "Improve decorator typing (#4676)",
+   "seed": "src/flask/scaffold.py",
+   "callers": [
+    "src/flask/blueprints.py"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/typing/typing_route.py"
+   ]
+  },
+  {
+   "id": "flask-2",
+   "repo": "flask",
+   "commit": "2433522d2967b8a5e46f16de587a8fac5088a47c",
+   "subject": "Add Support for FLASK_ENV (#2570)",
+   "seed": "flask/helpers.py",
+   "callers": [
+    "flask/app.py",
+    "flask/cli.py"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/test_helpers.py"
+   ]
+  },
+  {
+   "id": "flask-3",
+   "repo": "flask",
+   "commit": "e853a0f73959ad12cdabc2d74324cdc9329ae794",
+   "subject": "The test client and test_request_context are now both using the same logic internally for creating the environ.  Also they use APPLICATION_ROOT now.",
+   "seed": "flask/testing.py",
+   "callers": [
+    "flask/app.py"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/flask_tests.py"
+   ]
+  },
+  {
+   "id": "flask-4",
+   "repo": "flask",
+   "commit": "a5da2c98f3ed2f9fe254e3b61799b06fa230a175",
+   "subject": "Implemented flask.testing.TestClient.session_transaction for quick session modifications in test environments.",
+   "seed": "flask/app.py",
+   "callers": [
+    "flask/testing.py"
+   ],
+   "callees": [],
+   "tests": [
+    "tests/flask_tests.py"
+   ]
+  },
+  {
+   "id": "flask-5",
+   "repo": "flask",
+   "commit": "175d43b2f9c7825b0df4c1049ab571cb1877a807",
+   "subject": "Instance paths are now moved into virtualenv/share/appname-instance if installed",
+   "seed": "flask/app.py",
+   "callers": [],
+   "callees": [
+    "flask/helpers.py"
+   ],
+   "tests": [
+    "tests/flask_tests.py"
+   ]
+  },
+  {
+   "id": "flask-6",
+   "repo": "flask",
+   "commit": "68473291344629dff3955fdc07776f2fca7b9b69",
+   "subject": "Flask will now give you an error in debug mode if a post request caused a redirect by the routing system.",
+   "seed": "flask/app.py",
+   "callers": [
+    "flask/debughelpers.py"
+   ],
+   "callees": [
+    "flask/debughelpers.py"
+   ],
+   "tests": [
+    "tests/flask_tests.py"
+   ]
+  },
+  {
+   "id": "cobra-1",
+   "repo": "cobra",
+   "commit": "24ada7fe71e3a3a8741dd52e0a7fc3b97450535a",
+   "subject": "Remove the default \"completion\" cmd if it is alone (#1559)",
+   "seed": "command.go",
+   "callers": [
+    "completions.go"
+   ],
+   "callees": [
+    "completions.go"
+   ],
+   "tests": [
+    "completions_test.go"
+   ]
+  },
+  {
+   "id": "cobra-2",
+   "repo": "cobra",
+   "commit": "8cb30f9ca53a004a6fe88c5cfcc79ac7b24fc638",
+   "subject": "feat: add CompletionWithDesc helper (#2231)",
+   "seed": "completions.go",
+   "callers": [
+    "active_help.go",
+    "command.go"
+   ],
+   "callees": [
+    "command.go"
+   ],
+   "tests": [
+    "completions_test.go"
+   ]
+  },
+  {
+   "id": "cobra-3",
+   "repo": "cobra",
+   "commit": "611e16c322e3b0413a9ba4e489fcd98ef904e406",
+   "subject": "Allow linker to perform deadcode elimination for program using Cobra (#1956)",
+   "seed": "command.go",
+   "callers": [
+    "cobra.go",
+    "completions.go"
+   ],
+   "callees": [
+    "cobra.go"
+   ],
+   "tests": [
+    "cobra_test.go",
+    "command_test.go"
+   ]
+  },
+  {
+   "id": "cobra-4",
+   "repo": "cobra",
+   "commit": "d1e9d85fcf592461f3bc2f4b6d5e140c4c0aabf8",
+   "subject": "Make detection for test-binary more universal (#2173)",
+   "seed": "command.go",
+   "callers": [
+    "command_go120.go"
+   ],
+   "callees": [],
+   "tests": [
+    "command_test.go"
+   ]
+  },
+  {
+   "id": "cobra-5",
+   "repo": "cobra",
+   "commit": "e63925d3216142ba2c8d7641d729c6c15f4433e7",
+   "subject": "Add env variable to suppress completion descriptions on create (#1938)",
+   "seed": "completions.go",
+   "callers": [
+    "active_help.go"
+   ],
+   "callees": [],
+   "tests": [
+    "completions_test.go"
+   ]
+  },
+  {
+   "id": "cobra-6",
+   "repo": "cobra",
+   "commit": "4cafa37bc4bb85633b4245aa118280fe5a9edcd5",
+   "subject": "Allow running persistent run hooks of all parents (#2044)",
+   "seed": "cobra.go",
+   "callers": [
+    "command.go"
+   ],
+   "callees": [],
+   "tests": [
+    "command_test.go"
+   ]
+  }
+ ]
+}
