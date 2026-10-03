@@ -24,6 +24,7 @@ jobs:
     outputs:
       db: ${{ steps.f.outputs.db }}
       docker: ${{ steps.f.outputs.docker }}
+      code: ${{ steps.c.outputs.code }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
@@ -41,9 +42,24 @@ jobs:
               - '.dockerignore'
               - 'crates/repomap/src/mcp.rs'
               - '.github/workflows/ci.yml'
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
+        id: c
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!LICENSE'
+              - '!CHANGELOG.md'
+              - '!CONTRIBUTING.md'
+              - '!SECURITY.md'
 
+  # Skipped (so `ci` still passes) when a change touches only files no check
+  # reads: licence, changelog, contributing, security, issue templates.
   build:
-    if: github.event_name != 'merge_group'
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || (github.event_name != 'merge_group' && needs.changes.outputs.code == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -52,8 +68,9 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # One release build: the tests reuse its dependency artifacts and the
       # binary is shared with every later job.
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --release --locked --workspace
-      - run: cargo build --release --locked -p repomap
+      - run: cargo build --release --locked -p sylphx-repomap
       - uses: actions/upload-artifact@v4
         with:
           name: repomap-linux-x64
@@ -90,6 +107,8 @@ jobs:
           $B search "rank files by how central they are in the dependency graph" --json --limit 5 > /tmp/sem.json
           jq -e '[.hits[].file] | index("crates/repomap-core/src/graph.rs") != null' /tmp/sem.json
           REPOMAP_EMBED=0 $B index . --no-cache | grep -q 'keywords only'
+      - name: Offline benchmark validity regressions
+        run: python3 -m unittest discover -s scripts -p test_bench_validity.py
       - name: Manifests agree on one version
         run: bun scripts/check-version.ts
       - name: Committed UI bundle is up to date
@@ -100,8 +119,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bun scripts/copy.ts --check --github
+      - name: Capabilities name code that exists
+        run: bun scripts/check-capabilities.ts
       - name: Brand files match their masters and the surface copies
-        run: python3 brand/build.py --check
+        uses: SylphxAI/.github/.github/actions/brand@a6c81b4bcda66bf624f0a68e25e63b3c0ed043eb # shared brand generator
       - name: Smoke (CLI, export, MCP over stdio, hook, npm launcher)
         run: |
           set -euo pipefail

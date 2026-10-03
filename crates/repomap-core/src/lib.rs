@@ -11,11 +11,15 @@ pub mod export;
 pub mod graph;
 pub mod index;
 pub mod lang;
+pub mod multirepo;
 pub mod parse;
+pub mod qterms;
 pub mod query;
 pub mod score;
 pub mod semantic;
-pub mod tokenize;
+pub use mcp_kit::search as tokenize;
+pub mod tune;
+pub mod workspace_graph;
 
 pub use index::{BuildOptions, Index};
 pub use query::{ContextOptions, Direction, ImpactOptions, MapOptions, SearchOptions, TraceOptions};

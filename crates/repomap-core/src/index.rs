@@ -185,6 +185,8 @@ pub struct Index {
     pub fingerprint: u64,
     /// The embedding model the index was built with ("" for none).
     pub model_id: &'static str,
+    /// Fixture trees left out of the index (see `fixture_trees`).
+    pub deferred: Vec<DeferredDir>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -209,14 +211,15 @@ struct CacheEntry {
     facts: FileFacts,
 }
 
+/// Product-wide cache root, also used by the one-time CLI star hint.
+/// A UTF-8 override is accepted even when empty, as before.
+pub fn cache_root() -> PathBuf {
+    mcp_kit::cache::root("REPOMAP_CACHE_DIR", "repomap", mcp_kit::cache::Fallback::Temp, mcp_kit::cache::Override::Utf8)
+        .expect("temporary cache fallback")
+}
+
 pub fn cache_dir(root: &Path) -> PathBuf {
-    if let Ok(dir) = std::env::var("REPOMAP_CACHE_DIR") {
-        return PathBuf::from(dir).join(root_slug(root));
-    }
-    dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("repomap")
-        .join(root_slug(root))
+    cache_root().join(root_slug(root))
 }
 
 fn root_slug(root: &Path) -> String {
@@ -235,26 +238,154 @@ fn root_slug(root: &Path) -> String {
 
 pub fn is_test_path(path: &str) -> bool {
     let p = path.to_ascii_lowercase();
+    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e")) || has_test_name(path)
+}
+
+/// The filename half of `is_test_path`.
+fn has_test_name(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
     let name = p.rsplit('/').next().unwrap_or(&p);
-    p.split('/').any(|s| matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "testdata" | "e2e"))
-        // `test_x.py`, but not a library such as `lib/test_functions.bash`.
-        || (name.starts_with("test_") && matches!(name.rsplit('.').next(), Some("py" | "rb" | "c" | "cc" | "cpp" | "lua" | "dart" | "php")))
+    // `test_x.py`, but not a library such as `lib/test_functions.bash`.
+    (name.starts_with("test_") && matches!(name.rsplit('.').next(), Some("py" | "rb" | "c" | "cc" | "cpp" | "lua" | "dart" | "php")))
         || name.contains(".test.")
         || name.contains(".spec.")
         || name.contains("_test.")
         || name.contains("_spec.")
-        || name.ends_with("test.java")
-        || name.ends_with("tests.cs")
+        || {
+            // Java-like languages name tests by a capitalised suffix (FooTest, FooTests, FooSpec,
+            // FooIT); match case-sensitively so `Commit.java` or `Latest.cs` stay source.
+            let orig = path.rsplit('/').next().unwrap_or(path);
+            let (stem, ext) = orig.rsplit_once('.').unwrap_or((orig, ""));
+            matches!(ext.to_ascii_lowercase().as_str(), "java" | "kt" | "kts" | "scala" | "groovy" | "php" | "cs" | "swift")
+                && ["Test", "Tests", "Spec", "IT"].iter().any(|w| stem.ends_with(w))
+        }
 }
 
 pub struct BuildOptions {
     pub use_cache: bool,
+    /// Index fixture trees too (`--include-fixtures`, or `REPOMAP_INCLUDE_FIXTURES=1`).
+    pub include_fixtures: bool,
+    /// Path prefixes to index even when they sit in a deferred fixture tree
+    /// (set when a query or path targets one).
+    pub include: Vec<String>,
+    /// Files a fixture tree needs before it is deferred.
+    pub fixture_threshold: usize,
 }
 
 impl Default for BuildOptions {
     fn default() -> Self {
-        Self { use_cache: true }
+        Self {
+            use_cache: true,
+            include_fixtures: std::env::var("REPOMAP_INCLUDE_FIXTURES").is_ok_and(|v| !matches!(v.as_str(), "" | "0" | "false")),
+            include: Vec::new(),
+            fixture_threshold: FIXTURE_DEFER_MIN,
+        }
     }
+}
+
+/// A fixture tree left out of the index, and how many files it holds.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeferredDir {
+    pub dir: String,
+    pub files: usize,
+}
+
+/// A fixture-like tree with at least this many files is deferred.
+pub const FIXTURE_DEFER_MIN: usize = 1000;
+
+fn is_test_segment(s: &str) -> bool {
+    matches!(s, "test" | "tests" | "__tests__" | "spec" | "specs" | "e2e")
+}
+
+fn is_fixture_segment(s: &str) -> bool {
+    matches!(s, "testdata" | "fixtures" | "__fixtures__" | "__snapshots__")
+}
+
+/// Fixture-like trees among `paths` with at least `min` files: a directory
+/// named like test data (`testdata`, `fixtures`, `__fixtures__`,
+/// `__snapshots__`), or the shallowest directory strictly below a test
+/// directory (`tests/cases`). The result maps each tree to its file count;
+/// trees never nest. Unit tests beside code, and flat `tests/` folders, stay.
+pub fn fixture_trees<'a>(paths: impl Iterator<Item = &'a str>, min: usize) -> Vec<DeferredDir> {
+    let paths: Vec<&str> = paths.collect();
+    let qualifying = |segs: &[&str], depth: usize| -> bool {
+        // `depth` directories: segs[..depth]; the last one is the candidate.
+        is_fixture_segment(segs[depth - 1])
+            || segs[..depth - 1]
+                .iter()
+                .enumerate()
+                .any(|(i, s)| is_test_segment(s) && !matches!(segs[i + 1], "src" | "lib" | "source") && !(i > 0 && segs[i - 1] == "src"))
+    };
+    let mut named: HashMap<&str, usize> = HashMap::new();
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for p in &paths {
+        let segs: Vec<&str> = p.split('/').collect();
+        if segs.len() < 2 || !segs[..segs.len() - 1].iter().any(|s| is_test_segment(s) || is_fixture_segment(s)) {
+            continue;
+        }
+        let mut end = 0;
+        for d in 1..segs.len() {
+            end += segs[d - 1].len() + usize::from(d > 1);
+            if qualifying(&segs, d) {
+                *counts.entry(&p[..end]).or_default() += 1;
+                if has_test_name(p) {
+                    *named.entry(&p[..end]).or_default() += 1;
+                }
+            }
+        }
+    }
+    let mut trees: HashMap<&str, usize> = HashMap::new();
+    for p in &paths {
+        let segs: Vec<&str> = p.split('/').collect();
+        let mut end = 0;
+        for d in 1..segs.len() {
+            end += segs[d - 1].len() + usize::from(d > 1);
+            if qualifying(&segs, d) {
+                let dir = &p[..end];
+                let n = counts.get(dir).copied().unwrap_or(0);
+                // Real tests (named like tests) are at least 10%: keep indexed.
+                if n >= min && named.get(dir).copied().unwrap_or(0) * 10 < n {
+                    *trees.entry(dir).or_default() += 1;
+                    break;
+                }
+            }
+        }
+    }
+    let mut v: Vec<DeferredDir> = trees.into_iter().map(|(dir, files)| DeferredDir { dir: dir.to_string(), files }).collect();
+    v.sort_by(|a, b| a.dir.cmp(&b.dir));
+    v
+}
+
+fn under(path: &str, dir: &str) -> bool {
+    path.len() > dir.len() && path.starts_with(dir) && path.as_bytes()[dir.len()] == b'/'
+}
+
+pub fn included(path: &str, include: &[String]) -> bool {
+    include.iter().any(|i| {
+        let i = i.trim_matches('/');
+        !i.is_empty() && (path == i || under(path, i))
+    })
+}
+
+/// Split `candidates` into those to index and the fixture trees left out.
+fn defer_fixtures(candidates: Vec<Candidate>, opts: &BuildOptions) -> (Vec<Candidate>, Vec<DeferredDir>) {
+    if opts.include_fixtures {
+        return (candidates, Vec::new());
+    }
+    let trees = fixture_trees(candidates.iter().map(|c| c.path.as_str()), opts.fixture_threshold);
+    if trees.is_empty() {
+        return (candidates, trees);
+    }
+    let mut left: Vec<DeferredDir> = trees.iter().map(|t| DeferredDir { dir: t.dir.clone(), files: 0 }).collect();
+    let mut kept = Vec::with_capacity(candidates.len());
+    for c in candidates {
+        match trees.iter().position(|t| under(&c.path, &t.dir)) {
+            Some(i) if !included(&c.path, &opts.include) => left[i].files += 1,
+            _ => kept.push(c),
+        }
+    }
+    left.retain(|d| d.files > 0);
+    (kept, left)
 }
 
 struct Candidate {
@@ -288,7 +419,7 @@ fn walk(root: &Path) -> Result<Vec<Candidate>> {
             let out = &out;
             Box::new(move |entry| {
                 let Ok(entry) = entry else { return ignore::WalkState::Continue };
-                if !entry.file_type().map_or(false, |t| t.is_file()) {
+                if !entry.file_type().is_some_and(|t| t.is_file()) {
                     return ignore::WalkState::Continue;
                 }
                 let abs = entry.path();
@@ -339,9 +470,9 @@ fn fingerprint_of(c: &[Candidate]) -> u64 {
 }
 
 /// Cheap change detection: walk and stat without parsing.
-pub fn fingerprint(root: &Path) -> Result<u64> {
+pub fn fingerprint(root: &Path, opts: &BuildOptions) -> Result<u64> {
     let root = root.canonicalize()?;
-    Ok(fingerprint_of(&walk(&root)?))
+    Ok(fingerprint_of(&defer_fixtures(walk(&root)?, opts).0))
 }
 
 fn looks_generated(src: &str) -> bool {
@@ -363,7 +494,7 @@ impl Index {
         let loading = std::thread::spawn(|| {
             crate::semantic::model();
         });
-        let candidates = walk(&root)?;
+        let (candidates, deferred) = defer_fixtures(walk(&root)?, opts);
         let _ = loading.join();
         // Fixed for this build, even if a background download finishes meanwhile.
         let model_id = crate::semantic::model_id();
@@ -388,6 +519,10 @@ impl Index {
             .iter()
             .map(|c| cache.remove(&c.path).filter(|hit| hit.mtime == c.mtime && hit.size == c.size))
             .collect();
+        // Entries for deferred trees stay in the cache (a later targeted query
+        // reuses them) and do not count as stale.
+        let keep_old: Vec<String> = cache.keys().filter(|p| deferred.iter().any(|d| under(p, &d.dir))).cloned().collect();
+        let kept_old: Vec<(String, CacheEntry)> = keep_old.into_iter().filter_map(|p| cache.remove(&p).map(|e| (p, e))).collect();
         let stale = !cache.is_empty();
         let results: Vec<Option<(bool, CacheEntry)>> = candidates
             .par_iter()
@@ -435,6 +570,7 @@ impl Index {
             let entries: HashMap<String, CacheEntry> = kept
                 .into_iter()
                 .map(|(c, e)| (c.path.clone(), e))
+                .chain(kept_old)
                 .collect();
             let file = CacheFile { version: CACHE_VERSION, embed: model_id.to_string(), entries };
             if let Ok(bytes) = postcard::to_stdvec(&file) {
@@ -449,6 +585,7 @@ impl Index {
         index.stats = stats;
         index.git = git_info(&root);
         index.fingerprint = fp;
+        index.deferred = deferred;
         Ok(index)
     }
 
@@ -557,6 +694,7 @@ fn assemble(root: PathBuf, kept: &[(&Candidate, CacheEntry)]) -> Index {
         git: GitInfo::default(),
         fingerprint: 0,
         model_id: "",
+        deferred: Vec::new(),
     };
     let facts: Vec<&FileFacts> = kept.iter().map(|(_, e)| &e.facts).collect();
     graph::link(&mut index, &facts);
@@ -594,7 +732,19 @@ fn remote_to_web(url: &str) -> Option<String> {
     None
 }
 
-pub(crate) fn git_run(root: &Path, args: &[&str]) -> Option<String> {
+/// Reject a user-supplied git ref that git would read as an option (for
+/// example `--output=/path`), or that is empty or holds a NUL byte.
+pub fn check_ref(r: &str) -> Result<&str, String> {
+    if r.starts_with('-') {
+        return Err(format!("invalid git ref `{r}`: a ref must not start with `-`"));
+    }
+    if r.is_empty() || r.contains('\0') {
+        return Err("invalid git ref: empty or contains a NUL byte".to_string());
+    }
+    Ok(r)
+}
+
+pub fn git_run(root: &Path, args: &[&str]) -> Option<String> {
     git(root, args)
 }
 
@@ -609,6 +759,14 @@ mod tests {
         assert!(is_test_path("a/b.spec.ts"));
         assert!(!is_test_path("src/testing_utils.ts"));
         assert!(is_test_path("tests_x/test_app.py") && !is_test_path("lib/bats-core/test_functions.bash"));
+        // Java-like suffixes are case-sensitive: ordinary classes ending in "it"/"test" stay source.
+        assert!(!is_test_path("src/main/java/app/Commit.java"));
+        assert!(!is_test_path("app/Audit.php"));
+        assert!(!is_test_path("src/Latest.cs"));
+        assert!(!is_test_path("src/main/java/app/Latest.java") && is_test_path("src/FooTests.cs"));
+        assert!(is_test_path("src/it/java/FooIT.java"));
+        assert!(is_test_path("tests/Unit/FooTest.php"));
+        assert!(is_test_path("core/src/test/java/a/FooTests.java"));
         assert_eq!(role_of("examples/tutorial/flaskr/db.py", false), Role::Example);
         assert_eq!(role_of("src/flask/app.py", false), Role::Core);
         assert_eq!(role_of("benchmarks/jsx/a.ts", false), Role::Bench);
@@ -623,5 +781,127 @@ mod tests {
     fn remotes() {
         assert_eq!(remote_to_web("git@github.com:a/b.git").as_deref(), Some("https://github.com/a/b"));
         assert_eq!(remote_to_web("https://x:y@github.com/a/b.git").as_deref(), Some("https://github.com/a/b"));
+    }
+}
+
+#[cfg(test)]
+mod fixture_tests {
+    use super::*;
+
+    fn trees(paths: &[String], min: usize) -> Vec<(String, usize)> {
+        fixture_trees(paths.iter().map(|s| s.as_str()), min).into_iter().map(|d| (d.dir, d.files)).collect()
+    }
+
+    fn many(prefix: &str, n: usize) -> Vec<String> {
+        (0..n).map(|i| format!("{prefix}/f{i}.ts")).collect()
+    }
+
+    #[test]
+    fn large_trees_below_tests_and_named_fixture_dirs_are_deferred() {
+        let mut p = many("tests/cases/compiler", 30);
+        p.extend(many("tests/cases/conformance/es6", 25));
+        p.extend(many("pkg/testdata", 12));
+        p.extend(many("web/__snapshots__", 4));
+        p.extend(many("src", 100));
+        p.extend(many("tests/unit", 3));
+        assert_eq!(trees(&p, 20), vec![("tests/cases".to_string(), 55)]);
+        assert_eq!(trees(&p, 10), vec![("pkg/testdata".to_string(), 12), ("tests/cases".to_string(), 55)]);
+    }
+
+    #[test]
+    fn unit_tests_next_to_code_stay_indexed() {
+        let mut p = many("src", 3000);
+        p.extend((0..3000).map(|i| format!("src/a{i}_test.go")));
+        p.extend((0..3000).map(|i| format!("tests/t{i}.rs")));
+        p.extend((0..3000).map(|i| format!("src/__tests__/t{i}.test.ts")));
+        assert!(trees(&p, 1000).is_empty());
+    }
+
+    #[test]
+    fn small_fixture_trees_stay_indexed() {
+        assert!(trees(&many("tests/fixtures", 999), 1000).is_empty());
+        assert_eq!(trees(&many("tests/fixtures", 1000), 1000), vec![("tests/fixtures".to_string(), 1000)]);
+    }
+
+    #[test]
+    fn real_tests_and_source_stay_indexed() {
+        let many_f = |fmt: &dyn Fn(usize) -> String| -> Vec<String> { (0..1000).map(fmt).collect() };
+        let java = many_f(&|i| format!("src/test/java/a/b/X{i}Test.java"));
+        let rb = many_f(&|i| format!("spec/services/s{i}_spec.rb"));
+        let ts = many_f(&|i| format!("packages/spec/src/f{i}.ts"));
+        let cases = many_f(&|i| format!("tests/cases/c{i}.ts"));
+        let maven = many_f(&|i| format!("core/src/test/java/a/FooTests{i}.java"));
+        let php = many_f(&|i| format!("php/tests/Unit/Foo{i}Test.php"));
+        for v in [&java, &rb, &ts, &maven, &php] {
+            assert!(trees(v, 1000).is_empty(), "{:?}", v[0]);
+        }
+        assert_eq!(trees(&cases, 1000), vec![("tests/cases".to_string(), 1000)]);
+    }
+
+    fn write(root: &Path, rel: &str) {
+        let p = root.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, "export function f() { return 1 }\n").unwrap();
+    }
+
+    fn repo() -> PathBuf {
+        let root = std::env::temp_dir().join(format!("repomap-fixtures-{}-{:?}", std::process::id(), std::thread::current().id()).replace(['(', ')'], ""));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "src/main.ts");
+        write(&root, "src/main.test.ts");
+        for i in 0..6 {
+            write(&root, &format!("tests/cases/a/c{i}.ts"));
+            write(&root, &format!("tests/cases/b/c{i}.ts"));
+        }
+        root
+    }
+
+    fn build(root: &Path, include_fixtures: bool, include: &[&str]) -> Index {
+        let opts = BuildOptions {
+            use_cache: false,
+            include_fixtures,
+            include: include.iter().map(|s| s.to_string()).collect(),
+            fixture_threshold: 10,
+        };
+        Index::build(root, &opts).unwrap()
+    }
+
+    #[test]
+    fn build_defers_then_includes_lazily_or_by_flag() {
+        let root = repo();
+        let idx = build(&root, false, &[]);
+        assert_eq!(idx.files.len(), 2);
+        assert!(idx.path_ix.contains_key("src/main.test.ts"));
+        assert_eq!(idx.deferred, vec![DeferredDir { dir: "tests/cases".into(), files: 12 }]);
+
+        // A path inside the tree brings in just that part.
+        let idx = build(&root, false, &["tests/cases/a"]);
+        assert_eq!(idx.files.len(), 8);
+        assert_eq!(idx.deferred, vec![DeferredDir { dir: "tests/cases".into(), files: 6 }]);
+        assert!(idx.path_ix.contains_key("tests/cases/a/c3.ts"));
+        assert!(!idx.path_ix.contains_key("tests/cases/b/c3.ts"));
+
+        // A file target brings in that file.
+        let idx = build(&root, false, &["tests/cases/b/c1.ts"]);
+        assert_eq!(idx.files.len(), 3);
+
+        let idx = build(&root, true, &[]);
+        assert_eq!(idx.files.len(), 14);
+        assert!(idx.deferred.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn impact_names_deferred_trees() {
+        let root = repo();
+        write(&root, "src/lib2.ts");
+        let idx = build(&root, false, &[]);
+        let r = idx.impact(&["src/lib2.ts".to_string()], &crate::query::ImpactOptions::default()).unwrap();
+        assert!(r.summary.contains("not analysed"), "{}", r.summary);
+        assert!(r.text().contains("## Not analysed"));
+        assert!(r.text().contains("LOW risk; indexed code only; 12 fixture files not analysed"), "{}", r.text());
+        assert!(r.risk_caveat.is_some());
+        assert_eq!(r.deferred_files, 12);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

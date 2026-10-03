@@ -3,7 +3,7 @@ mod hook;
 mod mcp;
 mod serve;
 mod setup;
-mod star_hint;
+mod team;
 mod tools;
 mod workspace;
 
@@ -25,7 +25,7 @@ Commands:
   serve [dir]           Open the interactive graph UI in your browser (alias: ui)
                         (--host 0.0.0.0 requires a token: --token/REPOMAP_TOKEN, or one is generated)
   export [dir]          Write a self-contained HTML map (--out repomap.html) or --json
-  map [dir]             Modules, central files, key symbols (--focus <dir> to zoom in)
+  map [dir]             Modules, central files, key symbols (--focus <dir> to zoom in, --tokens N to cap the size)
   search <query>        Hybrid search: symbol names, BM25 and a local code embedding model
   context <target>      Code, callers, callees, tests for a symbol or file
   trace <from> [to]     Call path between two symbols, or a call tree (--callers)
@@ -39,11 +39,16 @@ Commands:
   index [dir]           Build the index and print timings (--no-cache, --json)
   model                 Download the embedding model now (33 MB, once) and show where it is.
                         REPOMAP_EMBED=0 keeps search keyword-only
+  licence status        Show the repomap Team licence (free to run); `licence activate <token>` stores one, `licence buy` opens the Team page
   mcp                   Run the MCP server on stdio (default when stdin is not a terminal)
   version               Print the version
 
 Common options:
   -C, --root <dir>      Repository root (default: current directory)
+  --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __fixtures__,
+                        __snapshots__ with 1000+ files, under 10% named like tests), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
+                        or --path inside one indexes it on demand.
+  --workspace <roots>   Several repository roots (comma-separated, or a repomap.workspace.toml): repomap Team
   --json                Machine-readable output
 
 Targets: path/to/file.ts, file.ts:42, Class.method, Class::method, or a name.
@@ -58,7 +63,7 @@ impl Args {
     fn parse(raw: Vec<String>) -> Args {
         let mut positional = Vec::new();
         let mut flags = std::collections::HashMap::new();
-        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command"];
+        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command", "workspace"];
         let mut it = raw.into_iter().peekable();
         while let Some(a) = it.next() {
             if let Some(name) = a.strip_prefix("--").or_else(|| a.strip_prefix('-').filter(|n| n.len() == 1)) {
@@ -80,7 +85,7 @@ impl Args {
         self.flags.get(k).map(|s| s.as_str())
     }
     fn on(&self, k: &str) -> bool {
-        self.flags.get(k).map_or(false, |v| v != "false")
+        self.flags.get(k).is_some_and(|v| v != "false")
     }
     fn num(&self, k: &str) -> Option<usize> {
         self.flag(k).and_then(|v| v.parse().ok())
@@ -123,7 +128,14 @@ fn run() -> Result<()> {
         raw.insert(0, "mcp".into());
     }
     let cmd = raw.remove(0);
+    if cmd == "licence" || cmd == "license" {
+        std::process::exit(mcp_kit::licence::run_cli(&team::POLICY, &raw));
+    }
     let args = Args::parse(raw);
+    if args.on("include-fixtures") {
+        // Read by `BuildOptions::default()`, so every command and the MCP server see it.
+        std::env::set_var("REPOMAP_INCLUDE_FIXTURES", "1");
+    }
     // Commands that search fetch the embedding model on first use. The MCP
     // server answers at once and picks the model up when it has arrived.
     match cmd.as_str() {
@@ -187,14 +199,19 @@ fn run() -> Result<()> {
         other => bail!("unknown command `{other}`. Run `repomap help`."),
     };
     if result.is_ok() && counts_as_run {
-        star_hint::after_success();
+        mcp_kit::star_hint::after_success(
+            "Enjoying repomap? A GitHub star helps others find it: https://github.com/SylphxAI/repomap",
+            "REPOMAP_NO_STAR_HINT",
+            &repomap_core::index::cache_root(),
+            false,
+        );
     }
     result
 }
 
 fn index_cmd(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
-    let idx = Index::build(&root, &BuildOptions { use_cache: !args.on("no-cache") })?;
+    let idx = Index::build(&root, &BuildOptions { use_cache: !args.on("no-cache"), ..Default::default() })?;
     let s = &idx.stats;
     let v = json!({
         "root": idx.root.display().to_string(),
@@ -207,6 +224,8 @@ fn index_cmd(args: &Args) -> Result<()> {
         "terms": idx.bm25.terms(),
         "model": repomap_core::semantic::model_id(),
         "communities": idx.communities.len(),
+        "deferred_fixture_files": idx.deferred.iter().map(|d| d.files).sum::<usize>(),
+        "deferred_fixture_dirs": idx.deferred,
         "parsed": s.files_parsed,
         "cached": s.files_cached,
         "walk_ms": s.walk_ms,
@@ -225,6 +244,9 @@ fn index_cmd(args: &Args) -> Result<()> {
                 id => format!("keywords + embeddings ({id})"),
             }
         );
+        if let Some(note) = repomap_core::query::deferred_note(&idx.deferred) {
+            println!("{note}");
+        }
     }
     Ok(())
 }
@@ -290,8 +312,15 @@ fn query_cmd(cmd: &str, args: &Args) -> Result<()> {
     if let Some(v) = args.num("limit") {
         a.insert("limit".into(), json!(v));
     }
+    if let Some(v) = args.flag("tokens") {
+        let n: usize = v.parse().map_err(|_| anyhow::anyhow!("--tokens needs a non-negative integer, got `{v}`"))?;
+        a.insert("tokens".into(), json!(n));
+    }
     if let Some(v) = args.num("depth") {
         a.insert("depth".into(), json!(v));
+    }
+    if let Some(v) = args.flag("workspace") {
+        a.insert("workspace".into(), json!(v));
     }
     let ws = workspace::Workspace::default();
     let out = tools::call(&ws, cmd, &Value::Object(a), &root).map_err(|e| anyhow::anyhow!(e))?;
@@ -368,7 +397,8 @@ fn db_cmd(args: &Args) -> Result<()> {
 
 fn score_cmd(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
-    let idx = Index::build(&root, &BuildOptions::default())?;
+    // Score measures the whole repository, including fixture trees.
+    let idx = Index::build(&root, &BuildOptions { include_fixtures: true, ..Default::default() })?;
     let score = idx.agent_score();
     if args.on("json") {
         println!("{}", serde_json::to_string_pretty(&score)?);

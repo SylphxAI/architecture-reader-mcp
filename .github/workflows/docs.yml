@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,7 +35,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Live demo maps (built from this commit)
-        run: cargo build --release --locked -p repomap && bash scripts/demo.sh target/release/repomap docs/public/demo
+        run: cargo build --release --locked -p sylphx-repomap && bash scripts/demo.sh target/release/repomap docs/public/demo
       - run: bun run docs:build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4

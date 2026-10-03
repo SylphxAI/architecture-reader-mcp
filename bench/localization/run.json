@@ -1,0 +1,9 @@
+{
+ "mode": "smoke",
+ "manifest": "manifest-tune.json",
+ "shards": 10,
+ "semble": false,
+ "skip": "keywords,bm25",
+ "baseline_ref": "",
+ "variants": {}
+}

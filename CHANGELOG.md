@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **`repomap licence buy`.** Opens the Team page; in-terminal purchase turns on when checkout is live. Updates `sylphx-mcp-kit` to 0.6.
+
+## 1.7.0 - 2026-10-02
+
+- **Ready for crates.io.** The two crates, `sylphx-repomap-core` and `sylphx-repomap` (the binary stays `repomap`), carry full package metadata, a small `include` list, and a versioned path dependency, so `cargo publish --dry-run --locked` passes in dependency order. `cargo binstall sylphx-repomap` downloads the matching GitHub release binary. Publishing stays off until an owner sets `CRATES_IO_PUBLISH_ENABLED` and the trusted-publisher records exist.
+- **Security: `base` could be used to write files.** The `base` value of `impact --changed` (CLI `--base`, MCP or HTTP argument `base` or `git_base`) was passed to `git diff` as-is, so a value such as `--output=/path` made git write a file. repomap now rejects any ref that starts with `-` with a clear error, and passes `--end-of-options` before the ref so git always reads it as a revision. No other user input is passed to git or another program in a position where it could be read as an option.
+- **repomap Team licence.** `repomap licence status` and `repomap licence activate <token>` show and store a Team licence (token from `REPOMAP_LICENCE_TOKEN` or the licence file), checked offline against the issuer's public key. They are free to run. A request that names more than one repository root (a `workspace` argument, `--workspace`, or a `repomap.workspace.toml` with several roots) now goes through one gate: without a Team licence it answers for the current repository, adds `pro_required` and one line saying the other repositories were not joined; with one it calls the multi-repository join. Everything free stays free, and the MCP surface stays six tools.
+- New [Team page](docs/team.md) (US$180 per developer per year, packs of 5, 10, 25 and 50; public repositories free) and `docs/vision.md`, with a "Free and Team" section in the README.
+- Updates `sylphx-mcp-kit` to 0.5.
+
+## 1.6.0 - 2026-10-02
+
+- **Token-budgeted map.** `repomap map --tokens N` (MCP `map` argument `tokens`) fills the map with the highest-ranked modules, central files and symbols until the estimated size reaches N tokens (4 characters per token, rounded up), then ends with a line such as `… 31 more files, 40 more symbols omitted (budget 1000 tokens; lowest-ranked first)`. Under a tight budget the outline and key symbols go first, then files and modules, so the structure stays readable. Without `--tokens` the output is unchanged.
+
+- **Huge fixture trees are deferred by default.** A directory named `testdata`, `fixtures`, `__fixtures__` or `__snapshots__`, or the first directory below a `test`/`tests`/`spec`/`e2e` folder (for example `tests/cases`), with 1,000 or more files is no longer indexed up front. Folders where at least 10% of files are named like tests (`*_test.go`, `*.test.ts`, `*_spec.rb`, `*Test.java`), `src/test/**` and `src/**/test/**` layouts, and small fixture folders stay indexed. A `context`, `impact`, `trace`, `map --focus` or `search --path` that names a file or directory inside a deferred tree indexes it on demand; `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) indexes them all. `repomap index` and `map` say how many fixture files were deferred and where. On the TypeScript compiler repository (46,459 of 47,213 files deferred: `tests/baselines`, `tests/cases`) cold index goes from 12.1 s and 610 MB to 1.2 s and 159 MB (median of 3); zod and tokio are unchanged (0.2 to 0.4 s, under 70 MB).
+
+## 1.5.0
+
+- **Issue-to-code search.** Long reports now contribute their title, backtick code, identifiers, stack-trace frames and named paths to ranking. Chunk BM25 and local embeddings fuse with exact symbol candidates and file-level BM25; decayed per-file aggregation spreads results across files. Lexical queries retain their path/kind filters and keywords-only mode. Defaults were frozen on a disjoint 300-instance tuning split (`wh=1,wc=1,wf=2,qcap=48`) before one full SWE-bench Verified evaluation. Acc@1/5/10 rises from 23.6/51.8/62.2 to **48.8/74.8/83.0**, ahead of semble's 34.0/61.6/71.0, with median query time 59.8 → 54.4 ms. Public search NDCG@10 trades 0.851 → 0.845 (semble still wins at 0.851); the large-repository set improves 0.794 → 0.846. [Benchmarks](docs/benchmarks.md) record both localization splits, the search trade-off and timings.
+
 - The CLI prints one GitHub star line to stderr after the fifth successful interactive query run, once ever. It is silent for the MCP server, with `--json`, in CI, and when stderr is not a terminal; `REPOMAP_NO_STAR_HINT=1` turns it off.
 
 ## 1.4.0

@@ -14,7 +14,7 @@ npm packages are thin aliases.
   which is committed so cargo builds need no JS toolchain
 - `packages/`: npm launcher, native binaries, aliases
 - `docs/`: VitePress site; `bench/` and `scripts/`: benchmarks and tooling
-- `brand/`: the brand home; `brand/README.md` explains `python3 brand/build.py`
+- `brand/`: the brand home; `brand/README.md` explains the pinned shared generator ([usage](brand/README.md))
 
 ## Rules and their reasons
 
@@ -34,7 +34,7 @@ npm packages are thin aliases.
 
 ## How a result is judged
 
-- `cargo test -p repomap-core`, then `cargo test --workspace`; CI runs the same
+- `cargo test -p sylphx-repomap-core`, then `cargo test --workspace`; CI runs the same
   plus the smoke test (CLI, export, MCP over stdio, hook, npm launcher) and
   `bun run docs:build`.
 - Benchmarks run in CI (`bench.yml`, `bench-localization.yml`), not locally;

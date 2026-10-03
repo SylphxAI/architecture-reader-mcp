@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn answers_for_fixture() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../repomap-core/tests/fixture");
-        let index = Index::build(&root, &BuildOptions { use_cache: false }).unwrap();
+        let index = Index::build(&root, &BuildOptions { use_cache: false, ..Default::default() }).unwrap();
         let g = grep_context(&index, &["verifyToken".into()]).unwrap();
         assert!(g.contains("src/auth/token.ts:7"), "{g}");
         assert!(g.contains("SessionStore.refresh"), "{g}");

@@ -10,6 +10,7 @@ Start here. Returns modules (communities of files that depend on each other), th
 |---|---|---|
 | `focus` | string | Directory to zoom into. Adds an outline of files and symbols with line numbers. |
 | `limit` | integer | Items per section (default 12) |
+| `tokens` | integer | Token budget (estimated at 4 characters per token). Keeps the highest-ranked modules, files and symbols that fit and ends with a line saying what was omitted. Default: no budget |
 
 ## `search`
 

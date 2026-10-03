@@ -67,7 +67,7 @@ impl Index {
         if let Some(f) = self.find_file(q) {
             return Ok((Target::File(f), vec![]));
         }
-        let parts: Vec<&str> = q.split(|c| c == '.' || c == '#' || c == ':').filter(|s| !s.is_empty()).collect();
+        let parts: Vec<&str> = q.split(['.', '#', ':']).filter(|s| !s.is_empty()).collect();
         let (owner, name) = if parts.len() >= 2 {
             (Some(parts[parts.len() - 2]), parts[parts.len() - 1])
         } else {
@@ -95,7 +95,7 @@ impl Index {
                 .collect();
         }
         if cands.is_empty() {
-            return Err(format!("no file or symbol matches `{q}`. Try `search` first."));
+            return Err(format!("no file or symbol matches `{q}`. Try `search` first.{}", self.not_analysed_note()));
         }
         cands.sort_by(|a, b| {
             let fa = self.files[self.symbols[*a as usize].file as usize].is_test;
@@ -163,6 +163,92 @@ pub struct MapResult {
     pub outline: Vec<Outline>,
     /// Tests, examples, docs and benchmarks, grouped by role (not modules).
     pub aux: Vec<(String, usize)>,
+    /// Fixture trees left out of the index until a query targets them.
+    pub deferred: Vec<crate::index::DeferredDir>,
+    /// Set only when a token budget cut the map (`MapResult::fit_tokens`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<BudgetCut>,
+}
+
+/// What a token budget removed from a map, lowest-ranked items first.
+#[derive(Debug, Serialize, Default, Clone)]
+pub struct BudgetCut {
+    pub tokens: usize,
+    pub modules: usize,
+    pub files: usize,
+    pub symbols: usize,
+    pub entry_points: usize,
+    pub outline_files: usize,
+    pub outline_symbols: usize,
+}
+
+fn entry_points_line(e: &[String]) -> String {
+    if e.is_empty() { String::new() } else { format!("Entry points: {}\n", e.join(", ")) }
+}
+
+fn module_line(m: &ModuleSummary) -> String {
+    let mut o = format!("- **{}** ({} files): {}", m.name, m.files, m.key_files.join(", "));
+    if !m.key_symbols.is_empty() {
+        let _ = write!(o, " | key: {}", m.key_symbols.join(", "));
+    }
+    if !m.depends_on.is_empty() {
+        let _ = write!(o, " | uses: {}", m.depends_on.join(", "));
+    }
+    o.push('\n');
+    o
+}
+
+fn key_file_line(f: &KeyFile) -> String {
+    format!("- {} ({} symbols, imported by {})\n", f.path, f.symbols, f.imported_by)
+}
+
+fn key_symbol_line(s: &KeySymbol) -> String {
+    format!("- {} {} — {}:{} ({} callers)\n", s.symbol.kind, s.symbol.name, s.symbol.file, s.symbol.line, s.callers)
+}
+
+fn outline_symbol_line(name: &str, kind: &str, line: u32, sig: &str) -> String {
+    format!("  {line:>5}  {kind} {name}  `{}`\n", truncate(sig, 100))
+}
+
+/// The trailing "omitted" line, or None when nothing was cut.
+fn note_text(b: &BudgetCut) -> Option<String> {
+    let parts: Vec<String> = [
+        (b.modules, "modules"),
+        (b.files, "files"),
+        (b.symbols, "symbols"),
+        (b.entry_points, "entry points"),
+        (b.outline_files, "outline files"),
+        (b.outline_symbols, "outline symbols"),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, l)| format!("{n} more {l}"))
+    .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    Some(format!("\n… {} omitted (budget {} tokens; lowest-ranked first)\n", parts.join(", "), b.tokens))
+}
+
+/// Cheap token estimate used for `--tokens`: one token per 4 characters, rounded up.
+pub fn estimate_tokens(text: &str) -> usize {
+    text.chars().count().div_ceil(4)
+}
+
+/// One line saying which fixture trees were deferred and how to include them.
+pub fn deferred_note(deferred: &[crate::index::DeferredDir]) -> Option<String> {
+    if deferred.is_empty() {
+        return None;
+    }
+    let total: usize = deferred.iter().map(|d| d.files).sum();
+    let mut dirs: Vec<&crate::index::DeferredDir> = deferred.iter().collect();
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.files));
+    let shown: Vec<String> = dirs.iter().take(5).map(|d| format!("{} ({})", d.dir, d.files)).collect();
+    let more = if dirs.len() > 5 { format!(", +{} more", dirs.len() - 5) } else { String::new() };
+    Some(format!(
+        "{total} fixture files deferred, not indexed: {}{more}. Target one of these paths (context, impact, map --focus, search --path) to index it on demand, or pass --include-fixtures (REPOMAP_INCLUDE_FIXTURES=1) for all.",
+        shown.join(", ")
+    ))
 }
 
 #[derive(Debug, Serialize)]
@@ -304,7 +390,7 @@ impl Index {
         let mut outline = Vec::new();
         if focus.is_some() {
             for &f in ranked.iter().take(limit.max(20)) {
-                let mut ss: Vec<usize> = self.file_symbols(f).filter(|s| self.symbols[*s].parent.map_or(true, |p| self.symbols[p as usize].kind.is_container())).collect();
+                let mut ss: Vec<usize> = self.file_symbols(f).filter(|s| self.symbols[*s].parent.is_none_or(|p| self.symbols[p as usize].kind.is_container())).collect();
                 ss.truncate(30);
                 outline.push(Outline {
                     path: self.files[f as usize].path.clone(),
@@ -337,11 +423,82 @@ impl Index {
             focus,
             outline,
             aux,
+            deferred: self.deferred.clone(),
+            budget: None,
         }
     }
 }
 
 impl MapResult {
+    /// Trim the map until `text()` is estimated at or under `tokens`. Items leave
+    /// lowest-ranked first: outline symbols (down to 3 per file), then outline
+    /// files, then key symbols, central files and modules (the longest list gives
+    /// up an item first, so they shrink together), then entry points. The header
+    /// always stays. Build the map with a generous `limit` so there is enough to
+    /// fill the budget. Adds a note when anything was cut. The size is counted
+    /// once and each removed line is subtracted, so the cost is linear.
+    pub fn fit_tokens(&mut self, tokens: usize) {
+        self.budget = None;
+        let mut chars = self.text().chars().count();
+        if chars.div_ceil(4) <= tokens {
+            return;
+        }
+        let len = |s: &str| s.chars().count();
+        let mut cut = BudgetCut { tokens, ..Default::default() };
+        let mut ocur = self.outline.len();
+        loop {
+            let note = note_text(&cut).map_or(0, |n| len(&n));
+            if (chars + note).div_ceil(4) <= tokens {
+                break;
+            }
+            // Cursor over files still above 3 symbols, from the lowest-ranked end.
+            while ocur > 0 && self.outline[ocur - 1].symbols.len() <= 3 {
+                ocur -= 1;
+            }
+            if ocur > 0 {
+                let f = &mut self.outline[ocur - 1];
+                let (name, kind, line, sig) = f.symbols.pop().unwrap();
+                chars -= len(&outline_symbol_line(&name, kind, line, &sig));
+                cut.outline_symbols += 1;
+            } else if let Some(f) = self.outline.pop() {
+                ocur = ocur.min(self.outline.len());
+                chars -= len(&format!("{}\n", f.path));
+                for (name, kind, line, sig) in &f.symbols {
+                    chars -= len(&outline_symbol_line(name, kind, *line, sig));
+                }
+                if self.outline.is_empty() {
+                    chars -= len("\n## Outline\n");
+                }
+                cut.outline_files += 1;
+            } else {
+                let (m, f, s) = (self.modules.len(), self.key_files.len(), self.key_symbols.len());
+                let most = m.max(f).max(s);
+                if most > 0 && s == most {
+                    chars -= len(&key_symbol_line(&self.key_symbols.pop().unwrap()));
+                    cut.symbols += 1;
+                } else if most > 0 && f == most {
+                    chars -= len(&key_file_line(&self.key_files.pop().unwrap()));
+                    cut.files += 1;
+                } else if most > 0 {
+                    chars -= len(&module_line(&self.modules.pop().unwrap()));
+                    cut.modules += 1;
+                } else if !self.entry_points.is_empty() {
+                    let before = len(&entry_points_line(&self.entry_points));
+                    self.entry_points.pop();
+                    chars -= before - len(&entry_points_line(&self.entry_points));
+                    cut.entry_points += 1;
+                } else {
+                    // Only the header is left; nothing was cut, so there is no note.
+                    if note_text(&cut).is_none() {
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+        self.budget = note_text(&cut).map(|_| cut);
+    }
+
     pub fn text(&self) -> String {
         let mut o = String::new();
         let scope = self.focus.as_deref().map(|f| format!(" / {f}")).unwrap_or_default();
@@ -359,40 +516,37 @@ impl MapResult {
             self.parsed,
             self.cached
         );
-        if !self.entry_points.is_empty() {
-            let _ = writeln!(o, "Entry points: {}", self.entry_points.join(", "));
-        }
+        o.push_str(&entry_points_line(&self.entry_points));
         let _ = writeln!(o, "\n## Modules");
         for m in &self.modules {
-            let _ = write!(o, "- **{}** ({} files): {}", m.name, m.files, m.key_files.join(", "));
-            if !m.key_symbols.is_empty() {
-                let _ = write!(o, " | key: {}", m.key_symbols.join(", "));
-            }
-            if !m.depends_on.is_empty() {
-                let _ = write!(o, " | uses: {}", m.depends_on.join(", "));
-            }
-            o.push('\n');
+            o.push_str(&module_line(m));
         }
         if !self.aux.is_empty() {
             let parts: Vec<String> = self.aux.iter().map(|(n, c)| format!("{n} ({c} files)")).collect();
             let _ = writeln!(o, "Also: {}", parts.join(", "));
         }
+        if let Some(note) = deferred_note(&self.deferred) {
+            let _ = writeln!(o, "{note}");
+        }
         let _ = writeln!(o, "\n## Most central files");
         for f in &self.key_files {
-            let _ = writeln!(o, "- {} ({} symbols, imported by {})", f.path, f.symbols, f.imported_by);
+            o.push_str(&key_file_line(f));
         }
         let _ = writeln!(o, "\n## Most used symbols");
         for s in &self.key_symbols {
-            let _ = writeln!(o, "- {} {} — {}:{} ({} callers)", s.symbol.kind, s.symbol.name, s.symbol.file, s.symbol.line, s.callers);
+            o.push_str(&key_symbol_line(s));
         }
         if !self.outline.is_empty() {
             let _ = writeln!(o, "\n## Outline");
             for f in &self.outline {
                 let _ = writeln!(o, "{}", f.path);
                 for (name, kind, line, sig) in &f.symbols {
-                    let _ = writeln!(o, "  {line:>5}  {kind} {name}  `{}`", truncate(sig, 100));
+                    o.push_str(&outline_symbol_line(name, kind, *line, sig));
                 }
             }
+        }
+        if let Some(n) = self.budget.as_ref().and_then(note_text) {
+            o.push_str(&n);
         }
         o
     }
@@ -413,6 +567,8 @@ pub struct SearchHit {
 
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub query: String,
     pub hits: Vec<SearchHit>,
 }
@@ -451,14 +607,27 @@ impl Index {
             }
         };
 
-        // Lexical BM25 over chunks.
-        let bm = self.bm25.search(query, 60, |c| path_ok(c.file) && kind_ok(c.symbol));
-
-        // Symbol-name matches.
+        let t = *crate::tune::get();
         let q = query.trim();
         let ql = q.to_ascii_lowercase();
         let qtoks: Vec<String> = tokenize(q);
         let single_word = !q.contains(char::is_whitespace);
+        let symbolish = looks_like_symbol(q);
+        // Identifiers, paths and the title of a long question or report.
+        let qt = if symbolish { crate::qterms::QueryTerms::default() } else { crate::qterms::analyze(q) };
+
+        // Lexical BM25 over chunks and, from the same postings, over whole
+        // files. Terms that come from identifiers in the text weigh more.
+        let id_toks: HashSet<String> = qt.idents.iter().flat_map(|i| tokenize(i)).collect();
+        let mut uniq: Vec<String> = qtoks.clone();
+        uniq.sort();
+        uniq.dedup();
+        let terms: Vec<(String, f32)> = uniq.into_iter().map(|w| if id_toks.contains(&w) { (w, t.wt) } else { (w, 1.0) }).collect();
+        let terms = self.bm25.cap_terms(terms, t.qcap);
+        let file_limit = if t.wf > 0.0 && !symbolish { 100 } else { 0 };
+        let (bm, fbm) = self.bm25.search_terms(&terms, t.cand, file_limit, t.k1f, |c| path_ok(c.file) && kind_ok(c.symbol));
+
+        // Symbol-name matches.
         let mut sym_scores: Vec<(u32, f32)> = Vec::new();
         if !ql.is_empty() {
             for (i, s) in self.symbols.iter().enumerate() {
@@ -484,80 +653,156 @@ impl Index {
         sym_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0)));
         sym_scores.truncate(60);
 
+        // Symbols named exactly by an identifier in the text; a name shared by
+        // many symbols says little and is skipped.
+        let mut id_syms: Vec<(u32, f32)> = Vec::new();
+        if t.wi > 0.0 && !qt.idents.is_empty() {
+            let wanted: HashSet<String> = qt.idents.iter().map(|i| i.to_ascii_lowercase()).collect();
+            let mut count: HashMap<&str, u32> = HashMap::new();
+            for nl in &self.names_lower {
+                if wanted.contains(nl.as_str()) {
+                    *count.entry(nl.as_str()).or_default() += 1;
+                }
+            }
+            for (i, s) in self.symbols.iter().enumerate() {
+                let nl = self.names_lower[i].as_str();
+                let Some(&c) = count.get(nl) else { continue };
+                if c as usize <= t.symcap && path_ok(s.file) && kind_ok(Some(i as u32)) {
+                    id_syms.push((i as u32, 1.0 / c as f32 + self.sym_rank[i] * 0.5));
+                }
+            }
+            id_syms.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+            id_syms.truncate(t.cand);
+        }
+
         // Reciprocal-rank fusion keyed by (file, start line). Identifier-like
         // queries lean on the lexical lists, sentences on the embedding.
-        const K: f32 = 20.0;
-        let symbolish = looks_like_symbol(q);
-        let (w_lex, w_dense) = if symbolish { (1.0, 0.5) } else { (1.0, 1.0) };
-        let mut fused: HashMap<(u32, u32), (f32, u32, Option<u32>, Vec<String>)> = HashMap::new();
+        let k = t.k;
+        let (w_lex, w_dense) = if symbolish { (1.0, 0.5) } else { (1.0, t.wd) };
+        type Fused = (f32, u32, Option<u32>, Vec<String>);
+        let mut fused: HashMap<(u32, u32), Fused> = HashMap::new();
         for (rank, h) in bm.iter().enumerate() {
             let c = &self.bm25.chunks[h.chunk as usize];
             let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
-            e.0 += w_lex / (K + rank as f32);
+            e.0 += w_lex / (k + rank as f32);
             e.3 = h.matched.clone();
         }
         for (rank, (s, score)) in sym_scores.iter().enumerate() {
             let sym = &self.symbols[*s as usize];
             let weight = if *score >= 3.0 { 2.0 } else { 1.0 };
             let e = fused.entry((sym.file, sym.start)).or_insert((0.0, sym.end, Some(*s), Vec::new()));
-            e.0 += w_lex * weight / (K + rank as f32);
+            e.0 += w_lex * weight / (k + rank as f32);
             if e.2.is_none() {
                 e.2 = Some(*s);
             }
         }
-        // Semantic: chunks whose embedding is closest to the query's.
-        if let Some(qv) = crate::semantic::model().filter(|_| !self.dense.is_empty()).and_then(|m| m.embed(q)) {
-            let hits = self.dense.search(&qv, 60, |c| {
-                let c = &self.bm25.chunks[c as usize];
-                path_ok(c.file) && kind_ok(c.symbol)
-            });
-            for (rank, (cid, _)) in hits.iter().enumerate() {
-                let c = &self.bm25.chunks[*cid as usize];
-                let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
-                e.0 += w_dense / (K + rank as f32);
+        for (rank, (s, _)) in id_syms.iter().enumerate() {
+            let sym = &self.symbols[*s as usize];
+            let e = fused.entry((sym.file, sym.start)).or_insert((0.0, sym.end, Some(*s), Vec::new()));
+            e.0 += t.wi / (k + rank as f32);
+            if e.2.is_none() {
+                e.2 = Some(*s);
             }
         }
-        let mut merged: Vec<((u32, u32), (f32, u32, Option<u32>, Vec<String>))> = fused.into_iter().collect();
-        let max = merged.iter().map(|m| m.1 .0).fold(0f32, f32::max);
-        // A file whose name or folder says what the query asks for
-        // ("session handling" -> sessions.py) gets its best chunks lifted.
+        // Semantic: chunks whose embedding is closest to the query's, to its title's, and to its code.
+        if let Some(m) = crate::semantic::model().filter(|_| !self.dense.is_empty()) {
+            let mut lists: Vec<(&str, f32)> = vec![(q, w_dense)];
+            if !symbolish && t.wh > 0.0 && !qt.head.is_empty() && qt.head != q {
+                lists.push((qt.head.as_str(), t.wh));
+            }
+            if !symbolish && t.wc > 0.0 && !qt.code.is_empty() {
+                lists.push((qt.code.as_str(), t.wc));
+            }
+            for (text, w) in lists {
+                let Some(qv) = m.embed(text) else { continue };
+                let hits = self.dense.search(&qv, t.cand, |c| {
+                    let c = &self.bm25.chunks[c as usize];
+                    path_ok(c.file) && kind_ok(c.symbol)
+                });
+                for (rank, (cid, _)) in hits.iter().enumerate() {
+                    let c = &self.bm25.chunks[*cid as usize];
+                    let e = fused.entry((c.file, c.start)).or_insert((0.0, c.end, c.symbol, Vec::new()));
+                    e.0 += w / (k + rank as f32);
+                }
+            }
+        }
+
+        // Group chunks by file, best first.
+        struct Cand {
+            start: u32,
+            end: u32,
+            sym: Option<u32>,
+            score: f32,
+            matched: Vec<String>,
+        }
+        let max = fused.values().map(|m| m.0).fold(0f32, f32::max);
+        let mut by_file: HashMap<u32, Vec<Cand>> = HashMap::new();
+        for ((file, start), (score, end, sym, matched)) in fused {
+            by_file.entry(file).or_default().push(Cand { start, end, sym, score, matched });
+        }
+        // Files the text names by path or module, and the best files by whole-file BM25, join
+        // even when none of their chunks made a list.
+        let mut mention: HashMap<u32, f32> = HashMap::new();
+        if t.mw > 0.0 && !qt.paths.is_empty() {
+            for (i, f) in self.files.iter().enumerate() {
+                if !path_ok(i as u32) {
+                    continue;
+                }
+                let m = crate::qterms::path_mention(&f.path, &qt.paths);
+                if m > 0.0 {
+                    mention.insert(i as u32, m);
+                }
+            }
+        }
+        let file_bm: HashMap<u32, usize> = fbm.iter().enumerate().map(|(r, (f, _))| (*f, r)).collect();
+        let joining: Vec<u32> = mention.keys().copied().chain(fbm.iter().take(30).map(|(f, _)| *f)).collect();
+        for f in joining {
+            if by_file.contains_key(&f) {
+                continue;
+            }
+            let best = self.bm25.chunks_of(f).iter().filter(|c| kind_ok(c.symbol)).max_by_key(|c| c.len);
+            if let Some(c) = best {
+                by_file.entry(f).or_default().push(Cand { start: c.start, end: c.end, sym: c.symbol, score: 0.0, matched: Vec::new() });
+            }
+        }
         let words: Vec<String> = query_words(q);
-        let mut file_sum: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in &merged {
-            *file_sum.entry(k.0).or_default() += v.0;
-        }
+        let file_sum: HashMap<u32, f32> = by_file.iter().map(|(f, v)| (*f, v.iter().map(|c| c.score).sum())).collect();
         let max_file = file_sum.values().fold(0f32, |a, b| a.max(*b)).max(1e-9);
-        let mut best_of_file: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in &merged {
-            let b = best_of_file.entry(k.0).or_insert(0.0);
-            *b = b.max(v.0);
-        }
-        let mut path_ratio: HashMap<u32, f32> = HashMap::new();
-        for (k, v) in merged.iter_mut() {
-            let f = &self.files[k.0 as usize];
-            let base = v.0;
+        let mut ranked: Vec<(u32, Cand, f32)> = Vec::new();
+        for (file, mut cs) in by_file {
+            cs.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.start.cmp(&b.start)));
+            let f = &self.files[file as usize];
+            let s0 = cs[0].score;
+            let mut fs = if t.agg > 0.5 {
+                // The best chunk plus a decayed sum of the others.
+                let rest: f32 = cs.iter().skip(1).take(8).enumerate().map(|(i, c)| c.score * 0.5f32.powi(i as i32 + 1)).sum();
+                s0 + t.lam * rest
+            } else {
+                s0 + max * 0.2 * file_sum[&file] / max_file
+            };
+            // A file whose name or folder says what the query asks for
+            // ("session handling" -> sessions.py) gets lifted.
             if !words.is_empty() && !symbolish {
-                let r = *path_ratio.entry(k.0).or_insert_with(|| path_match(&f.path, &words));
-                v.0 += max * 1.5 * r;
+                fs += max * t.pw * path_match(&f.path, &words);
             }
-            // A file with several matching chunks lifts its best one.
-            if base >= best_of_file[&k.0] {
-                v.0 += max * 0.2 * file_sum[&k.0] / max_file;
+            if let Some(m) = mention.get(&file) {
+                fs += max * t.mw * m;
             }
-            v.0 *= path_penalty(f);
-            v.0 *= 1.0 + 0.15 * self.file_rank[k.0 as usize];
+            if let Some(r) = file_bm.get(&file) {
+                fs += t.wf / (k + *r as f32);
+            }
+            fs *= path_penalty(f);
+            fs *= 1.0 + 0.15 * self.file_rank[file as usize];
+            // Spread results over files: each further chunk of a file counts less.
+            for (i, c) in cs.into_iter().take(6).enumerate() {
+                let share = if i == 0 || s0 <= 0.0 { 1.0 } else { c.score / s0 };
+                ranked.push((file, c, fs * share * t.dec.powi(i as i32)));
+            }
         }
-        merged.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap().then(a.0.cmp(&b.0)));
-        // Spread results over files: each further chunk of a file counts 0.4×.
-        let decay: f32 = 0.4;
-        let mut seen: HashMap<u32, i32> = HashMap::new();
-        for (k, v) in merged.iter_mut() {
-            let n = seen.entry(k.0).or_insert(0);
-            v.0 *= decay.powi(*n);
-            *n += 1;
-        }
-        merged.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap().then(a.0.cmp(&b.0)));
-        merged.truncate(opts.limit);
+        ranked.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap().then(a.0.cmp(&b.0)).then(a.1.start.cmp(&b.1.start)));
+        ranked.truncate(opts.limit);
+        let merged: Vec<((u32, u32), Fused)> =
+            ranked.into_iter().map(|(file, c, score)| ((file, c.start), (score, c.end, c.sym, c.matched))).collect();
 
         let qset: HashSet<String> = qtoks.iter().cloned().collect();
         let hits = merged
@@ -575,7 +820,7 @@ impl Index {
                 }
             })
             .collect();
-        SearchResult { query: query.to_string(), hits }
+        SearchResult { query: query.to_string(), hits, deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), }
     }
 
     /// The first line plus the lines that best match the query terms.
@@ -597,11 +842,11 @@ impl Index {
         let mut pick: Vec<usize> = vec![first];
         pick.extend(scored.iter().take(n.saturating_sub(1)).map(|(i, _)| *i));
         if pick.len() < n {
-            for i in first + 1..lines.len() {
+            for (i, line) in lines.iter().enumerate().skip(first + 1) {
                 if pick.len() >= n {
                     break;
                 }
-                if !pick.contains(&i) && !lines[i].trim().is_empty() {
+                if !pick.contains(&i) && !line.trim().is_empty() {
                     pick.push(i);
                 }
             }
@@ -620,6 +865,7 @@ impl SearchResult {
         let mut o = String::new();
         if self.hits.is_empty() {
             let _ = writeln!(o, "No matches for `{}`.", self.query);
+            o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
             return o;
         }
         let _ = writeln!(o, "# Search: {}", self.query);
@@ -638,6 +884,7 @@ impl SearchResult {
                 last = *line;
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -646,6 +893,8 @@ impl SearchResult {
 
 #[derive(Debug, Serialize)]
 pub struct ContextResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub target: String,
     pub module: String,
     pub symbol: Option<SymRef>,
@@ -725,12 +974,11 @@ impl Index {
             None
         };
         let tests = self.tests_calling(s);
-        let mut callers = callers;
         callers.sort_by(|a, b| (a.symbol.file.as_str(), a.at).cmp(&(b.symbol.file.as_str(), b.at)));
         callers.truncate(opts.limit);
         let mut callees = callees;
         callees.truncate(opts.limit);
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: self.target_label(Target::Symbol(s)),
             module: self.community_name(sym.file).to_string(),
             symbol: Some(self.sym_ref(s)),
@@ -765,7 +1013,7 @@ impl Index {
         imported_by.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0)));
         let members: Vec<SymRef> = self
             .file_symbols(f)
-            .filter(|i| self.symbols[*i].parent.map_or(true, |p| self.symbols[p as usize].kind.is_container()))
+            .filter(|i| self.symbols[*i].parent.is_none_or(|p| self.symbols[p as usize].kind.is_container()))
             .map(|i| self.sym_ref(i as u32))
             .take(opts.limit * 4)
             .collect();
@@ -782,7 +1030,7 @@ impl Index {
         callers.dedup_by(|a, b| a.symbol.name == b.symbol.name && a.symbol.file == b.symbol.file);
         callers.truncate(opts.limit);
         let syms: Vec<u32> = self.file_symbols(f).map(|s| s as u32).collect();
-        ContextResult {
+        ContextResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             target: file.path.clone(),
             module: self.community_name(f).to_string(),
             symbol: None,
@@ -908,6 +1156,7 @@ impl ContextResult {
         paths(&mut o, "Imports", &self.imports);
         paths(&mut o, "Imported by", &self.imported_by);
         paths(&mut o, "Tests", &self.tests);
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -925,6 +1174,8 @@ pub struct Hop {
 
 #[derive(Debug, Serialize)]
 pub struct TraceResult {
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
     pub from: String,
     pub to: Option<String>,
     pub found: bool,
@@ -972,10 +1223,10 @@ impl Index {
         let sources = self.symbols_of(ft);
         let targets: HashSet<u32> = self.symbols_of(tt).into_iter().collect();
         if let Some(path) = self.bfs_sym(&sources, &targets, false) {
-            return Ok(TraceResult { from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(), from: from_label, to: Some(to_label), found: true, level: "calls", hops: path, tree: vec![], note: None });
         }
         if let Some(path) = self.bfs_sym(&self.symbols_of(tt), &sources.iter().copied().collect(), false) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -987,7 +1238,7 @@ impl Index {
         }
         let (a, b) = (self.file_of(ft), self.file_of(tt));
         if let Some(path) = self.bfs_file(a, b) {
-            return Ok(TraceResult {
+            return Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
                 from: from_label,
                 to: Some(to_label),
                 found: true,
@@ -997,7 +1248,7 @@ impl Index {
                 note: Some("No call path; this is the file dependency path.".into()),
             });
         }
-        Ok(TraceResult {
+        Ok(TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: from_label,
             to: Some(to_label),
             found: false,
@@ -1118,7 +1369,7 @@ impl Index {
                 q.push_back((v, d + 1));
             }
         }
-        TraceResult {
+        TraceResult { deferred_files: self.deferred_files(), deferred_dirs: self.deferred_dirs(),
             from: label,
             to: None,
             found: !tree.is_empty(),
@@ -1156,6 +1407,7 @@ impl TraceResult {
                 }
             }
         }
+        o.push_str(&deferred_tail(self.deferred_files, &self.deferred_dirs));
         o
     }
 }
@@ -1173,6 +1425,34 @@ pub struct ImpactResult {
     pub modules: Vec<String>,
     pub tests: Vec<String>,
     pub importers: Vec<String>,
+    /// Fixture files left out of the index, and the trees they sit in.
+    pub deferred_files: usize,
+    pub deferred_dirs: Vec<String>,
+    /// Set while fixture files are deferred: the risk covers indexed code only.
+    pub risk_caveat: Option<String>,
+}
+
+impl Index {
+    pub fn deferred_files(&self) -> usize {
+        self.deferred.iter().map(|d| d.files).sum()
+    }
+
+    pub fn deferred_dirs(&self) -> Vec<String> {
+        self.deferred.iter().map(|d| d.dir.clone()).collect()
+    }
+
+    /// A trailing note when fixture trees were left out of this index.
+    pub fn not_analysed_note(&self) -> String {
+        if self.deferred.is_empty() {
+            return String::new();
+        }
+        format!(
+            "
+Not analysed: {} fixture files in {} (target the dir or pass --include-fixtures).",
+            self.deferred_files(),
+            self.deferred_dirs().join(", ")
+        )
+    }
 }
 
 pub struct ImpactOptions {
@@ -1192,13 +1472,22 @@ impl Index {
         for t in targets {
             ts.push(self.resolve(t)?.0);
         }
-        Ok(self.impact_of(&ts, opts))
+        let mut r = self.impact_of(&ts, opts);
+        // A target that names a deferred tree has callers we cannot see.
+        let hidden = |t: &String| {
+            let t = t.trim().trim_start_matches("./");
+            self.deferred.iter().any(|d| t.contains(d.dir.as_str()))
+        };
+        if !self.deferred.is_empty() && targets.iter().any(hidden) {
+            r.risk = "unknown";
+        }
+        Ok(r)
     }
 
     /// Impact of the working-tree diff against `base` (default HEAD).
     pub fn impact_changed(&self, base: Option<&str>, opts: &ImpactOptions) -> Result<ImpactResult, String> {
-        let base = base.unwrap_or("HEAD");
-        let diff = crate::index::git_run(&self.root, &["diff", "--unified=0", "--no-color", "--no-ext-diff", base])
+        let base = crate::index::check_ref(base.unwrap_or("HEAD"))?;
+        let diff = crate::index::git_run(&self.root, &["diff", "--unified=0", "--no-color", "--no-ext-diff", "--end-of-options", base])
             .unwrap_or_default();
         let mut targets: Vec<Target> = Vec::new();
         let mut cur: Option<u32> = None;
@@ -1351,6 +1640,11 @@ impl Index {
             plural(modules.len(), "module"),
             plural(importers.len(), "file"),
             match tests.len() {
+                0 if !self.deferred.is_empty() => format!(
+                    "no indexed tests reach this; {} fixture files in {} were not analysed (callers there are not shown; target the dir or pass --include-fixtures)",
+                    self.deferred_files(),
+                    self.deferred_dirs().join(", ")
+                ),
                 0 => "no tests reach this".to_string(),
                 n => format!("{} to run", plural(n, "test file")),
             }
@@ -1368,6 +1662,10 @@ impl Index {
             modules,
             tests,
             importers,
+            deferred_files: self.deferred_files(),
+            deferred_dirs: self.deferred_dirs(),
+            risk_caveat: (!self.deferred.is_empty())
+                .then(|| format!("indexed code only; {} fixture files not analysed", self.deferred_files())),
         }
     }
 }
@@ -1375,9 +1673,19 @@ impl Index {
 impl ImpactResult {
     pub fn text(&self) -> String {
         let mut o = String::new();
-        let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+        match &self.risk_caveat {
+            Some(c) => {
+                let _ = writeln!(o, "# Impact ({} risk; {c})", self.risk.to_uppercase());
+            }
+            None => {
+                let _ = writeln!(o, "# Impact ({} risk)", self.risk.to_uppercase());
+            }
+        }
         let _ = writeln!(o, "Changing: {}", self.targets.join("; "));
         let _ = writeln!(o, "{}", self.summary);
+        if self.deferred_files > 0 {
+            let _ = writeln!(o, "\n## Not analysed\n{} fixture files in {} (callers there are not shown; target the dir or pass --include-fixtures); the risk above excludes them.", self.deferred_files, self.deferred_dirs.join(", "));
+        }
         let titles = ["Direct callers (will break if the contract changes)", "Indirect (depth 2)", "Indirect (depth 3)", "Depth 4", "Depth 5", "Depth 6"];
         for (i, level) in self.by_depth.iter().enumerate() {
             let _ = writeln!(o, "\n## {}", titles[i.min(5)]);
@@ -1402,6 +1710,13 @@ impl ImpactResult {
         }
         o
     }
+}
+
+fn deferred_tail(files: usize, dirs: &[String]) -> String {
+    if files == 0 {
+        return String::new();
+    }
+    format!("\nNot analysed: {files} fixture files in {} (target the dir or pass --include-fixtures).\n", dirs.join(", "))
 }
 
 fn plural(n: usize, word: &str) -> String {
@@ -1432,7 +1747,7 @@ fn looks_like_symbol(q: &str) -> bool {
         return false;
     }
     let ident = |p: &str| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_');
-    let parts: Vec<&str> = q.split(|c| c == '.' || c == ':' || c == '\\').filter(|p| !p.is_empty()).collect();
+    let parts: Vec<&str> = q.split(['.', ':', '\\']).filter(|p| !p.is_empty()).collect();
     if parts.is_empty() || !parts.iter().all(|p| ident(p)) {
         return false;
     }

@@ -1,18 +1,31 @@
 // One source for public copy. `bun scripts/copy.ts --write` syncs, `--check` verifies (CI).
 //  - brand.json "oneliner" -> README lead, docs hero tagline, package.json, server.json
 //    (and, with --github, the GitHub repository description)
+//  - committed benchmark data -> localization chart and README/docs hero
 //  - `repomap tools` -> the README tool table (REPOMAP_BIN or target/release/repomap)
+import "./editor-install.ts";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { readHeroData, heroSvg, heroCopy, heroCss } from "./hero";
 
 const mode = process.argv.includes("--write") ? "write" : "check";
 const github = process.argv.includes("--github");
-const { oneliner } = JSON.parse(readFileSync("brand.json", "utf8"));
+const { oneliner, cargoInstall } = JSON.parse(readFileSync("brand.json", "utf8"));
 if (oneliner.length > 100) throw new Error(`oneliner is ${oneliner.length} chars; the MCP Registry allows 100`);
 const problems: string[] = [];
 
+// The README is the npm landing page: npm resolves relative URLs against packages/repomap, so they 404.
+if (mode === "check") {
+  readFileSync("README.md", "utf8").split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(/(?:src|href)="([^"]*)"|\]\(([^)\s]*)/g)) {
+      const url = m[1] ?? m[2] ?? "";
+      if (url && !/^(https?:|#|mailto:)/.test(url)) problems.push(`README.md:${i + 1} relative link ${url}; use an absolute URL`);
+    }
+  });
+}
+
 function sync(path: string, update: (s: string) => string) {
-  const before = readFileSync(path, "utf8");
+  const before = existsSync(path) ? readFileSync(path, "utf8") : "";
   const after = update(before);
   if (after === before) return;
   if (mode === "write") writeFileSync(path, after);
@@ -31,8 +44,19 @@ const between = (start: string, end: string, body: string) => (s: string) => {
 
 sync("packages/repomap/package.json", json("description"));
 sync("server.json", json("description"));
-sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `**${oneliner}**`));
+sync("README.md", between("<!-- oneliner -->", "<!-- /oneliner -->", `<strong>${oneliner}</strong>`));
 sync("docs/index.md", (s) => s.replace(/^  tagline: .*$/m, `  tagline: ${JSON.stringify(oneliner)}`));
+
+for (const path of ["README.md", "docs/guide/quickstart.md"]) {
+  sync(path, (s) => s.replace(/`cargo install[^`]+`/g, `\`${cargoInstall}\``));
+}
+
+const hero = readHeroData();
+sync("docs/public/img/localization.svg", () => heroSvg(hero));
+sync("docs/.vitepress/theme/localization.css", () => heroCss);
+for (const path of ["README.md", "docs/index.md"]) {
+  sync(path, between("<!-- localization-hero:start -->\n", "\n<!-- localization-hero:end -->", heroCopy(hero, path.startsWith("docs/"))));
+}
 
 const bin = process.env.REPOMAP_BIN ?? ["target/release/repomap", "target/debug/repomap"].find(existsSync);
 if (bin) {

@@ -1,11 +1,22 @@
 [package]
-name = "repomap-core"
+name = "sylphx-repomap-core"
 description = "Indexing, code graph, BM25 search, call paths and change impact for repomap."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+documentation = "https://docs.rs/sylphx-repomap-core"
+keywords.workspace = true
+categories = ["development-tools", "parser-implementations"]
+include = ["src/**", "LICENSE"]
+
+[lib]
+name = "repomap_core"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
@@ -15,8 +26,7 @@ rayon = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 postcard = { version = "1", features = ["use-std"] }
-dirs = "6"
-sylphx-mcp-kit = { version = "0.2", default-features = false, features = ["embed"] }
+sylphx-mcp-kit = { version = "0.6", default-features = false, features = ["embed", "search"] }
 tree-sitter = "0.27"
 streaming-iterator = "0.1"
 tree-sitter-typescript = "0.23"

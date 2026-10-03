@@ -8,9 +8,15 @@ Do not open public issues for sensitive reports.
 
 ## Boundary
 
-- repomap makes no network calls while indexing or answering queries. The only
-  subprocess it runs is `git` (commit, remote, diff), plus the `claude` CLI in
-  `repomap setup`.
+- Indexing and answering queries send no code, paths or queries anywhere. The
+  one network call repomap makes itself is the first `search`, which downloads
+  the 33 MB static embedding model once from Hugging Face (`huggingface.co`)
+  and caches it; after that repomap is offline. Until the download finishes,
+  `search` answers with keywords only. Set `REPOMAP_EMBED=0` to never download
+  it. A live `repomap db` connects only to the database you name. The `claude` CLI that `repomap setup` runs has its own network
+  use.
+- The only subprocess repomap runs is `git` (commit, remote, diff), plus the
+  `claude` CLI in `repomap setup`.
 - The MCP server speaks stdio only.
 - `repomap serve` binds to `127.0.0.1` by default and rejects requests whose
   `Host` header is not a loopback address (DNS-rebinding guard). Binding any
