@@ -158,6 +158,8 @@ const GENERIC_METHODS: &[&str] = &[
     "test", "exec", "query", "fetch", "post", "put", "patch", "match", "replace", "trim", "lower", "upper",
 ];
 
+// allow-reason: private call-resolution helper; every argument is a distinct input of the choice.
+#[allow(clippy::too_many_arguments)]
 fn choose_target(
     index: &Index,
     file: u32,
@@ -311,7 +313,7 @@ impl<'a> Resolver<'a> {
                 }
             }
         }
-        js_packages.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        js_packages.sort_by_key(|a| std::cmp::Reverse(a.0.len()));
         let mut by_stem_name: HashMap<&str, Vec<u32>> = HashMap::new();
         for (i, f) in index.files.iter().enumerate() {
             if f.lang.is_none() {
@@ -754,7 +756,7 @@ pub fn louvain(n: usize, edges: &[(u32, u32, f32)]) -> Vec<u32> {
         }
         cur_n = renum.len();
         let mut next: Vec<(u32, u32, f32)> = agg.into_iter().map(|((a, b), w)| (a, b, w)).collect();
-        next.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+        next.sort_by_key(|a| (a.0, a.1));
         cur_edges = next;
     }
     for (i, c) in node_comm.iter_mut().enumerate() {
@@ -778,7 +780,7 @@ fn communities(index: &Index) -> (Vec<u32>, Vec<Community>) {
         *und.entry(key).or_insert(0.0) += e.weight();
     }
     let mut edges: Vec<(u32, u32, f32)> = und.into_iter().map(|((a, b), w)| (a, b, w)).collect();
-    edges.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    edges.sort_by_key(|a| (a.0, a.1));
     let raw = louvain(code.len(), &edges);
 
     // Group, then fold tiny groups into their directory's dominant community.
@@ -931,7 +933,7 @@ fn dir_coverage(index: &Index, files: &[u32]) -> (HashMap<String, f32>, f32) {
 fn deepest_covering(counts: &HashMap<String, f32>, min: f32, under: Option<&str>) -> Option<String> {
     counts
         .iter()
-        .filter(|(d, c)| **c >= min && under.map_or(true, |u| d.starts_with(&format!("{u}/"))))
+        .filter(|(d, c)| **c >= min && under.is_none_or(|u| d.starts_with(&format!("{u}/"))))
         .max_by(|(da, ca), (db, cb)| {
             (da.matches('/').count(), **ca)
                 .partial_cmp(&(db.matches('/').count(), **cb))

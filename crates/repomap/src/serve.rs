@@ -85,7 +85,7 @@ impl Guard {
     fn check(&self, req: &tiny_http::Request, query: &std::collections::HashMap<String, String>) -> Result<bool, Resp> {
         let header = |name: &'static str| req.headers().iter().find(|h| h.field.equiv(name)).map(|h| h.value.as_str().to_string());
         if self.loopback && self.token.is_none() {
-            let ok = header("Host").map_or(false, |h| self.allowed_hosts.iter().any(|a| *a == h));
+            let ok = header("Host").is_some_and(|h| self.allowed_hosts.contains(&h));
             return if ok { Ok(false) } else { Err(text(403, "forbidden host", "text/plain")) };
         }
         let Some(want) = &self.token else { return Ok(false) };
@@ -238,9 +238,9 @@ fn route(ws: &Workspace, root: &Path, path: &str, q: &std::collections::HashMap<
 fn parse_query(q: &str) -> std::collections::HashMap<String, String> {
     q.split('&')
         .filter(|p| !p.is_empty())
-        .filter_map(|p| {
+        .map(|p| {
             let (k, v) = p.split_once('=').unwrap_or((p, ""));
-            Some((decode(k), decode(v)))
+            (decode(k), decode(v))
         })
         .collect()
 }
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn non_loopback_requires_a_token() {
         let g = Guard::new("0.0.0.0", 7878, None);
-        assert!(g.token().map_or(false, |t| t.len() == 32));
+        assert!(g.token().is_some_and(|t| t.len() == 32));
         assert_ne!(Guard::new("0.0.0.0", 1, None).token(), g.token());
         assert_eq!(Guard::new("0.0.0.0", 1, Some("s3cret".into())).token(), Some("s3cret"));
         assert!(Guard::new("127.0.0.1", 1, None).token().is_none());

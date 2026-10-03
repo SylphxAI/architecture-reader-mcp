@@ -194,9 +194,10 @@ pub fn path_mention(file: &str, paths: &[String]) -> f32 {
     for m in paths {
         let last = m.rsplit('/').next().unwrap_or(m);
         let v = if has_ext(last) {
-            if f == *m || (m.contains('/') && f.ends_with(&format!("/{m}"))) {
-                1.0
-            } else if m.ends_with(&format!("/{f}")) && f.contains('/') {
+            if f == *m
+                || (m.contains('/') && f.ends_with(&format!("/{m}")))
+                || (m.ends_with(&format!("/{f}")) && f.contains('/'))
+            {
                 1.0
             } else if !m.contains('/') && f.ends_with(&format!("/{m}")) {
                 0.5

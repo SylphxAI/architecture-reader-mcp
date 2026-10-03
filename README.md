@@ -2,37 +2,49 @@
 
 # repomap
 
-<!-- oneliner -->**A map of your codebase for AI agents: code graph, search, call paths and change impact. No API key.**<!-- /oneliner -->
+<!-- oneliner --><strong>A map of your codebase for AI agents: code graph, search, call paths and change impact. No API key.</strong><!-- /oneliner -->
 
 Code graph · hybrid search · call paths · change impact · an interactive graph UI.<br>
 One Rust binary. Local. No API key. MIT.
 
-<!-- localization-hero:start -->
-<p>One issue-text search finds every fix file in the top 10 for <strong>83.0% of SWE-bench Verified issues</strong> (semble: 71.0%). File retrieval, not issue resolution.</p>
-<img src="docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for 83.0% of 500 issues; semble 71.0%, BM25 55.8%. Full Acc@1, 5 and 10 values follow in the table.">
-<details><summary>Chart values and evaluation protocol</summary>
-<table><caption>SWE-bench Verified: every gold fix file in the top k files</caption><thead><tr><th scope="col">Method</th><th scope="col">Acc@1</th><th scope="col">Acc@5</th><th scope="col">Acc@10</th></tr></thead><tbody><tr><th scope="row">repomap</th><td>48.8%</td><td>74.8%</td><td>83.0%</td></tr>
-<tr><th scope="row">semble</th><td>34.0%</td><td>61.6%</td><td>71.0%</td></tr>
-<tr><th scope="row">BM25</th><td>20.8%</td><td>45.4%</td><td>55.8%</td></tr></tbody></table>
-<p>Defaults selected on 300 disjoint SWE-bench test instances, excluding every Verified ID, then frozen before one evaluation on all 500 Verified instances. One search per issue, at its base commit; gold files are used only for scoring. All three methods scored 500/500, with zero errors.</p>
-<p><a href="https://sylphxai.github.io/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
-</details>
-<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="https://sylphxai.github.io/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
-<!-- localization-hero:end -->
+```bash
+npx -y @sylphx/repomap setup
+```
 
 [![npm](https://mark.sylphx.com/npm/v/@sylphx/repomap?color=8aa4ff&label=npm)](https://www.npmjs.com/package/@sylphx/repomap)
+[![npm downloads](https://mark.sylphx.com/npm/dm/@sylphx/repomap?color=8aa4ff&label=downloads)](https://www.npmjs.com/package/@sylphx/repomap)
 [![CI](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml/badge.svg)](https://github.com/SylphxAI/repomap/actions/workflows/ci.yml)
 [![MCP Registry](https://mark.sylphx.com/badge/MCP%20Registry-io.github.SylphxAI%2Frepomap-42d6a4)](https://registry.modelcontextprotocol.io/)
-[![License: MIT](https://mark.sylphx.com/badge/license-MIT-ffb454)](LICENSE)
-<!-- repomap:agent-ready -->[![agent-ready 93/100](https://mark.sylphx.com/badge/agent--ready-93%2F100-brightgreen)](https://github.com/SylphxAI/repomap#agent-readiness-score)<!-- /repomap:agent-ready -->
+[![License: MIT](https://mark.sylphx.com/badge/license-MIT-ffb454)](https://github.com/SylphxAI/repomap/blob/main/LICENSE) <!-- repomap:agent-ready -->[![agent-ready 93/100](https://mark.sylphx.com/badge/agent--ready-93%2F100-brightgreen)](https://github.com/SylphxAI/repomap#agent-readiness-score)<!-- /repomap:agent-ready -->
 
-[**Live demo**](https://sylphxai.github.io/repomap/demo) · [Docs](https://sylphxai.github.io/repomap/) · [Quickstart](#quickstart) · [Tools](#what-your-agent-gets) · [Graph UI](#the-graph-ui) · [Benchmarks](https://sylphxai.github.io/repomap/benchmarks) · [Compare](#how-it-compares)
+[**Live demo**](https://sylphxai.github.io/repomap/demo) · [Docs](https://sylphxai.github.io/repomap/) · [Quickstart](https://github.com/SylphxAI/repomap#quickstart) · [Tools](https://github.com/SylphxAI/repomap#what-your-agent-gets) · [Graph UI](https://github.com/SylphxAI/repomap#the-graph-ui) · [Benchmarks](https://sylphxai.github.io/repomap/benchmarks) · [Compare](https://github.com/SylphxAI/repomap#how-it-compares)
 
-<img src="docs/public/img/demo.gif" alt="repomap demo: the map of excalidraw, searching restoreElements, its code and callers, then the impact of changing it" width="100%">
+<img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/demo.gif" alt="repomap demo: the map of excalidraw, searching restoreElements, its code and callers, then the impact of changing it" width="100%">
 
 <sub>The real UI on excalidraw (687 files, indexed in under half a second): search, a symbol's code and callers, then the blast radius of a change. <a href="https://sylphxai.github.io/repomap/demo">Try it in your browser</a>, no install needed.</sub>
 
 </div>
+
+## See it work
+
+Run it on any repository. This is the real output on repomap's own source (v1.5.0, trimmed): ask what breaks if `pagerank` changes.
+
+```text
+$ npx -y @sylphx/repomap impact pagerank
+
+# Impact (MEDIUM risk)
+Changing: function pagerank (crates/repomap-core/src/graph.rs:639)
+2 direct callers, 4 symbols affected in total across 6 files and 3 modules; 5 files importing the changed files; 1 test file to run.
+
+## Direct callers (will break if the contract changes)
+- method DbSchema.graph_json — crates/repomap-core/src/db.rs:1981
+- function link — crates/repomap-core/src/graph.rs:122
+
+## Indirect (depth 2)
+- function assemble — crates/repomap-core/src/index.rs:700
+```
+
+One local call, no API key, and an answer your agent can cite as `file:line`.
 
 ## Quickstart
 
@@ -40,6 +52,8 @@ One Rust binary. Local. No API key. MIT.
 npx -y @sylphx/repomap setup     # add repomap to Claude Code, Codex, Cursor, VS Code, Claude Desktop, Windsurf, Gemini CLI
 npx -y @sylphx/repomap serve     # open the graph UI for the current repo
 ```
+
+Prefer to wire one client by hand? `claude mcp add repomap -- npx -y @sylphx/repomap mcp` for Claude Code; the [Cursor, VS Code, Codex and Docker snippets](#cursor-and-vs-code-one-click) follow.
 
 That's it. Add `--claude-hooks` to also [enrich Claude Code's Grep and Glob](#claude-code-hook). `setup` detects the clients you have, writes their MCP config, and prints every change it made. Run it again and nothing changes. Then ask your agent: *"Use repomap to map this repo."*
 
@@ -123,6 +137,21 @@ Docker (stdio, amd64/arm64):
 The server indexes the client's workspace root (or its working directory, or `REPOMAP_ROOT`). Every tool also takes `root`.
 </details>
 
+## Proof: file localization on SWE-bench Verified
+
+<!-- localization-hero:start -->
+<p>One issue-text search finds every fix file in the top 10 for <strong>83.0% of SWE-bench Verified issues</strong> (semble: 71.0%). File retrieval, not issue resolution.</p>
+<img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/localization.svg" width="720" alt="SWE-bench Verified: repomap finds every fix file in the top 10 for 83.0% of 500 issues; semble 71.0%, BM25 55.8%. Full Acc@1, 5 and 10 values follow in the table.">
+<details><summary>Chart values and evaluation protocol</summary>
+<table><caption>SWE-bench Verified: every gold fix file in the top k files</caption><thead><tr><th scope="col">Method</th><th scope="col">Acc@1</th><th scope="col">Acc@5</th><th scope="col">Acc@10</th></tr></thead><tbody><tr><th scope="row">repomap</th><td>48.8%</td><td>74.8%</td><td>83.0%</td></tr>
+<tr><th scope="row">semble</th><td>34.0%</td><td>61.6%</td><td>71.0%</td></tr>
+<tr><th scope="row">BM25</th><td>20.8%</td><td>45.4%</td><td>55.8%</td></tr></tbody></table>
+<p>Defaults selected on 300 disjoint SWE-bench test instances, excluding every Verified ID, then frozen before one evaluation on all 500 Verified instances. One search per issue, at its base commit; gold files are used only for scoring. All three methods scored 500/500, with zero errors.</p>
+<p><a href="https://sylphxai.github.io/repomap/benchmarks#file-localization">Split definitions, pinned revisions and full results</a> · <a href="https://github.com/SylphxAI/repomap/blob/main/bench/localization/results.json">Committed chart data</a></p>
+</details>
+<p>Trade-off: on semble's public code-search set, NDCG@10 is <strong>0.845</strong> versus semble's <strong>0.851</strong>; semble wins there. This is not a claim of better search on every task. <a href="https://sylphxai.github.io/repomap/benchmarks#search-quality">Measured search quality and limitations</a>.</p>
+<!-- localization-hero:end -->
+
 ## Why
 
 Agents burn most of their context on `grep`, `ls` and reading whole files just to work out where things are. repomap gives them the map up front:
@@ -133,7 +162,7 @@ Agents burn most of their context on `grep`, `ls` and reading whole files just t
 - **What breaks if I change this?** Direct and indirect callers, importing files, modules touched, tests to run, and a risk level. Point it at your `git diff` before you commit.
 - **What does this repo look like?** Modules found from real dependencies (not just folders), the most central files, the most used symbols, and entry points.
 
-All of it comes from a local index: tree-sitter parsing, a resolved import and call graph, PageRank, Louvain communities, BM25 over AST chunks, and a small static code embedding model (33 MB, downloaded once from Hugging Face, then offline). Nothing leaves your machine, and no API is called.
+All of it comes from a local index: tree-sitter parsing, a resolved import and call graph, PageRank, Louvain communities, BM25 over AST chunks, and a small static code embedding model (33 MB, downloaded once from Hugging Face, then offline). Nothing leaves your machine, and no API is called; the model download is the only network request (set `REPOMAP_EMBED=0` to skip it).
 
 ## What your agent gets
 
@@ -183,8 +212,8 @@ npx -y @sylphx/repomap export           # repomap.html: one self-contained file 
 
 <table>
 <tr>
-<td width="50%"><img src="docs/public/img/impact-tokio.webp" alt="Impact view on tokio: dependents of runtime/task/mod.rs highlighted by depth"></td>
-<td width="50%"><img src="docs/public/img/code-panel-tokio.webp" alt="Code panel on tokio: harness.rs poll() with its callers and callees"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/impact-tokio.webp" alt="Impact view on tokio: dependents of runtime/task/mod.rs highlighted by depth"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/code-panel-tokio.webp" alt="Code panel on tokio: harness.rs poll() with its callers and callees"></td>
 </tr>
 <tr>
 <td><b>Impact.</b> Select a file and press <kbd>i</kbd>: everything that depends on it lights up by depth, with a list you can click through.</td>
@@ -209,7 +238,7 @@ npx -y @sylphx/repomap db --serve                      # the same graph UI, for 
 
 repomap reads your schema from the repository: SQL migrations (applied in order, with `down` migrations skipped), `schema.prisma`, Drizzle `pgTable`/`mysqlTable`/`sqliteTable`, SQLAlchemy and Flask-SQLAlchemy models, Diesel `table!`, and Django `models.py` (fields, `ForeignKey`/`ManyToManyField`, `Meta`, implicit join tables). It can also introspect a live database. Each table is linked to the code that queries it: raw SQL (`FROM users`), Prisma (`prisma.user.findMany`), Diesel (`users::table`), Django (`Post.objects…`), and ORM models or tables used by files that import them.
 
-<img src="docs/public/img/db-crates-io.webp" alt="repomap db --serve on crates.io: 39 tables, 78 foreign keys, 527 code references" width="100%">
+<img src="https://raw.githubusercontent.com/SylphxAI/repomap/main/docs/public/img/db-crates-io.webp" alt="repomap db --serve on crates.io: 39 tables, 78 foreign keys, 527 code references" width="100%">
 
 Live connections are strictly read-only:
 - **Postgres** runs in a `READ ONLY` transaction that the server must confirm.
@@ -317,13 +346,17 @@ Measured on a 4 vCPU GitHub-hosted runner ([method and full table](https://sylph
 
 Pick Serena if you want LSP-precise refactoring edits. repomap is for understanding and navigating a codebase with zero setup, including semantic search without a vector database or an API key, and a licence you can use at work. Search quality is measured on public benchmarks in [Benchmarks](https://sylphxai.github.io/repomap/benchmarks).
 
+## Free and Team
+
+Everything repomap does for free stays free, under MIT, including `impact` in your own CI. repomap Team sells only new value for teams: the hosted PR review, the multi-repository graph, private shared maps, and support. Public repositories get the PR review free. A capability never moves from free to Team. [Team page and price](https://sylphxai.github.io/repomap/team).
+
 ## CLI
 
 ```text
 repomap setup [--client cursor,codex] [--claude-hooks] [--dry-run] [--remove]
 repomap serve [dir] [--port 7878] [--no-open]
 repomap export [dir] [--out repomap.html] [--json]
-repomap map [dir-to-focus] [-C root] [--json]
+repomap map [dir-to-focus] [-C root] [--tokens 1000] [--json]
 repomap search <query> [--path src/] [--kind function] [--limit 10]
 repomap context <target> [--code-lines 60]
 repomap trace <from> [to] [--callers] [--depth 3]
@@ -332,7 +365,10 @@ repomap db [table] [--url-env VAR | --url URL] [--serve | --out db.html] [--json
 repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]
 repomap mcp [--root dir]
+repomap licence status | activate <token> | buy
 ```
+
+`repomap licence buy` opens the Team page; in-terminal purchase turns on when checkout is live.
 
 Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
 
@@ -365,4 +401,19 @@ More from Sylphx: https://sylphx.com/open-source
 
 [![Star History Chart](https://api.star-history.com/svg?repos=SylphxAI/repomap&type=Date)](https://star-history.com/#SylphxAI/repomap&Date)
 
-MIT © Sylphx
+## Privacy
+
+repomap runs on your machine. Indexing, search and every query read your code
+locally and send nothing anywhere. The one network request repomap makes is a
+single download of the embedding model from Hugging Face the first time you
+search; it sends no code. Set `REPOMAP_EMBED=0` to skip it and use keyword
+search only. `repomap export` files hold paths, symbol names and line numbers,
+never source. See [SECURITY.md](https://github.com/SylphxAI/repomap/blob/main/SECURITY.md) for the full boundary.
+
+## Support
+
+Questions, a bug, or a team rollout? Email [hi@sylphx.com](mailto:hi@sylphx.com) or [open an issue](https://github.com/SylphxAI/repomap/issues).
+
+---
+
+MIT licence. © Sylphx Limited, registered in England and Wales, company no. 16438428. Registered office: 128 City Road, London EC1V 2NX, United Kingdom. Email [hi@sylphx.com](mailto:hi@sylphx.com). [Privacy](https://sylphx.com/legal/privacy) · [Terms](https://sylphx.com/legal/terms) · [sylphx.com](https://sylphx.com)

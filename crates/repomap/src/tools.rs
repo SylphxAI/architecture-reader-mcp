@@ -30,6 +30,7 @@ pub fn definitions(include_legacy: bool) -> Vec<Value> {
             "inputSchema": {"type": "object", "properties": {
                 "focus": {"type": "string", "description": "Directory to zoom into, e.g. src/server."},
                 "limit": {"type": "integer", "description": "Items per section (default 12)."},
+                "tokens": {"type": "integer", "description": "Token budget (estimated at 4 characters per token). Fills the map with the highest-ranked modules, files and symbols up to the budget and says what was omitted. Default: no budget."},
                 "root": root, "format": format
             }},
             "annotations": {"readOnlyHint": true, "openWorldHint": false}
@@ -51,7 +52,7 @@ pub fn definitions(include_legacy: bool) -> Vec<Value> {
         json!({
             "name": "context",
             "title": "360° view of a symbol or file",
-            "description": "Everything about one symbol or file: its code, who calls it (with call-site lines), what it calls, subtypes, members, imports, importers and the tests that touch it. Target forms: `path/to/file.ts`, `file.ts:42`, `Class.method`, `Class::method`, or a bare name.",
+            "description": "Everything about one symbol or file: its code, who calls it (with call-site lines), what it calls, subtypes, members, imports, importers and the tests that touch it. Large fixture trees are skipped until targeted (target one, or pass --include-fixtures). Target forms: `path/to/file.ts`, `file.ts:42`, `Class.method`, `Class::method`, or a bare name.",
             "inputSchema": {"type": "object", "required": ["target"], "properties": {
                 "target": {"type": "string"},
                 "code_lines": {"type": "integer", "description": "Lines of source to include for a symbol (default 60, 0 for none)."},
@@ -75,7 +76,7 @@ pub fn definitions(include_legacy: bool) -> Vec<Value> {
         json!({
             "name": "impact",
             "title": "Change impact (blast radius)",
-            "description": "What breaks if this changes. Give `target` (symbol or file, or a list) or `changed: true` to analyse the current git diff. Returns a risk level, direct and indirect callers with call sites, importing files, modules touched, and the tests to run.",
+            "description": "What breaks if this changes. Give `target` (symbol or file, or a list) or `changed: true` to analyse the current git diff. Returns a risk level, direct and indirect callers with call sites, importing files, modules touched, and the tests to run. Fixture files in deferred trees are not analysed unless targeted; the result says so.",
             "inputSchema": {"type": "object", "properties": {
                 "target": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]},
                 "changed": {"type": "boolean", "description": "Use the working-tree git diff (against `base`)."},
@@ -172,10 +173,51 @@ pub struct Output {
     pub json: Value,
 }
 
-/// Run a tool. `root` must already be resolved.
+/// Run a tool. `root` must already be resolved. A request that names more than
+/// one workspace root goes through the Team gate; every other request is free.
 pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
+    let roots = crate::team::named_roots(args, root);
+    if roots.len() < 2 {
+        return call_root(ws, name, args, root);
+    }
+    let tool = canonical(name).unwrap_or(name);
+    crate::team::gate(
+        &crate::team::POLICY,
+        &roots,
+        tool,
+        args,
+        || call_root(ws, name, args, root),
+        // The free workspace's indexes, so a join does not index a root twice.
+        || {
+            roots
+                .iter()
+                .filter_map(|r| Some((r.canonicalize().ok()?, ws.get(r).ok()?)))
+                .collect()
+        },
+    )
+}
+
+/// Run a tool against one root.
+fn call_root(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
     let tool = canonical(name).ok_or_else(|| format!("unknown tool `{name}`"))?;
-    let index = ws.get(root).map_err(|e| format!("indexing {} failed: {e}", root.display()))?;
+    // A query that names a path inside a deferred fixture tree indexes it.
+    let targets: Vec<String> = ["target", "targets", "symbol", "paths", "changed_paths", "files", "focus", "path", "scope", "from", "to", "file", "source", "start", "end", "node", "id"]
+        .iter()
+        .flat_map(|k| strings(args, &[k]))
+        .collect();
+    let mut targets = targets;
+    // Edited files inside a deferred fixture tree must be indexed too.
+    let changed_mode = canonical(name) == Some("impact")
+        && (args.get("changed").and_then(|v| v.as_bool()).unwrap_or(false) || args.get("use_git_diff").and_then(|v| v.as_bool()).unwrap_or(false));
+    if changed_mode {
+        let base = repomap_core::index::check_ref(s(args, &["base", "git_base"]).unwrap_or("HEAD"))?;
+        for a in [vec!["diff", "--name-only", "--end-of-options", base], vec!["ls-files", "--others", "--exclude-standard"]] {
+            if let Some(out) = repomap_core::index::git_run(root, &a) {
+                targets.extend(out.lines().filter(|l| !l.is_empty()).map(str::to_string));
+            }
+        }
+    }
+    let index = ws.get_with(root, &targets).map_err(|e| format!("indexing {} failed: {e}", root.display()))?;
     let index = &*index;
     macro_rules! out {
         ($r:expr) => {{
@@ -186,7 +228,16 @@ pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) ->
     match tool {
         "map" => {
             let focus = s(args, &["focus", "path", "scope"]).map(String::from);
-            out!(index.map(&MapOptions { focus, limit: n(args, &["limit"]).unwrap_or(12) }))
+            let limit = n(args, &["limit"]).unwrap_or(12);
+            // With a token budget, build a generous map and let `fit_tokens` trim it by rank.
+            match n(args, &["tokens", "max_tokens"]) {
+                Some(t) => {
+                    let mut m = index.map(&MapOptions { focus, limit: limit.max(500) });
+                    m.fit_tokens(t);
+                    out!(m)
+                }
+                None => out!(index.map(&MapOptions { focus, limit })),
+            }
         }
         "search" => {
             let query = s(args, &["query", "q", "text"]).ok_or("`query` is required")?;

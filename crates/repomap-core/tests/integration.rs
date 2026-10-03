@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 fn fixture() -> Index {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixture");
-    Index::build(&root, &BuildOptions { use_cache: false }).expect("index")
+    Index::build(&root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index")
 }
 
 #[test]
@@ -89,4 +89,122 @@ fn graph_json_is_complete() {
     let g = idx.graph_json(&Default::default(), "test");
     assert_eq!(g["nodes"].as_array().unwrap().len(), 4);
     assert!(!g["edges"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn map_token_budget_trims_by_rank_and_default_is_unchanged() {
+    use repomap_core::query::estimate_tokens;
+    // The test fixture is the small repository; this workspace's `crates` is the medium one.
+    let small = fixture();
+    let medium_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+    let medium = Index::build(&medium_root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    for idx in [&small, &medium] {
+        let base = idx.map(&MapOptions { focus: None, limit: 500 });
+        let full = base.text();
+        // Unbudgeted output carries no note, and a budget that is large enough changes nothing.
+        assert!(!full.contains("(budget"));
+        let mut same = idx.map(&MapOptions { focus: None, limit: 500 });
+        same.fit_tokens(usize::MAX);
+        assert_eq!(same.text(), full);
+        let total = estimate_tokens(&full);
+        for b in [150usize, 400, 1000, 2000] {
+            if b >= total {
+                continue;
+            }
+            let mut m = idx.map(&MapOptions { focus: None, limit: 500 });
+            m.fit_tokens(b);
+            let t = m.text();
+            let got = estimate_tokens(&t);
+            assert!(t.contains("omitted (budget"), "{t}");
+            // Items are cut one at a time (about 30 tokens each), so the +-5% bound holds from 1,000 up.
+            if got > b {
+                assert!(m.key_files.is_empty() && m.key_symbols.is_empty() && m.modules.is_empty(), "{got} > {b}");
+            } else if b >= 1000 {
+                assert!(got as f64 >= b as f64 * 0.95, "{got} under 95% of {b}");
+            }
+            // Survivors are a rank-order prefix of the unbudgeted lists.
+            let full_files: Vec<_> = base.key_files.iter().map(|f| &f.path).collect();
+            let kept: Vec<_> = m.key_files.iter().map(|f| &f.path).collect();
+            assert_eq!(kept, full_files[..kept.len()].to_vec());
+            let full_syms: Vec<_> = base.key_symbols.iter().map(|s| (&s.symbol.name, &s.symbol.file)).collect();
+            let kept: Vec<_> = m.key_symbols.iter().map(|s| (&s.symbol.name, &s.symbol.file)).collect();
+            assert_eq!(kept, full_syms[..kept.len()].to_vec());
+        }
+    }
+}
+
+#[test]
+fn map_budget_on_an_empty_repo_has_no_empty_note() {
+    let dir = std::env::temp_dir().join(format!("repomap-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let idx = Index::build(&dir, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    let mut m = idx.map(&MapOptions { focus: None, limit: 500 });
+    m.fit_tokens(5);
+    assert!(m.budget.is_none());
+    assert!(!m.text().contains("omitted"));
+    assert!(serde_json::to_value(&m).unwrap().get("budget").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn map_budget_on_a_huge_focused_map_is_linear_and_exact() {
+    use repomap_core::query::{estimate_tokens, KeyFile, Outline};
+    let idx = fixture();
+    let mut m = idx.map(&MapOptions { focus: None, limit: 10 });
+    m.key_files = (0..20_000).map(|i| KeyFile { path: format!("src/dir{}/file{i}.rs", i % 50), rank: 0.1, symbols: 3, imported_by: 2 }).collect();
+    m.outline = (0..20_000)
+        .map(|i| Outline { path: format!("src/f{i}.rs"), symbols: (0..30).map(|j| (format!("sym{j}"), "function", j, "fn sym()".to_string())).collect() })
+        .collect();
+    let start = std::time::Instant::now();
+    m.fit_tokens(2000);
+    // A rebuild per removed item (600k+ items over a ~30 MB text) would take minutes.
+    assert!(start.elapsed().as_secs() < 5, "{:?}", start.elapsed());
+    let got = estimate_tokens(&m.text());
+    assert!(got <= 2000 && got as f64 >= 2000.0 * 0.95, "{got}");
+}
+
+fn git_in(dir: &std::path::Path, args: &[&str]) {
+    let s = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false"])
+        .args(args)
+        .status()
+        .expect("git");
+    assert!(s.success(), "git {args:?}");
+}
+
+#[test]
+fn impact_changed_rejects_option_like_base_and_accepts_real_refs() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("repo");
+    std::fs::create_dir(&root).unwrap();
+    git_in(&root, &["init", "-q", "-b", "main"]);
+    std::fs::write(root.join("a.ts"), "export function a() { return 1; }\n").unwrap();
+    git_in(&root, &["add", "."]);
+    git_in(&root, &["commit", "-q", "-m", "one"]);
+    std::fs::write(root.join("a.ts"), "export function a() { return 2; }\n").unwrap();
+    git_in(&root, &["commit", "-q", "-am", "two"]);
+    // An uncommitted edit, so every ref below has a non-empty diff.
+    std::fs::write(root.join("a.ts"), "export function a() { return 3; }\n").unwrap();
+    let sha = String::from_utf8(std::process::Command::new("git").arg("-C").arg(&root).args(["rev-parse", "HEAD~1"]).output().unwrap().stdout).unwrap();
+    let idx = Index::build(&root, &BuildOptions { use_cache: false, ..Default::default() }).expect("index");
+    let opts = ImpactOptions::default();
+
+    let victim = dir.path().join("pwned");
+    for bad in [format!("--output={}", victim.display()), "-p".to_string(), "--".to_string()] {
+        let e = idx.impact_changed(Some(&bad), &opts).expect_err("must reject");
+        assert!(e.contains("must not start with `-`"), "{e}");
+    }
+    assert!(!victim.exists(), "base must not create a file");
+
+    for ok in ["HEAD", "HEAD~1", "main", sha.trim()] {
+        idx.impact_changed(Some(ok), &opts).unwrap_or_else(|e| panic!("{ok}: {e}"));
+    }
+    // A remote-tracking ref also resolves.
+    git_in(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    idx.impact_changed(Some("origin/main"), &opts).expect("origin/main");
+    // The diff against HEAD~1 sees the edited function.
+    let r = idx.impact_changed(Some("HEAD~1"), &opts).unwrap();
+    assert!(!r.targets.is_empty());
 }

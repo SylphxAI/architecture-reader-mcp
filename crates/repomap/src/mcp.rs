@@ -2,6 +2,7 @@
 
 use crate::tools;
 use crate::workspace::Workspace;
+use mcp_kit::rmcp::model::{CallToolResult, ContentBlock};
 use mcp_kit::roots::{self, Sources};
 use mcp_kit::server::{run_stdio, App, Call, Info};
 use serde_json::Value;
@@ -19,9 +20,37 @@ struct Repomap {
 }
 
 impl Repomap {
+    fn answer(
+        &self,
+        name: &str,
+        args: &Value,
+        call: &Call,
+    ) -> Result<(String, Option<Value>), String> {
+        let out = tools::call(&self.ws, name, args, &self.root(args, call)?)?;
+        let structured = out
+            .json
+            .get("pro_required")
+            .is_some()
+            .then(|| out.json.clone());
+        let text = if args.get("format").and_then(|v| v.as_str()) == Some("json") {
+            serde_json::to_string_pretty(&out.json).unwrap_or_default()
+        } else {
+            out.text
+        };
+        Ok((text, structured))
+    }
+
     fn root(&self, args: &Value, call: &Call) -> Result<PathBuf, String> {
-        let explicit = ["root", "repo_root"].iter().find_map(|k| args.get(*k).and_then(|v| v.as_str())).map(PathBuf::from);
-        roots::pick(&Sources { explicit, env: ROOT_ENV, default: self.default_root.clone(), client: &call.client_roots })
+        let explicit = ["root", "repo_root"]
+            .iter()
+            .find_map(|k| args.get(*k).and_then(|v| v.as_str()))
+            .map(PathBuf::from);
+        roots::pick(&Sources {
+            explicit,
+            env: ROOT_ENV,
+            default: self.default_root.clone(),
+            client: &call.client_roots,
+        })
     }
 }
 
@@ -41,11 +70,20 @@ impl App for Repomap {
     }
 
     fn call(&self, name: &str, args: &Value, call: &Call) -> Result<String, String> {
-        let out = tools::call(&self.ws, name, args, &self.root(args, call)?)?;
-        if args.get("format").and_then(|v| v.as_str()) == Some("json") {
-            Ok(serde_json::to_string_pretty(&out.json).unwrap_or_default())
-        } else {
-            Ok(out.text)
+        self.answer(name, args, call).map(|(text, _)| text)
+    }
+
+    /// Free calls answer as plain text. A multi-root call without a Team
+    /// licence answers for the current root and carries the whole answer plus
+    /// `pro_required` in the structured content, never as an error.
+    fn call_result(&self, name: &str, args: &Value, call: &Call) -> CallToolResult {
+        match self.answer(name, args, call) {
+            Ok((text, structured)) => {
+                let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
+                result.structured_content = structured;
+                result
+            }
+            Err(text) => CallToolResult::error(vec![ContentBlock::text(text)]),
         }
     }
 
@@ -59,5 +97,44 @@ impl App for Repomap {
 
 pub fn serve(default_root: Option<PathBuf>) -> anyhow::Result<()> {
     let legacy = std::env::var("REPOMAP_LEGACY_TOOLS").is_ok_and(|v| v == "1" || v == "true");
-    run_stdio(Repomap { ws: Workspace::default(), default_root, legacy })
+    run_stdio(Repomap {
+        ws: Workspace::default(),
+        default_root,
+        legacy,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn unlicensed_multi_root_structured_content_carries_the_answer() {
+        let d = tempfile::tempdir().unwrap();
+        for n in ["a", "b"] {
+            let p = d.path().join(n);
+            std::fs::create_dir_all(p.join("src")).unwrap();
+            std::fs::write(
+                p.join("src/f.ts"),
+                "export function hello() {\n  return 1;\n}\n",
+            )
+            .unwrap();
+        }
+        let app = Repomap {
+            ws: Workspace::default(),
+            default_root: None,
+            legacy: false,
+        };
+        let args = json!({
+            "query": "hello",
+            "root": d.path().join("a").to_string_lossy(),
+            "workspace": [d.path().join("b").to_string_lossy()],
+        });
+        let r = app.call_result("search", &args, &Call::default());
+        assert_ne!(r.is_error, Some(true));
+        let sc = r.structured_content.expect("structured content");
+        assert!(sc.get("hits").is_some(), "{sc}");
+        assert!(sc.get("pro_required").is_some(), "{sc}");
+    }
 }
