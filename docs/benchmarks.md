@@ -160,7 +160,22 @@ Method: [`bench/localization`](https://github.com/SylphxAI/repomap/tree/main/ben
 How well `repomap impact <file>` names the callers and tests a change reaches, scored at file level on 30 changes from the history of five public repositories (ripgrep, fd, hono, flask, cobra; Rust, TypeScript, Python, Go). The gold set comes from the commits themselves: the call sites and tests a commit changed together with the seed file. Method, the rule and the cases are in [`bench/impact`](https://github.com/SylphxAI/repomap/tree/main/bench/impact); run it with the [`bench-impact` workflow](https://github.com/SylphxAI/repomap/actions/workflows/bench-impact.yml).
 
 <!-- IMPACT:START -->
-RESULTS_PENDING
+| Axis | Metric | Overall | go | python | rust | typescript | Cases |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Callers | Precision | 17.7% | 10.0% | 11.7% | 26.4% | 22.7% | 27 |
+| Callers | Recall | 74.2% | 83.3% | 80.0% | 66.7% | 66.7% | 27 |
+| Tests | Precision | 16.3% | 8.7% | 17.5% | 4.2% | 34.7% | 30 |
+| Tests | Recall | 63.2% | 100.0% | 100.0% | 8.3% | 44.4% | 30 |
+| Callers + tests | Precision | 17.3% | 8.9% | 10.4% | 21.9% | 28.2% | 30 |
+| Callers + tests | Recall | 68.0% | 91.7% | 91.7% | 33.3% | 55.3% | 30 |
+
+Errors (no answer): 0
+
+Measured on the lane's shared desk (AMD EPYC 9454, 4 cores allotted, Linux), release build of repomap 1.7.0 at the head of this change, embeddings off, one case at a time. The scores do not depend on the machine. Overall is the mean of the four per-language means, so Rust (12 cases) weighs the same as Go (6). Callers counts 27 cases (three have no caller in the gold set); Tests and Callers + tests count all 30.
+
+Reading it: recall is high for callers (74%) and for Go and Python tests (100%), low for Rust tests (8%) because Rust tests live inside the source files and the gold only has test files. Precision is a lower bound (see below), so the 17% is a floor on real precision, not an estimate of it.
+
+The CI floor is [`bench/impact/floor.json`](https://github.com/SylphxAI/repomap/blob/main/bench/impact/floor.json), set 5 percentage points below these overall numbers (for example callers recall 74.2% measured, floor 69%; callers precision 17.7%, floor 12%) so run-to-run noise does not fail a run while a real regression does.
 <!-- IMPACT:END -->
 
 Weaknesses, read before quoting a number:
