@@ -220,6 +220,7 @@ fn db_per_root(ws: &Workspace, args: &Value, roots: &[std::path::PathBuf]) -> Re
             "No `url` given, so each repo's own schema is shown; repos are not assumed to share a database."
         }
     );
+    let live = url.as_deref().map(crate::dblive::introspect).transpose().map_err(|e| e.to_string())?;
     let mut repos = serde_json::Map::new();
     for r in roots {
         let mut name = r.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| r.display().to_string());
@@ -227,7 +228,7 @@ fn db_per_root(ws: &Workspace, args: &Value, roots: &[std::path::PathBuf]) -> Re
             name = r.display().to_string();
         }
         let index = ws.get(r).map_err(|e| format!("indexing {} failed: {e}", r.display()))?;
-        let schema = db_schema(&index, url.as_deref()).map_err(|e| format!("{name}: {e}"))?;
+        let schema = db_schema_with(&index, live.as_ref());
         let json = match table.and_then(|t| schema.table(t)) {
             Some(t) => serde_json::to_value(t).unwrap_or(Value::Null),
             None => serde_json::to_value(&schema).unwrap_or(Value::Null),
@@ -346,10 +347,17 @@ fn call_root(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -
 /// Live schema when a URL is given (with code names borrowed from the repo's
 /// schema sources), otherwise the repo's own schema; then link tables to code.
 pub fn db_schema(index: &repomap_core::Index, url: Option<&str>) -> anyhow::Result<repomap_core::db::DbSchema> {
+    let live = url.map(crate::dblive::introspect).transpose()?;
+    Ok(db_schema_with(index, live.as_ref()))
+}
+
+/// `db_schema` with the live schema already read, so a workspace introspects
+/// the one database once and links it to each repo's code.
+fn db_schema_with(index: &repomap_core::Index, live: Option<&repomap_core::db::DbSchema>) -> repomap_core::db::DbSchema {
     let from_repo = repomap_core::db::from_repo(index);
-    let mut schema = match url {
-        Some(u) => {
-            let mut live = crate::dblive::introspect(u)?;
+    let mut schema = match live {
+        Some(live) => {
+            let mut live = live.clone();
             for t in live.tables.iter_mut() {
                 if let Some(st) = from_repo.table(&t.key()) {
                     t.aliases = st.aliases.clone();
@@ -361,7 +369,7 @@ pub fn db_schema(index: &repomap_core::Index, url: Option<&str>) -> anyhow::Resu
         None => from_repo,
     };
     repomap_core::db::link_code(index, &mut schema);
-    Ok(schema)
+    schema
 }
 
 #[cfg(test)]
