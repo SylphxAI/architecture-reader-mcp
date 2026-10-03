@@ -42,6 +42,10 @@ permissions:
 env:
   SEMBLE_SHA: 24497845460960db1839c8485319df189a889225
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
