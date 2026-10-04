@@ -142,7 +142,7 @@ pub fn gate(
                 }),
                 Err(NotJoined) => {
                     let mut out = single()?;
-                    note(&mut out, "The other repos in this workspace were not joined (not yet joined); this answers for the current repo only.", None, None);
+                    note(&mut out, "The other repos in this workspace were not joined (not found in other repos); this answers for the current repo only.", None, None);
                     Ok(out)
                 }
             }
@@ -334,14 +334,14 @@ mod tests {
                 assert_eq!(out.json["pro_required"]["product"], "repomap", "{t:?}");
                 assert_eq!(out.json["pro_required"]["tier"], "Team");
                 assert_eq!(out.json["root"], "a");
-                // Not even the per-root hook runs without a licence.
+                // Not even the prebuilt-index or per-root hooks run without a licence.
                 let out = gate(
                     &policy,
                     &roots,
                     tool,
                     &args,
                     single,
-                    Default::default,
+                    || panic!("another repo's index was built without a licence"),
                     || panic!("per-root answer ran without a licence"),
                 )
                 .unwrap();
@@ -368,7 +368,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            out.text.starts_with("one repo") && out.text.contains("not yet joined"),
+            out.text.starts_with("one repo") && out.text.contains("not found in other repos"),
             "{}",
             out.text
         );
