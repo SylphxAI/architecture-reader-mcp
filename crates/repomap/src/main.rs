@@ -1,6 +1,8 @@
 mod dblive;
 mod hook;
+mod login;
 mod mcp;
+mod remote;
 mod serve;
 mod setup;
 mod team;
@@ -25,6 +27,9 @@ Commands:
   serve [dir]           Open the interactive graph UI in your browser (alias: ui)
                         (--host 0.0.0.0 requires a token: --token/REPOMAP_TOKEN, or one is generated)
   export [dir]          Write a self-contained HTML map (--out repomap.html) or --json
+                        (--shared map.json writes the source-free map a team shares: names, paths and the graph, no code)
+  login                 Sign in with GitHub to read private shared maps (a session token, stored 0600;
+                        REPOMAP_TOKEN=rms_... for CI); `logout` ends it
   map [dir]             Modules, central files, key symbols (--focus <dir> to zoom in, --tokens N to cap the size)
   search <query>        Hybrid search: symbol names, BM25 and a local code embedding model
   context <target>      Code, callers, callees, tests for a symbol or file
@@ -44,7 +49,8 @@ Commands:
   version               Print the version
 
 Common options:
-  -C, --root <dir>      Repository root (default: current directory)
+  -C, --root <dir>      Repository root (default: current directory), or a shared map link
+                        (https://review.repomap.sylphx.com/m/{owner}/{repo}): repomap Team
   --include-fixtures    Index huge fixture trees (tests/cases, testdata, fixtures, __fixtures__,
                         __snapshots__ with 1000+ files, under 10% named like tests), which are deferred by default; also REPOMAP_INCLUDE_FIXTURES=1. A target
                         or --path inside one indexes it on demand.
@@ -63,7 +69,7 @@ impl Args {
     fn parse(raw: Vec<String>) -> Args {
         let mut positional = Vec::new();
         let mut flags = std::collections::HashMap::new();
-        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command", "workspace"];
+        let takes_value = ["badge-style", "badge-file", "token", "update-readme", "min", "url", "url-env", "table", "root", "C", "focus", "limit", "tokens", "path", "kind", "depth", "base", "port", "host", "out", "json-out", "client", "code-lines", "command", "workspace", "shared"];
         let mut it = raw.into_iter().peekable();
         while let Some(a) = it.next() {
             if let Some(name) = a.strip_prefix("--").or_else(|| a.strip_prefix('-').filter(|n| n.len() == 1)) {
@@ -173,6 +179,8 @@ fn run() -> Result<()> {
             args.flag("token").map(String::from).or_else(|| std::env::var("REPOMAP_TOKEN").ok()),
         ),
         "export" => export(&args),
+        "login" => login::run_login(),
+        "logout" => login::run_logout(),
         "index" => index_cmd(&args),
         "map" | "search" | "context" | "trace" | "impact" => query_cmd(&cmd, &args),
         "db" => db_cmd(&args),
@@ -336,6 +344,20 @@ fn export(args: &Args) -> Result<()> {
     let root = args.root_or_pos(0);
     let idx = Index::build(&root, &BuildOptions::default())?;
     let data = idx.graph_json(&Default::default(), VERSION);
+    if let Some(path) = args.flag("shared") {
+        let path = if matches!(path, "" | "true") { "map.json" } else { path };
+        // `--shared` writes the map; the viewer only with an explicit `--out`.
+        let idx = std::sync::Arc::new(idx);
+        let packages = repomap_core::workspace_graph::shared_packages(&idx);
+        let bytes = serde_json::to_vec(&idx.to_shared(VERSION, packages))?;
+        std::fs::write(path, &bytes)?;
+        eprintln!("Wrote {path} ({} files, {} symbols, {} bytes). It holds names, paths and the graph only: no source code.", idx.files.len(), idx.symbols.len(), bytes.len());
+        if let Some(out) = args.flag("out") {
+            std::fs::write(out, serve::static_html(&data))?;
+            eprintln!("Wrote {out}");
+        }
+        return Ok(());
+    }
     if let Some(path) = args.flag("json-out").or_else(|| if args.on("json") { Some("repomap.json") } else { None }) {
         std::fs::write(path, serde_json::to_vec(&data)?)?;
         eprintln!("Wrote {path}");

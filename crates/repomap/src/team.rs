@@ -46,20 +46,25 @@ pub use repomap_core::workspace_graph::WORKSPACE_FILE;
 /// `--workspace`, or a `repomap.workspace.toml` in the current root. Returns
 /// every root, the current root first, or an empty list when there is one.
 pub fn named_roots(args: &Value, root: &Path) -> Vec<PathBuf> {
+    // An entry may be a shared-map link; any other entry is relative to the
+    // root (or to the working directory when the root is itself a link).
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let base = if is_link(root) { cwd.as_path() } else { root };
+    let join = |s: &str| if repomap_core::shared::is_link(s) { PathBuf::from(s) } else { base.join(s) };
     let listed = match args.get("workspace") {
         Some(Value::Array(v)) => v
             .iter()
             .filter_map(|x| x.as_str())
-            .map(|s| root.join(s))
+            .map(join)
             .collect(),
         Some(Value::String(s)) if s.contains(',') => s
             .split(',')
             .map(str::trim)
             .filter(|p| !p.is_empty())
-            .map(|p| root.join(p))
+            .map(join)
             .collect(),
         Some(Value::String(s)) if !s.trim().is_empty() => {
-            let p = root.join(s.trim());
+            let p = join(s.trim());
             let file = if p.is_dir() {
                 p.join(WORKSPACE_FILE)
             } else {
@@ -82,6 +87,12 @@ pub fn named_roots(args: &Value, root: &Path) -> Vec<PathBuf> {
     let home = dirs::home_dir().map(|h| key(&h));
     let mut seen = vec![current.clone()];
     for p in listed {
+        if is_link(&p) {
+            if !roots.contains(&p) {
+                roots.push(p);
+            }
+            continue;
+        }
         let k = key(&p);
         // A root must be an existing directory, and never `/`, the home
         // directory or a parent of the current root (indexing those would
@@ -100,6 +111,11 @@ pub fn named_roots(args: &Value, root: &Path) -> Vec<PathBuf> {
     } else {
         Vec::new()
     }
+}
+
+/// Whether a root is a shared-map link rather than a directory.
+pub fn is_link(p: &Path) -> bool {
+    p.to_str().is_some_and(repomap_core::shared::is_link)
 }
 
 /// The roots in a workspace file, resolved against the file's directory.
@@ -150,7 +166,7 @@ pub fn gate(
     }
 }
 
-fn note(out: &mut Output, line: &str, more: Option<&str>, pro_required: Option<Value>) {
+pub fn note(out: &mut Output, line: &str, more: Option<&str>, pro_required: Option<Value>) {
     if !out.text.ends_with('\n') {
         out.text.push('\n');
     }

@@ -104,6 +104,19 @@ pub fn link(index: &mut Index, facts: &[&FileFacts]) {
     let mut file_edges: Vec<FileEdge> = agg.into_values().collect();
     file_edges.sort_by_key(|e| (e.from, e.to));
 
+    lap("aggregate");
+    finish_graph(index, sym_edges, file_edges);
+    lap("rank");
+    let (community, communities) = communities(index);
+    lap("communities");
+    index.community = community;
+    index.communities = communities;
+}
+
+/// Adjacency lists and ranks from resolved edges. Shared by `link` and
+/// `Index::from_shared`, so a shared map ranks exactly like a local index.
+pub(crate) fn finish_graph(index: &mut Index, sym_edges: Vec<SymEdge>, file_edges: Vec<FileEdge>) {
+    let n = index.files.len();
     let ns = index.symbols.len();
     let mut sym_out = vec![Vec::new(); ns];
     let mut sym_in = vec![Vec::new(); ns];
@@ -118,7 +131,6 @@ pub fn link(index: &mut Index, facts: &[&FileFacts]) {
         file_in[e.to as usize].push(k as u32);
     }
 
-    lap("aggregate");
     let file_rank = pagerank(n, &file_edges);
     let mut sym_rank = vec![0f32; ns];
     for e in &sym_edges {
@@ -139,11 +151,6 @@ pub fn link(index: &mut Index, facts: &[&FileFacts]) {
     index.file_in = file_in;
     index.file_rank = file_rank;
     index.sym_rank = sym_rank;
-    lap("rank");
-    let (community, communities) = communities(index);
-    lap("communities");
-    index.community = community;
-    index.communities = communities;
 }
 
 /// Method names too generic to resolve by global uniqueness alone.

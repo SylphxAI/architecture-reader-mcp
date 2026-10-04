@@ -5,6 +5,9 @@ repomap setup [--client a,b] [--claude-hooks] [--dry-run] [--remove]
                                                      configure MCP clients (+ Claude Code hook)
 repomap serve [dir] [--port 7878] [--host 127.0.0.1] [--no-open]
 repomap export [dir] [--out repomap.html] [--json]    self-contained HTML (or graph JSON)
+repomap export [dir] --shared map.json [--out map.html]
+                                                     the source-free map a team shares (no code)
+repomap login | logout                               sign in to read private shared maps (GitHub device flow)
 repomap map [focus-dir] [-C root] [--limit N] [--tokens N] [--json]
 repomap search <query…> [--path P] [--kind K] [--limit N] [--json]
 repomap context <target> [--code-lines N] [--json]
@@ -25,6 +28,8 @@ Any command accepts `--include-fixtures` (or `REPOMAP_INCLUDE_FIXTURES=1`) to in
 `map --tokens N` caps the map at about N tokens (estimated as 4 characters per token). It includes modules, central files and symbols in rank order and drops the lowest-ranked first (outline symbols, then key symbols, files and modules), ending with a line that says what was omitted. The MCP `map` tool takes the same `tokens` argument. Without it the map is not budgeted.
 
 `--workspace a,b` (or a `repomap.workspace.toml`) names several repository roots for the query commands. That is repomap [Team](../team); without a licence the answer covers the current repository only and says so.
+
+`-C/--root` also takes a shared map link, `https://review.repomap.sylphx.com/m/{owner}/{repo}`, for a repository your team shares (repomap [Team](../team)). Run `repomap login` first: it opens GitHub's device flow, then stores a session token in `<config dir>/repomap/session` (readable by you only). `REPOMAP_TOKEN` with a session token (`rms_...`) overrides the file, for CI. `repomap logout` ends the session. A map is cached under the cache directory and revalidated with its ETag at most once a minute. A link answers `context` with a GitHub permalink instead of code, `search` over names and paths only, and says that `impact --changed` and `db` are not available on a shared map. `401` says to run `repomap login`, `404` says there is no map you can read at that link (the same answer for a repository you cannot read), and `402` carries the `pro_required` notice. `export --shared` writes the same map locally: names, paths and the call graph, with no source text, declaration lines, comments or string literals.
 
 `-C/--root` sets the repository for the query commands (the default is the current directory). With no arguments, and stdin not a terminal, `repomap` runs the MCP server.
 

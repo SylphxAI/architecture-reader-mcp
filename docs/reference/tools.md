@@ -1,6 +1,6 @@
 # MCP tools
 
-Every tool is read-only and takes optional `root` (repository path) and `format` (`text`, the default, or `json`).
+Every tool is read-only and takes optional `root` (repository path, or a shared map link such as `https://review.repomap.sylphx.com/m/acme/api`, see [Team](../team)) and `format` (`text`, the default, or `json`).
 
 ## `map`
 

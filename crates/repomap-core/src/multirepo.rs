@@ -59,10 +59,23 @@ pub fn join_workspace_with(
     args: &Value,
     prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
 ) -> Result<Joined, NotJoined> {
+    join_workspace_shared(roots, HashMap::new(), tool, args, prebuilt)
+}
+
+/// [`join_workspace_with`] where some `roots` are shared-map links: `shared`
+/// maps each such link to its index. The link must carry the map's commit, so
+/// a newer map is a new graph.
+pub fn join_workspace_shared(
+    roots: &[PathBuf],
+    shared: HashMap<PathBuf, Arc<Index>>,
+    tool: &str,
+    args: &Value,
+    prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
+) -> Result<Joined, NotJoined> {
     if !matches!(tool, "map" | "search" | "context" | "trace" | "impact") {
         return Err(NotJoined);
     }
-    let graph = graph_for(roots, prebuilt).ok_or(NotJoined)?;
+    let graph = graph_for(roots, shared, prebuilt).ok_or(NotJoined)?;
     let g = graph.lock().map_err(|_| NotJoined)?;
     answer(&g, tool, args).ok_or(NotJoined)
 }
@@ -83,12 +96,13 @@ type Cache = Mutex<Vec<Cached>>;
 
 fn graph_for(
     roots: &[PathBuf],
+    shared: HashMap<PathBuf, Arc<Index>>,
     prebuilt: impl FnOnce() -> HashMap<PathBuf, Arc<Index>>,
 ) -> Option<Arc<Mutex<WorkspaceGraph>>> {
     static CACHE: OnceLock<Cache> = OnceLock::new();
     let mut key: Vec<PathBuf> = roots
         .iter()
-        .map(|r| r.canonicalize().unwrap_or_else(|_| r.clone()))
+        .map(|r| if shared.contains_key(r) { r.clone() } else { r.canonicalize().unwrap_or_else(|_| r.clone()) })
         .collect();
     // The first root is the current one; the rest are a set, so order does not matter.
     if key.len() > 1 {
@@ -125,6 +139,7 @@ fn graph_for(
     }
     let opts = JoinOptions {
         prebuilt: prebuilt(),
+        shared,
         ..Default::default()
     };
     let g = Arc::new(Mutex::new(join_roots(roots, &opts).ok()?));

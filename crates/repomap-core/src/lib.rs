@@ -17,6 +17,7 @@ pub mod qterms;
 pub mod query;
 pub mod score;
 pub mod semantic;
+pub mod shared;
 pub use mcp_kit::search as tokenize;
 pub mod tune;
 pub mod workspace_graph;
