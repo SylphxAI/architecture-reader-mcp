@@ -13,20 +13,16 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Marker for the key list below. No token verifies while it is the only entry.
-pub const KEY_PLACEHOLDER: &str = "PLACEHOLDER-repomap-team-issuer-public-key-not-issued-yet";
+/// The repomap-team issuer public key (Ed25519, raw 32 bytes, base64url).
+pub const TEAM_PUBLIC_KEY: &str = "qWPOHQlzbHrBWtfGpkKM4ywmTTk3YtDizYFIzGQOavI";
 
 /// The repomap Team licence policy.
-///
-/// TODO(Services S1): replace `KEY_PLACEHOLDER` with the issued repomap-team
-/// Ed25519 public key (base64url). Until then this list contains no valid key,
-/// so every token is invalid and nothing Team unlocks.
 pub const POLICY: LicencePolicy<'static> = LicencePolicy {
     product: "repomap",
     tier: "Team",
     require_product: true,
     accepted_plans: &["team"],
-    public_keys: &[KEY_PLACEHOLDER],
+    public_keys: &[TEAM_PUBLIC_KEY],
     env_var: "REPOMAP_LICENCE_TOKEN",
     file_name: "licence",
     upgrade_url: "https://sylphxai.github.io/repomap/team",
@@ -179,8 +175,11 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     #[test]
-    fn placeholder_key_verifies_nothing() {
-        assert_eq!(POLICY.public_keys, &[KEY_PLACEHOLDER]);
+    fn issuer_key_is_a_real_ed25519_key_and_junk_tokens_fail() {
+        assert_eq!(POLICY.public_keys, &[TEAM_PUBLIC_KEY]);
+        let raw = URL_SAFE_NO_PAD.decode(TEAM_PUBLIC_KEY).unwrap();
+        let raw: [u8; 32] = raw.try_into().unwrap();
+        assert!(ed25519_dalek::VerifyingKey::from_bytes(&raw).is_ok());
         for t in ["", "x.y", "e30.AAAA"] {
             assert!(POLICY.verify(t).is_err());
         }
