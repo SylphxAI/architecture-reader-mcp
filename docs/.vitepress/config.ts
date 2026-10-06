@@ -48,7 +48,6 @@ export default defineConfig({
       { text: 'Graph UI', link: '/guide/ui' },
       { text: 'Live demo', link: '/demo' },
       { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Team', link: '/team' },
       { text: 'npm', link: 'https://www.npmjs.com/package/@sylphx/repomap' },
     ],
     sidebar: [
@@ -72,7 +71,6 @@ export default defineConfig({
         { text: 'Comparison', link: '/compare' },
         { text: 'Vision', link: '/vision' },
         { text: 'Capabilities', link: '/capabilities' },
-        { text: 'Team', link: '/team' },
       ] },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/SylphxAI/repomap' }],
