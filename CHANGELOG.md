@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The multi-repository workspace is free.** repomap Team is withdrawn before any licence was issued: a request that names several repository roots (`--workspace`, a `workspace` argument or a `repomap.workspace.toml`) now always gets the joined answer, with no licence and no `pro_required`. `repomap licence` only says no licence is needed. The Team page is removed.
+
 ## 1.8.0 - 2026-10-03
 
 - **Team: every tool joins across repositories.** With a Team licence, `map` and `context` now cross the roots of a workspace like `search`, `trace` and `impact` already did, instead of quietly answering for the current repository. `map` gives one map per repository and lists which repository imports which package from which (a token budget is split across the repositories). `context` finds the target in every repository that has it and lists the files in other repositories that import it; `repo:path` asks one repository only. `db` answers once per repository and never merges schemas, because separate repositories are usually separate databases; with `url` or `url_env` it shows the one live database to each repository, so you can see which repository queries each table. Without a licence nothing changes: the current repository answers with `pro_required`.

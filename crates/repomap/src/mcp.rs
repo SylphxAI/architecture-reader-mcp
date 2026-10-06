@@ -2,7 +2,6 @@
 
 use crate::tools;
 use crate::workspace::Workspace;
-use mcp_kit::rmcp::model::{CallToolResult, ContentBlock};
 use mcp_kit::roots::{self, Sources};
 use mcp_kit::server::{run_stdio, App, Call, Info};
 use serde_json::Value;
@@ -25,19 +24,13 @@ impl Repomap {
         name: &str,
         args: &Value,
         call: &Call,
-    ) -> Result<(String, Option<Value>), String> {
+    ) -> Result<String, String> {
         let out = tools::call(&self.ws, name, args, &self.root(args, call)?)?;
-        let structured = out
-            .json
-            .get("pro_required")
-            .is_some()
-            .then(|| out.json.clone());
-        let text = if args.get("format").and_then(|v| v.as_str()) == Some("json") {
+        Ok(if args.get("format").and_then(|v| v.as_str()) == Some("json") {
             serde_json::to_string_pretty(&out.json).unwrap_or_default()
         } else {
             out.text
-        };
-        Ok((text, structured))
+        })
     }
 
     fn root(&self, args: &Value, call: &Call) -> Result<PathBuf, String> {
@@ -70,21 +63,7 @@ impl App for Repomap {
     }
 
     fn call(&self, name: &str, args: &Value, call: &Call) -> Result<String, String> {
-        self.answer(name, args, call).map(|(text, _)| text)
-    }
-
-    /// Free calls answer as plain text. A multi-root call without a Team
-    /// licence answers for the current root and carries the whole answer plus
-    /// `pro_required` in the structured content, never as an error.
-    fn call_result(&self, name: &str, args: &Value, call: &Call) -> CallToolResult {
-        match self.answer(name, args, call) {
-            Ok((text, structured)) => {
-                let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-                result.structured_content = structured;
-                result
-            }
-            Err(text) => CallToolResult::error(vec![ContentBlock::text(text)]),
-        }
+        self.answer(name, args, call)
     }
 
     /// Index the project as soon as the client connects, so the first call is fast.
@@ -110,7 +89,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn unlicensed_multi_root_structured_content_carries_the_answer() {
+    fn multi_root_call_needs_no_licence() {
         let d = tempfile::tempdir().unwrap();
         for n in ["a", "b"] {
             let p = d.path().join(n);
@@ -133,8 +112,9 @@ mod tests {
         });
         let r = app.call_result("search", &args, &Call::default());
         assert_ne!(r.is_error, Some(true));
-        let sc = r.structured_content.expect("structured content");
-        assert!(sc.get("hits").is_some(), "{sc}");
-        assert!(sc.get("pro_required").is_some(), "{sc}");
+        assert!(r.structured_content.is_none());
+        let text = serde_json::to_string(&r.content).unwrap();
+        assert!(!text.contains("pro_required") && !text.contains("licence"), "{text}");
+        assert!(text.contains("hello"), "{text}");
     }
 }

@@ -346,9 +346,9 @@ Measured on a 4 vCPU GitHub-hosted runner ([method and full table](https://sylph
 
 Pick Serena if you want LSP-precise refactoring edits. repomap is for understanding and navigating a codebase with zero setup, including semantic search without a vector database or an API key, and a licence you can use at work. Search quality is measured on public benchmarks in [Benchmarks](https://sylphxai.github.io/repomap/benchmarks).
 
-## Free and Team
+## Free
 
-Everything repomap does for free stays free, under MIT, including `impact` in your own CI. repomap Team sells only new value for teams: the hosted PR review, the multi-repository graph, private shared maps, and support. Public repositories get the PR review free. A capability never moves from free to Team. [Team page and price](https://sylphxai.github.io/repomap/team).
+Everything repomap does is free under MIT, including the multi-repository workspace (`--workspace`) and `impact` in your own CI. There is no licence key and no paid tier.
 
 ## CLI
 
@@ -365,10 +365,7 @@ repomap db [table] [--url-env VAR | --url URL] [--serve | --out db.html] [--json
 repomap score [dir] [--json] [--min N] [--update-readme README.md [--insert]]
 repomap index [dir] [--no-cache] [--json]
 repomap mcp [--root dir]
-repomap licence status | activate <token> | buy
 ```
-
-`repomap licence buy` opens the Team page; in-terminal purchase turns on when checkout is live.
 
 Binaries for macOS (arm64, x64), Linux glibc (x64, arm64) and Windows x64 ship as npm optional dependencies. They're also attached to each [GitHub release](https://github.com/SylphxAI/repomap/releases). From source: `cargo install --git https://github.com/SylphxAI/repomap sylphx-repomap`.
 
