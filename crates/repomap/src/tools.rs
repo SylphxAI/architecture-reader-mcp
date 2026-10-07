@@ -174,15 +174,14 @@ pub struct Output {
 }
 
 /// Run a tool. `root` must already be resolved. A request that names more than
-/// one workspace root goes through the Team gate; every other request is free.
+/// one workspace root is answered over the joined workspace.
 pub fn call(ws: &Workspace, name: &str, args: &Value, root: &std::path::Path) -> Result<Output, String> {
-    let roots = crate::team::named_roots(args, root);
+    let roots = crate::roots::named_roots(args, root);
     if roots.len() < 2 {
         return call_root(ws, name, args, root);
     }
     let tool = canonical(name).unwrap_or(name);
-    crate::team::gate(
-        &crate::team::POLICY,
+    crate::roots::join(
         &roots,
         tool,
         args,

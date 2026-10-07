@@ -1,7 +1,6 @@
-//! Team: one graph across several repository roots (T2).
+//! One graph across several repository roots.
 //!
-//! This is the hook the binary calls once a request names more than one root
-//! and a Team licence is present. The join itself (package identity across
+//! This is the hook the binary calls once a request names more than one root. The join itself (package identity across
 //! npm, Cargo, Go and Python manifests) lives in [`crate::workspace_graph`];
 //! a tool this hook cannot answer returns [`NotJoined`] and the binary falls
 //! back to the current root.

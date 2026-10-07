@@ -29,18 +29,15 @@ That is the one job.
 - Build-free: answers come from parsing, never from running or building the
   project. Compiler-grade enrichment (SCIP, language servers) may be added
   where a build already exists, and the default stays build-free.
-- Hosted only where a team needs it: repomap Team's PR review and shared maps
-  run on Sylphx. The review reads a pull request's code to analyse it and keeps
-  none of it. Shared maps hold paths and symbol names, never source. Everything
-  else runs on the user's machine.
+- Local by default: everything runs on the user's machine. A hosted part, if
+  one is ever added, runs on Sylphx and is paid as metered use of that service,
+  never as a licence key on the local tool.
 
-## Free and Team
+## Free
 
-Everything repomap does for free stays free, under MIT, including `impact` in
-your own CI. repomap Team sells only new value for teams: the hosted PR review,
-the multi-repository graph, private shared maps, and support. Public
-repositories get the PR review free. A capability never moves from free to
-Team. [The Team page](team.md) has the price and what each part does.
+Everything repomap does is free under MIT, including the multi-repository
+workspace and `impact` in your own CI. There is no licence key and no paid
+tier; a capability never moves from free to paid.
 
 ## What good looks like
 
