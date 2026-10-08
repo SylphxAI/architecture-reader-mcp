@@ -264,6 +264,17 @@ jobs:
           fetch-depth: 0
       - uses: SylphxAI/.github/.github/actions/plain-language@f9176dad2e49c6b99d75f1506fafac84632fe870
 
+  chat-senders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: SylphxAI/.github/.github/actions/chat-senders@5cfd55a41435cca8e4b7caf6506faf04ca08d200
+        with:
+          mode: fail
+
   identifiers:
     if: github.event_name != 'merge_group'
     name: Identifiers
@@ -297,7 +308,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [changes, build, checks, action, live-db, docker, plain-language, identifiers, other-os]
+    needs: [changes, build, checks, action, live-db, docker, plain-language, chat-senders, identifiers, other-os]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
